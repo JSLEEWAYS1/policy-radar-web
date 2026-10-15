@@ -1,0 +1,76 @@
+/* 회원 화면(가입·로그인·승인 대기)과 관리자 화면. 색은 radar.css의 토큰을 그대로 쓴다. */
+body{margin:0}
+[hidden]{display:none!important}
+.mark{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--surface);font-family:var(--f-mono);font-size:.78rem;font-weight:600;letter-spacing:.02em;flex:none}
+
+/* gate */
+.gate{min-height:100vh;min-height:100dvh;display:grid;place-content:center;gap:14px;padding:32px 16px;
+  background:
+   repeating-radial-gradient(ellipse 60% 48% at 88% 18%, transparent 0 26px, var(--contour) 26px 27px),
+   repeating-radial-gradient(ellipse 40% 60% at 10% 110%, transparent 0 22px, var(--contour) 22px 23px),
+   var(--paper)}
+.gcard{width:min(100%,460px);display:grid;gap:16px;padding:26px 24px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 10px 30px -18px rgba(0,0,0,.35)}
+.gbrand{display:flex;gap:12px;align-items:center}
+.gbrand .mark{width:40px;height:40px;font-size:.9rem;background:var(--mark);color:#fff}
+.gbrand b{display:block;font-family:var(--f-display);font-size:1.18rem;font-weight:700;line-height:1.25}
+.gbrand div span{display:block;font-size:.8rem;color:var(--ink3)}
+.gcard h2{font-size:1.2rem}
+.gcard section{display:grid;gap:12px}
+.gtabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line2);border-radius:9px;overflow:hidden}
+.gtabs button{appearance:none;border:0;background:var(--surface);padding:9px;font-weight:500;color:var(--ink2);cursor:pointer}
+.gtabs button+button{border-left:1px solid var(--line2)}
+.gtabs button[aria-selected="true"]{background:var(--ink);color:var(--surface);font-weight:600}
+.gform{display:grid;gap:11px}
+.gform label{display:grid;gap:4px;font-size:.82rem;color:var(--ink2);font-weight:500}
+.gform input:not([type=checkbox]),.gform textarea{font:inherit;font-size:.95rem;color:var(--ink);background:var(--surface);border:1px solid var(--line2);border-radius:8px;padding:9px 11px;width:100%;min-width:0}
+.gform textarea{resize:vertical}
+.gform input:focus,.gform textarea:focus{outline:2px solid color-mix(in srgb,var(--mark) 60%,transparent);outline-offset:0;border-color:var(--mark)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+@media (max-width:480px){.g2{grid-template-columns:minmax(0,1fr)}}
+.gchk{grid-template-columns:auto minmax(0,1fr)!important;align-items:start;gap:8px!important;font-weight:400!important;line-height:1.5}
+.gchk input{margin-top:3px}
+.gbtn{appearance:none;border:0;border-radius:9px;padding:11px 14px;font-weight:600;font-size:.95rem;background:var(--mark);color:#fff;cursor:pointer}
+.gbtn:hover{filter:brightness(1.06)}
+.gbtn:disabled{opacity:.6;cursor:progress}
+.gbtn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line2)}
+.glink{appearance:none;border:0;background:none;padding:2px 0;color:var(--ink2);font-size:.84rem;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px;justify-self:start}
+.gmsg{margin:0;font-size:.86rem;min-height:1.2em}
+.gmsg.err{color:var(--mark-ink)}
+.gmsg.ok{color:var(--ok)}
+.gdl{display:grid;grid-template-columns:72px minmax(0,1fr);gap:4px 10px;margin:0;font-size:.86rem}
+.gdl dt{color:var(--ink3)}
+.gdl dd{margin:0;color:var(--ink2);overflow-wrap:anywhere}
+.gfoot{margin:0;text-align:center;font-size:.76rem;color:var(--ink3)}
+
+/* app bar */
+.appbar{background:var(--ink);color:var(--surface)}
+.appbar .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding-block:8px}
+.appbar .brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:inherit;font-size:.92rem}
+.appbar .brand .mark{background:var(--mark);color:#fff;width:28px;height:28px}
+.appbar .brand b{font-weight:700}
+.appbar .sp{flex:1}
+.appbar .who{font-size:.82rem;opacity:.8;overflow-wrap:anywhere}
+.abtn{appearance:none;border:1px solid color-mix(in srgb,currentColor 35%,transparent);background:transparent;color:inherit;border-radius:7px;padding:5px 11px;font-size:.84rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.abtn:hover{border-color:currentColor}
+.adminv .abtn{color:var(--ink)}
+.badge{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--mark);color:#fff;font-size:.72rem;font-weight:700;font-family:var(--f-mono)}
+
+/* admin */
+.adminv .wrap{display:grid;gap:18px;padding-block:26px 64px}
+.ahead{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:end}
+.astats{display:flex;flex-wrap:wrap;gap:10px}
+.ulist{display:grid;gap:8px}
+.urow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.urow .nm{font-weight:600}
+.urow .sub{font-size:.8rem;color:var(--ink3);overflow-wrap:anywhere}
+.urow .pur{font-size:.84rem;color:var(--ink2);overflow-wrap:anywhere}
+.urow .acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.urow .acts button{appearance:none;border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:7px;padding:5px 10px;font-size:.8rem;cursor:pointer}
+.urow .acts button.pri{background:var(--mark);border-color:var(--mark);color:#fff}
+.urow .acts button:hover{border-color:var(--ink)}
+.urow .acts button:disabled{opacity:.5;cursor:progress}
+.st-pending{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
+.st-approved{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.st-rejected{color:var(--ink3)}
+@media (max-width:820px){.urow{grid-template-columns:minmax(0,1fr)}.urow .acts{justify-content:flex-start}}
+.empty{padding:18px;border:1px dashed var(--line2);border-radius:var(--r);color:var(--ink3);text-align:center}

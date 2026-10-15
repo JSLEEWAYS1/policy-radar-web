@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://esm.sh; base-uri 'self'; form-action 'self'">
+<title>웨이즈원 정책 레이더</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="radar.css?v=01d4eb31">
+<link rel="stylesheet" href="app.css?v=01d4eb31">
+</head>
+<body>
+
+<div id="gate" class="gate">
+  <div class="gcard">
+    <div class="gbrand"><span class="mark" aria-hidden="true">W1</span><div><b>웨이즈원 정책 레이더</b><span>공간정보사업담당 · 승인 회원 전용</span></div></div>
+
+    <section data-g="loading"><p class="muted">접속 정보를 확인하고 있습니다…</p></section>
+
+    <section data-g="config" hidden>
+      <h2>서버 연결 설정이 필요합니다</h2>
+      <p class="muted">config.js에 회원 서버 주소와 공개 키를 넣으면 이 화면이 로그인 화면으로 바뀝니다. 설정 안내서의 2단계를 참고하세요.</p>
+    </section>
+
+    <section data-g="auth" hidden>
+      <div class="gtabs" role="tablist">
+        <button type="button" role="tab" data-t="login" aria-selected="true">로그인</button>
+        <button type="button" role="tab" data-t="signup" aria-selected="false">가입 신청</button>
+      </div>
+      <form id="f-login" class="gform" data-f="login" novalidate>
+        <label>이메일<input name="email" type="email" autocomplete="username" required></label>
+        <label>비밀번호<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="gbtn" type="submit">로그인</button>
+        <button class="glink" type="button" data-t="forgot">비밀번호를 잊으셨나요?</button>
+      </form>
+      <form id="f-signup" class="gform" data-f="signup" hidden novalidate>
+        <p class="small muted">가입 신청 후 관리자가 승인하면 이용할 수 있습니다.</p>
+        <div class="g2">
+          <label>이름<input name="name" autocomplete="name" required maxlength="40"></label>
+          <label>소속(회사·기관)<input name="org" autocomplete="organization" required maxlength="60"></label>
+        </div>
+        <label>부서·직함<input name="dept" maxlength="60"></label>
+        <label>이메일<input name="email" type="email" autocomplete="username" required></label>
+        <div class="g2">
+          <label>비밀번호(8자 이상)<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+          <label>비밀번호 확인<input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
+        </div>
+        <label>이용 목적<textarea name="purpose" rows="2" maxlength="300" placeholder="예: 스마트시티 사업 제안 검토"></textarea></label>
+        <label class="gchk"><input name="agree" type="checkbox" required> 이 사이트의 내용은 웨이즈원 내부 검토 자료이며, 외부에 옮기거나 공유하지 않겠습니다.</label>
+        <button class="gbtn" type="submit">가입 신청</button>
+      </form>
+      <form id="f-forgot" class="gform" data-f="forgot" hidden novalidate>
+        <p class="small muted">가입한 이메일로 비밀번호 재설정 링크를 보냅니다. 메일이 오지 않으면 관리자에게 알려 주세요.</p>
+        <label>이메일<input name="email" type="email" autocomplete="username" required></label>
+        <button class="gbtn" type="submit">재설정 메일 받기</button>
+        <button class="glink" type="button" data-t="login">로그인으로 돌아가기</button>
+      </form>
+    </section>
+
+    <section data-g="pending" hidden>
+      <h2>승인을 기다리고 있습니다</h2>
+      <p class="muted"><b id="pend-name"></b>님의 가입 신청이 접수됐습니다. 관리자가 승인하면 같은 주소로 다시 접속해 바로 이용할 수 있습니다.</p>
+      <dl class="gdl" id="pend-info"></dl>
+      <button class="gbtn ghost" type="button" data-out>로그아웃</button>
+    </section>
+
+    <section data-g="rejected" hidden>
+      <h2>이용이 승인되지 않았습니다</h2>
+      <p class="muted">이 계정은 현재 레이더를 볼 수 없습니다. 필요하면 관리자에게 문의하세요.</p>
+      <button class="gbtn ghost" type="button" data-out>로그아웃</button>
+    </section>
+
+    <section data-g="recovery" hidden>
+      <h2>새 비밀번호 설정</h2>
+      <form id="f-newpw" class="gform" novalidate>
+        <label>새 비밀번호(8자 이상)<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>새 비밀번호 확인<input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button class="gbtn" type="submit">비밀번호 바꾸기</button>
+      </form>
+    </section>
+
+    <section data-g="error" hidden>
+      <h2>잠시 문제가 생겼습니다</h2>
+      <p class="muted" id="gerr"></p>
+      <button class="gbtn ghost" type="button" data-reload>다시 시도</button>
+      <button class="glink" type="button" data-out>로그아웃</button>
+    </section>
+
+    <p class="gmsg" id="gmsg" role="status" aria-live="polite"></p>
+  </div>
+  <p class="gfoot">© 웨이즈원(Ways1) · 승인된 회원만 이용할 수 있는 내부 검토 사이트입니다</p>
+</div>
+
+<div id="app" hidden>
+  <div class="appbar"><div class="wrap">
+    <a class="brand" href="#overview"><span class="mark" aria-hidden="true">W1</span><span>웨이즈원 <b>정책 레이더</b></span></a>
+    <span class="sp"></span>
+    <button type="button" class="abtn" id="b-admin" hidden>회원 관리<span class="badge" id="pcount" hidden></span></button>
+    <span class="who" id="who"></span>
+    <button type="button" class="abtn" data-out>로그아웃</button>
+  </div></div>
+
+  <section id="admin" class="adminv" hidden><div class="wrap">
+    <div class="ahead">
+      <div class="sec-head"><span class="eyebrow">Members</span><h2>회원 관리</h2>
+        <p class="muted">가입 신청을 승인하면 그 회원이 바로 레이더를 볼 수 있습니다. 승인 취소나 거절은 즉시 접근을 막습니다.</p></div>
+      <button type="button" class="abtn" id="b-back">레이더로 돌아가기</button>
+    </div>
+    <div class="astats" id="astats"></div>
+    <div class="frow"><div class="seg" id="aseg"></div></div>
+    <div class="ulist" id="ulist"></div>
+  </div></section>
+
+  <div id="radar">
+<header class="site">
+  <div class="wrap">
+    <div class="meta"><span class="eyebrow">국가 정책 × 공간정보</span><span class="eyebrow" id="asof"></span></div>
+    <h1>웨이즈원 <em>정책 레이더</em></h1>
+    <p class="lead">모빌리티·자율주행·ITS·C-ITS·스마트시티·AI시티 등 공간정보와 결합되는 정부 정책을 모아, 최상위 계획과의 연계 구조와 웨이즈원 제품의 진입 기회를 한 화면에서 봅니다.</p>
+    <div class="kpis" id="kpis"></div>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="화면 이동">
+  <div class="wrap" role="tablist">
+    <button class="tab" role="tab" data-tab="overview" id="t-overview">한눈에 보기</button>
+    <button class="tab" role="tab" data-tab="links" id="t-links">정책 연계도</button>
+    <button class="tab" role="tab" data-tab="catalog" id="t-catalog">정책 카탈로그</button>
+    <button class="tab" role="tab" data-tab="timeline" id="t-timeline">타임라인</button>
+    <button class="tab" role="tab" data-tab="ways1" id="t-ways1">웨이즈원 기회</button>
+    <button class="tab" role="tab" data-tab="sources" id="t-sources">출처·방법</button>
+  </div>
+</nav>
+
+<main><div class="wrap">
+
+<section class="view" id="v-overview" data-view="overview">
+  <div class="panel prepanel" id="prepanel"></div>
+  <div class="sec-head"><span class="eyebrow">Insight</span><h2>정책 흐름에서 읽히는 것</h2>
+    <p class="muted">상위계획 → 부문계획 → 사업으로 내려오는 연계를 따라가며 정리한 판단입니다. 각 카드의 정책명을 누르면 해당 정책으로 이동합니다.</p></div>
+  <div class="insights" id="insights"></div>
+  <div class="grid2">
+    <div class="panel" style="display:grid;gap:12px">
+      <div class="sec-head"><span class="eyebrow">Coverage</span><h3>분야 × 정책 단계</h3>
+        <p class="small muted">숫자를 누르면 해당 조건으로 카탈로그가 열립니다.</p></div>
+      <div class="tablebox"><table class="heat" id="heat"></table></div>
+    </div>
+    <div class="panel" style="display:grid;gap:8px">
+      <div class="sec-head"><span class="eyebrow">Latest</span><h3>최근 발표·변화</h3></div>
+      <ul class="news" id="news"></ul>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="v-links" data-view="links" hidden>
+  <div class="sec-head"><span class="eyebrow">Linkage</span><h2>최상위 계획에서 사업까지</h2>
+    <p class="muted">정책을 누르면 그 정책의 상위 근거와 하위 실행계획만 남습니다. 실선은 문서에 상위계획이 명시된 연계, 점선은 내용상 연계(추정)입니다. 오른쪽 주황 테두리는 웨이즈원이 바로 공략할 수 있는 정책입니다.</p></div>
+  <div class="frow"><div class="chips" id="lchips"></div></div>
+  <div class="legend"><span><i></i>상위계획 명시</span><span><i class="es"></i>내용상 연계(추정)</span><span><span class="dot" style="--c:var(--mark);display:inline-block;margin-right:5px"></span>웨이즈원 즉시 공략</span></div>
+  <div class="lmap-wrap">
+    <div class="lmap" id="lmap"><svg class="edges" id="edges" aria-hidden="true"></svg>
+      <div class="lcol" id="col1"><h4>① 최상위·범정부</h4></div>
+      <div class="lcol" id="col2"><h4>② 부문 기본계획·법·핵심 전략</h4></div>
+      <div class="lcol" id="col3"><h4>③ 분야 전략·로드맵·사업</h4></div>
+    </div>
+    <aside class="panel detail" id="ldetail"><p class="empty">왼쪽에서 정책을 선택하면 상위 근거, 하위 실행계획, 공간정보 결합 지점, 웨이즈원 연계가 여기에 표시됩니다.</p></aside>
+  </div>
+</section>
+
+<section class="view" id="v-catalog" data-view="catalog" hidden>
+  <div class="sec-head"><span class="eyebrow">Catalog</span><h2>정책 카탈로그</h2>
+    <p class="muted">항목을 펼치면 정부 문서식(□ ○) 요약, 공간정보 결합 지점, 상위계획 연계, 출처를 볼 수 있습니다.</p></div>
+  <div class="filters panel">
+    <div class="frow"><input class="search" id="q" type="search" placeholder="정책명·과제·키워드 검색 (예: 정밀도로지도, 시범운행지구, 디지털트윈)" aria-label="검색"></div>
+    <div class="frow"><div class="chips" id="cchips"></div></div>
+    <div class="frow">
+      <label for="flevel">단계</label><select id="flevel"></select>
+      <label for="fmin">부처</label><select id="fmin"></select>
+      <label for="ffit">웨이즈원 연계</label><select id="ffit"><option value="">전체</option><option value="core">즉시 공략</option><option value="adj">보완 후 진입</option><option value="new">신규 역량 필요</option></select>
+      <label for="fsort">정렬</label><select id="fsort"><option value="date">최신 발표순</option><option value="tier">계층순</option><option value="name">이름순</option></select>
+      <button class="btn" id="freset" type="button">조건 초기화</button>
+    </div>
+  </div>
+  <div class="count" id="ccount"></div>
+  <div class="plist" id="plist"></div>
+</section>
+
+<section class="view" id="v-timeline" data-view="timeline" hidden>
+  <div class="sec-head"><span class="eyebrow">Timeline</span><h2>계획기간과 주요 이정표</h2>
+    <p class="muted">막대는 계획기간, 주황 세로선은 오늘(2026년 10월)입니다. 2035년을 넘는 계획은 끝에 화살표로 표시했습니다. 정책명을 누르면 카탈로그로 이동합니다.</p></div>
+  <div class="panel" style="display:grid;gap:10px"><h3>주요 이정표</h3><div class="mslist" id="mslist"></div></div>
+  <div class="panel tablebox"><div class="tl" id="tl"></div></div>
+</section>
+
+<section class="view" id="v-ways1" data-view="ways1" hidden>
+  <div class="sec-head"><span class="eyebrow">Ways1 Fit</span><h2>웨이즈원 제품과 정책의 접점</h2>
+    <p class="muted" id="w1intro"></p></div>
+  <div class="chain" id="prods"></div>
+  <div class="panel" style="display:grid;gap:10px">
+    <h3>제품·역량 × 정책 분야 적합도</h3>
+    <p class="small muted"><span class="fd f3"></span> 지금 제품으로 바로 대응 &nbsp; <span class="fd f2"></span> 기능 보완이나 파트너와 함께 진입 &nbsp; <span class="fd f1"></span> 신규 역량 확보가 필요</p>
+    <div class="tablebox"><table class="matrix" id="matrix"></table></div>
+  </div>
+  <div class="sec-head"><h3>진입 기회</h3><p class="small muted">나라장터 단계 순서대로 둡니다: 발주계획이 등록된 사업(발주계획 대응) → 사전규격이 나온 사업(사전규격 대응) → 지금 응찰할 수 있는 입찰공고가 있는 사업(즉시 공략).</p></div>
+  <div class="frow"><div class="seg" id="oppseg"></div></div>
+  <div class="opps" id="opps"></div>
+  <div class="sec-head"><h3>진입 로드맵</h3><p class="small muted">위 진입 기회 가운데 진행 중인 사업만 단계별로 모읍니다. 공고 마감·미공고로 폐기한 사업은 넣지 않으며, 마감이 지나면 자동으로 빠집니다.</p></div>
+  <div class="road" id="road"></div>
+</section>
+
+<section class="view" id="v-sources" data-view="sources" hidden>
+  <div class="sec-head"><span class="eyebrow">Method</span><h2>조사 방법과 출처</h2></div>
+  <div class="panel" style="display:grid;gap:8px"><h3>자동 갱신 기록</h3><p class="small muted" id="usched"></p><ul class="ulog" id="ulog"></ul></div>
+  <div class="panel note" id="method"></div>
+  <div class="panel tablebox"><table class="stable" id="stable"></table></div>
+</section>
+
+</div></main>
+<footer><div class="wrap" id="foot"></div></footer>
+  </div>
+</div>
+
+<script src="config.js?v=01d4eb31"></script>
+<script src="radar.js?v=01d4eb31"></script>
+<script type="module" src="app.js?v=01d4eb31"></script>
+</body>
+</html>
