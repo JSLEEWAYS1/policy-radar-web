@@ -654,3 +654,8 @@ details.mkt>summary{cursor:pointer;font-size:.84rem;color:var(--ink2);font-weigh
 details.mkt ul{margin-top:6px}
 .bmcm{margin-top:6px}
 @media (max-width:620px){.bgrid{grid-template-columns:1fr}.bp dl{grid-template-columns:1fr}.bmch .dbtn{margin-left:0}}
+
+/* 인사이트 분류: 정책 분야(카탈로그와 같은 색 점) · 나라장터 시장 */
+.ins .k{display:inline-flex;align-items:center;gap:7px}
+.ins.mk .k{color:var(--ink2)}
+.ins.mk{background:color-mix(in srgb,var(--sunk) 45%,var(--surface))}

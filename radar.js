@@ -302,7 +302,8 @@ function renderInsights(){
   const OPP = Object.fromEntries([...(D.opportunities||[]), ...(D.customBiz||[])].map(o=>[o.id,o]));
   const ecls = ENTRY_CLS;
   // 나라장터 단계가 살아 있는데 어느 카드에도 없는 사업은 근거 정책·제품이 가장 많이 겹치는 카드에 붙인다
-  const INS = (D.insights||[]).map(i => ({...i, biz: [...(i.biz||[])]}));
+  const ALL = (D.insights||[]).map(i => ({...i, biz: [...(i.biz||[])]}));
+  const INS = ALL.filter(i => i.sec !== 'market'), MKI = ALL.filter(i => i.sec === 'market');
   const covered = new Set(INS.flatMap(i => i.biz));
   (D.opportunities||[]).filter(o => !covered.has(o.id) && !isDiscarded(o) && items(o).some(itemLive)).forEach(o => {
     let best = 0, score = -1;
@@ -314,10 +315,11 @@ function renderInsights(){
   const bizWhen = o => { const n = items(o).length ? [livePlans(o).length && `발주계획 ${livePlans(o).length}`, livePres(o).length && `사전규격 ${livePres(o).length}`, liveBids(o).length && `입찰공고 ${liveBids(o).length}`].filter(Boolean).join(' · ') : '';
     const h = horizonTxt(o) || (isUpcoming(o) ? '공고 예정' : '');
     return [h, n].filter(Boolean).join(' — '); };
-  $('#insights').innerHTML = INS.map(i=>{
+  const card = i=>{
     const B = (i.biz||[]).map(id=>OPP[id]).filter(o=>o && !isDiscarded(o));
-    return `<article class="ins">
-    <span class="k">${esc(i.tag)}</span><h3>${esc(i.title)}</h3><p>${hl(i.body)}</p>
+    const g = GC[i.group];
+    return `<article class="ins${i.sec==='market'?' mk':''}">
+    <span class="k">${g?`<span class="dot" style="--c:${g.c}"></span>`:''}${esc(i.tag)}</span><h3>${esc(i.title)}</h3><p>${hl(i.body)}</p>
     <div class="w1box"><span class="w1h">웨이즈원 시사점</span><p>${hl(i.w1)}</p>
       ${i.products?.length?`<div class="pchips">${i.products.map(x=>`<span class="pc">${esc(x)}</span>`).join('')}</div>`:''}</div>
     ${B.length?`<div class="bizsum"><span class="kl">추진할 사업 ${B.length}건</span><ul>${B.map(o=>`<li>${entryTag(o)}
@@ -332,8 +334,11 @@ function renderInsights(){
         <div class="kv"><span class="kl">협력 기술</span><div class="pchips">${(o.partners?.tech||[]).map(x=>`<span class="tc">${esc(x)}</span>`).join('')}</div></div>
         ${(o.partners?.orgs||[]).length?`<div class="kv"><span class="kl">협력 기업</span>${orgList(o.partners.orgs)}</div>`:''}
         ${bizNotice(o)}</div>`).join('')}</div></details>`:''}
-    <div class="refs"><span class="conf">근거 정책</span>${(i.refs||[]).map(pref).join('')}</div>
-    </article>`; }).join('');
+    ${i.basis?`<div class="refs"><span class="conf">근거</span><span>${esc(i.basis)}</span></div>`:`<div class="refs"><span class="conf">근거 정책</span>${(i.refs||[]).map(pref).join('')}</div>`}
+    </article>`; };
+  $('#insights').innerHTML = INS.map(card).join('');
+  $('#mkins').innerHTML = MKI.map(card).join('');
+  $('#mkins').previousElementSibling.hidden = !MKI.length; $('#mkins').hidden = !MKI.length;
 }
 /* 한눈에 보기 맨 위: 마감이 가까운 일 */
 function renderBoard(){
