@@ -77,8 +77,11 @@ function effEntry(o){
 }
 const isDiscarded = o => effEntry(o) === '폐기';
 const isUpcoming = o => !!o.notice && !items(o).length && o.notice.state === 'upcoming';
+const awdDate = a => { const d = String(a.date||''); return /^\d{8}$/.test(d) ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : d.slice(0,10); };
 function discardReason(o){
   const op = items(o).filter(itemOpen);
+  const aw = (op.length ? op : items(o)).find(x => x.awarded);
+  if(aw) return '이미 선정·계약된 사업 — ' + (aw.awarded.winner||'') + (awdDate(aw.awarded) ? ' (' + awdDate(aw.awarded) + ')' : '');
   if(op.length && op.every(isOut)) return '참가자격 미달로 제외 — ' + (op[0].elig.gaps||[]).slice(0,2).join(', ');
   if(o.entry === '폐기' && o.discardReason) return o.discardReason;
   const b = items(o).filter(x => isBid(x) && x.deadline).map(x => dlk(x.deadline)).sort().pop();
@@ -194,7 +197,9 @@ function qualBox(){
   const Q = D.company?.quals; const out = [];
   (D.opportunities||[]).forEach(o => items(o).filter(x => isOut(x) && itemOpen(x)).forEach(x => out.push({o, x})));
   const ul = a => `<ul>${(a||[]).map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`;
-  return (out.length ? `<details class="qbox"><summary>참가자격이 많이 부족해 뺀 공고 ${out.length}건</summary><ul class="olist">${out.map(({o,x})=>`<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a><span class="nmeta">${esc(x.org||'')} · ${(x.elig.gaps||[]).map(esc).join(' · ')}</span></li>`).join('')}</ul></details>` : '')
+  const AW = []; (D.opportunities||[]).forEach(o => items(o).filter(x => x.awarded).forEach(x => AW.push({o, x})));
+  return (AW.length ? `<details class="qbox"><summary>이미 선정·계약돼 뺀 공고 ${AW.length}건</summary><p class="nmeta">발주계획 → 사전규격 → 입찰공고 → 개찰·계약을 이어서 확인해, 사업자가 정해진 공고는 진행 목록에서 뺍니다.</p><ul class="olist">${AW.map(({o,x})=>{ const a = x.awarded; return `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a><span class="nmeta">${esc(x.org||'')} · <b>${esc(a.winner||'')}</b>${a.amt?` · <b class="num">${esc(eokT(a.amt))}</b>`:''}${awdDate(a)?' · '+esc(awdDate(a))+' 계약':''}${a.trace?' · '+esc(a.trace):''}</span></li>`; }).join('')}</ul></details>` : '')
+    + (out.length ? `<details class="qbox"><summary>참가자격이 많이 부족해 뺀 공고 ${out.length}건</summary><ul class="olist">${out.map(({o,x})=>`<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a><span class="nmeta">${esc(x.org||'')} · ${(x.elig.gaps||[]).map(esc).join(' · ')}</span></li>`).join('')}</ul></details>` : '')
     + (Q ? `<details class="qbox"><summary>판정 기준 — 웨이즈원 보유 참가자격(${esc(Q.asOf||'')})</summary><div class="qgrid">
       <div><span class="kl">업 등록·면허</span>${ul(Q.licenses)}</div><div><span class="kl">직접생산확인</span>${ul(Q.directProduction)}</div>
       <div><span class="kl">보유로 본 것</span>${ul(Q.assumed)}</div><div><span class="kl">보유하지 않은 것</span>${ul(Q.notHeld)}</div></div>
@@ -633,7 +638,7 @@ function renderWays1(){
       <dt>다음 행동</dt><dd>${hl(o.action||'')}</dd>
       <dt>협력 기술</dt><dd><div class="pchips">${(o.partners?.tech||[]).map(x=>`<span class="tc">${esc(x)}</span>`).join('')}</div></dd>
       ${(o.partners?.orgs||[]).length?`<dt>협력 기업</dt><dd>${orgList(o.partners.orgs)}</dd>`:''}${bmcRow(o)}${compRow(o)}</dl></article>`).join('')
-    + (DIS.length ? `<details class="panel discard"><summary>공고 마감·미공고로 폐기한 사업 ${DIS.length}건 (로드맵에서 제외)</summary><ul>${DIS.map(o=>`<li><b>${esc(o.title)}</b> — ${esc(discardReason(o))}${(o.notice?.items||[])[0]?.url?` · <a href="${esc(o.notice.items[0].url)}" target="_blank" rel="noopener">근거</a>`:''}</li>`).join('')}</ul></details>` : '');
+    + (DIS.length ? `<details class="panel discard"><summary>공고 마감·선정 완료·미공고로 폐기한 사업 ${DIS.length}건 (로드맵에서 제외)</summary><ul>${DIS.map(o=>`<li><b>${esc(o.title)}</b> — ${esc(discardReason(o))}${(o.notice?.items||[])[0]?.url?` · <a href="${esc(o.notice.items[0].url)}" target="_blank" rel="noopener">근거</a>`:''}</li>`).join('')}</ul></details>` : '');
   /* 로드맵은 진행 중인 기회만으로 만든다: 폐기한 사업은 들어가지 않는다 */
   const near = ACT.filter(o=>ACTIVE_ENTRY.includes(effEntry(o)) || isUpcoming(o));
   const COLS = [
