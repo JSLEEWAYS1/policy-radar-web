@@ -610,3 +610,47 @@ details.discard>summary{font-weight:650}
   .prg dt,.opp dt{margin-top:8px}
   details.pol>summary{padding:16px}
 }
+
+/* BMC 반영 · 전차 수주사 · 유력 경쟁자 (2026-10-16) */
+.prv .cw{color:var(--ink);font-weight:700}
+b.streak{font-weight:700;color:var(--warn)}
+.tier{display:inline-flex;align-items:center;font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--ink2);white-space:nowrap}
+.tier.t-집중{background:color-mix(in srgb,var(--mark) 12%,var(--surface));border-color:color-mix(in srgb,var(--mark) 40%,transparent);color:var(--mark-ink)}
+.tier.t-신규{background:var(--pre-soft);border-color:color-mix(in srgb,var(--pre) 35%,transparent);color:var(--pre)}
+.tier.t-정비{background:var(--plan-soft);border-color:color-mix(in srgb,var(--plan) 35%,transparent);color:var(--plan)}
+.tier.t-유지,.tier.t-별도{background:var(--sunk)}
+.star{color:var(--warn);font-weight:700}
+.bmcbox{display:grid;gap:16px}
+.bmch{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);font-size:.88rem;color:var(--ink2)}
+.bmc-badge{font-family:var(--f-mono);font-size:.74rem;font-weight:700;letter-spacing:.06em;padding:2px 8px;border-radius:6px;background:var(--ink);color:var(--surface)}
+.bmch .dbtn{margin-left:auto}
+.bseg{display:grid;gap:8px}
+.bseg h3{font-size:.95rem;color:var(--ink2);font-weight:700}
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;align-items:start}
+details.bp{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+details.bp.st{border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
+details.bp>summary{list-style:none;cursor:pointer;display:grid;gap:4px}
+details.bp>summary::-webkit-details-marker{display:none}
+.bp .bt{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.bp .bt b{font-size:.98rem}
+.bp .bty{font-size:.76rem;color:var(--ink3)}
+.bp .bcn{font-size:.86rem;color:var(--ink2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+details.bp[open] .bcn{-webkit-line-clamp:unset;display:block}
+.bp dl{display:grid;grid-template-columns:86px minmax(0,1fr);gap:6px 10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:.84rem}
+.bp dt{color:var(--ink3);font-weight:600}
+.bp dd ul{margin:0;padding-left:16px}
+.mvp{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.mvp ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:8px}
+.mvp li{display:grid;gap:2px;font-size:.88rem}
+.matrix tr.sg td{background:var(--sunk);font-size:.78rem;font-weight:700;color:var(--ink2);padding:5px 10px}
+ul.bmcl,ul.cmpl{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+ul.bmcl li,ul.cmpl li{display:grid;gap:1px}
+.bmn{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+ul.cmpl li{grid-template-columns:auto auto minmax(0,1fr);align-items:baseline;column-gap:8px}
+ul.cmpl li .nmeta{grid-column:1/-1}
+ul.cmpl .num{font-size:.8rem;color:var(--ink2)}
+details.mkt{margin-top:6px}
+details.mkt>summary{cursor:pointer;font-size:.84rem;color:var(--ink2);font-weight:600}
+details.mkt ul{margin-top:6px}
+.bmcm{margin-top:6px}
+@media (max-width:620px){.bgrid{grid-template-columns:1fr}.bp dl{grid-template-columns:1fr}.bmch .dbtn{margin-left:0}}

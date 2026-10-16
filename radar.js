@@ -60,7 +60,7 @@ const planLimit = x => x.planMonth ? addDays(monthEnd(x.planMonth), PLAN_WAIT) :
 const itemOpen = x => isPlan(x) ? planLimit(x) >= NOWK : isPre(x) ? preState(x) !== 'stale' : (!!x.deadline && dlk(x.deadline) >= NOWK);
 /* 참가자격 판정(elig.verdict): ok 참여 가능 · gap 보완 필요(부족 1~2개) · no 자격 미달(목록에서 제외) · unknown 확인 필요 */
 const isOut = x => x.elig?.verdict === 'no';
-const itemLive = x => !isOut(x) && itemOpen(x);
+const itemLive = x => !isOut(x) && !x.awarded && itemOpen(x);
 const items = o => (o.notice?.items)||[];
 const liveBids = o => items(o).filter(x => isBid(x) && itemLive(x)).sort((a,b)=>dlk(a.deadline).localeCompare(dlk(b.deadline)));
 const livePres = o => items(o).filter(x => isPre(x) && itemLive(x)).sort((a,b)=>(preState(a)==='opinion'?0:1)-(preState(b)==='opinion'?0:1) || dlk(a.opinionDeadline).localeCompare(dlk(b.opinionDeadline)));
@@ -137,6 +137,17 @@ const pt = x => { const p = ptOf(x); return p ? ` · <b class="pt ${p[0]}">${p[1
 const evTag = x => { const v = evalOf(x); return v ? `<span class="tag ev${TALK.has(v.mode)?' talk':''}" title="${esc(v.mode)}">${esc(EVSHORT[v.mode]||v.mode)}</span>` : ''; };
 const evLine = x => { const v = evalOf(x); if(!v) return '';
   return `<div class="evl"><span class="kl">평가</span><span class="nmeta">${[v.mode, v.nego?'협상에 의한 계약':'', v.ratio, v.detail].filter(Boolean).map(esc).join(' · ')}</span></div>`; };
+const eokT = v => { if(!v) return ''; const x = v/1e8; return x >= 1 ? (Math.round(x*100)/100) + '억원' : Math.round(v/1e4).toLocaleString() + '만원'; };
+/* 전차(직전 회차) 수주사: 나라장터 계약현황·개찰결과에서 찾은 같은 사업의 지난 계약과 응찰 순위 */
+function prevLine(x){
+  const p = x.prev; if(!p) return '';
+  if(!p.winner){ const rel = (p.rel||[]).map(r=>`<b>${esc(r.name)}</b>(${esc(r.what)})`).join(' · ');
+    return `<div class="evl prv"><span class="kl">전차</span><span class="nmeta">${esc(p.note||'전차 계약 없음')}${rel?' · 관련 계약: '+rel:''}</span></div>`; }
+  const r = (p.rounds||[]).find(r => (r.bidders||[]).length >= 2 && r.bidders.length <= 8);
+  const rivals = r ? r.bidders.filter(b => b.name !== p.winner).slice(0,3).map(b => `${esc(b.name)}${b.rank?' '+b.rank+'위':''}`).join('·') : '';
+  const prevs = (p.hist||[]).slice(1,4).filter(h=>h.w!==p.winner).map(h => `${h.y} ${esc(h.w)}`);
+  return `<div class="evl prv"><span class="kl">전차</span><span class="nmeta"><b class="cw">${esc(p.winner)}</b> · ${p.year?esc(p.year)+'년 ':''}<b class="num">${eokT(p.amt)}</b>${p.streak>=2?` · <b class="streak">${p.streak}년 연속</b>`:''}${p.pattern?' · '+esc(p.pattern):''}${rivals?' · 경쟁 '+rivals:''}${prevs.length?' · 이전 '+prevs.join(', '):''}${p.note?' · '+esc(p.note):''}</span></div>`;
+}
 const docBtns = (x, label) => `<div class="docs">${(x.docs||[]).map(d=>`<a class="dbtn" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>`).join('')}<a class="dbtn pg" href="${esc(x.url)}" target="_blank" rel="noopener">${label}</a></div>`;
 const chain = x => { const s = []; if(x.planNo) s.push('발주계획 ' + x.planNo); if(x.preNo) s.push('사전규격 ' + x.preNo); return s.length ? `<div class="nmeta">이어진 단계 · ${esc(s.join(' → '))}</div>` : ''; };
 function rfpBlock(x){
@@ -168,14 +179,14 @@ function noticeBlock(o){
     ${B0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${bidMeta(x)}</div>
       ${x.lic?`<div class="nmeta">참가 업종 · ${esc(x.lic)}</div>`:''}${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
-      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div>`).join('')}</div>`;
+      ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div>`).join('')}</div>`;
   if(P0.length) h += `<div class="nwrap pre"><div class="nhead"><span class="nst pre">사전규격 ${P0.length}건</span><span>본공고 전에 공개된 제안요청서 초안입니다. 의견 마감 전에 과업 범위에 의견을 낼 수 있고, 마감 후에는 본공고가 이어집니다.</span></div>
     ${P0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${preMeta(x)}</div>${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
-      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div>`).join('')}</div>`;
+      ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div>`).join('')}</div>`;
   if(PL.length) h += `<div class="nwrap planw"><div class="nhead"><span class="nst plan">발주계획 ${PL.length}건</span><span>발주기관이 올해 발주하겠다고 등록한 계획입니다. 사전규격·본공고가 나오기 전 담당부서를 미리 만날 수 있는 단계입니다.</span></div>
     ${PL.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
-      <div class="nmeta">${planMeta(x)}</div>${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}</div>`).join('')}</div>`;
+      <div class="nmeta">${planMeta(x)}</div>${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}${prevLine(x)}</div>`).join('')}</div>`;
   if(h && n.checkedAt) h += `<span class="nmeta" style="grid-column:1/-1">나라장터 확인 ${esc(n.checkedAt)} KST</span>`;
   return h;
 }
@@ -201,15 +212,15 @@ function renderPipe(){
   const li = {
     plan: ({o,x}) => `<li><div class="st"><span class="tag plan">발주계획</span><span><b>${esc(ym(x.planMonth))}</b> 발주 예정</span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
-      <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''} · ${opp(o)}</span></div></li>`,
+      <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''} · ${opp(o)}</span>${prevLine(x)}</div></li>`,
     pre: ({o,x,st}) => `<li><div class="st">${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)} · ${opp(o)}</span>
-      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
+      ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
     bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span><span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
-      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
+      ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
   };
   const TAB = [['plan','발주계획','발주기관이 올해 발주하겠다고 등록한 계획. 담당부서를 미리 만나 사업 범위를 파악하는 단계'],['pre','사전규격','본공고 전에 제안요청서 초안을 공개하고 의견을 받는 단계. 과업 범위에 의견을 내고 협력사를 정하는 단계'],['bid','입찰공고','제안서·입찰서를 내는 본공고. 제출 마감 전에 응찰 여부를 정하는 단계']];
   if(!rows[pipeTab]) pipeTab = 'pre';
@@ -275,8 +286,8 @@ function bizNotice(o){
     return r.replace('<summary>제안요청서 요약 — 사업내용·참가자격</summary>', `<summary>제안요청서 요약(사업내용·참가자격)${d?' · 서류 '+(x.docs||[]).length+'건':''}</summary>`).replace(/<\/details>$/, d + '</details>'); };
   const row = {
     plan: x => `<li><span class="bw"><b>${esc(ym(x.planMonth))}</b> 발주 예정</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''}</span></div></li>`,
-    pre: x => `<li><span class="bw">${preState(x)==='opinion'?`의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>`:`본공고 대기`}</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}</span>${eligLine(x)}${evLine(x)}${more(x)}</div></li>`,
-    bid: x => `<li><span class="bw">제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''}</span>${eligLine(x)}${evLine(x)}${more(x)}</div></li>`
+    pre: x => `<li><span class="bw">${preState(x)==='opinion'?`의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>`:`본공고 대기`}</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}</span>${eligLine(x)}${evLine(x)}${prevLine(x)}${more(x)}</div></li>`,
+    bid: x => `<li><span class="bw">제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''}</span>${eligLine(x)}${evLine(x)}${prevLine(x)}${more(x)}</div></li>`
   };
   const SHOW = 2;
   const sec = (k, cls, label, arr) => !arr.length ? '' : `<div class="bstage ${k}"><span class="tag ${cls}">${label} ${arr.length}건</span>
@@ -562,13 +573,38 @@ function renderTimeline(){
 }
 
 /* ways1 */
+const BMC = D.bmc || {};
+const BMCP = Object.fromEntries((BMC.products||[]).map(p=>[p.name,p]));
+const tierPill = p => `${p.tier?`<span class="tier t-${esc(p.tier)}">${esc(p.tier)}</span>`:''}${p.pri?`<span class="tag">${esc(p.pri)}</span>`:''}${p.star?'<span class="star" title="BMC 우선 제품">★</span>':''}`;
+function bmcRow(o){ const ps = (o.products||[]).map(n=>BMCP[n]).filter(Boolean); if(!ps.length) return '';
+  return `<dt>BMC 전략</dt><dd><ul class="bmcl">${ps.slice(0,3).map(p=>`<li><span class="bmn"><b>${esc(p.name)}</b>${tierPill(p)}</span><span class="nmeta">${esc(p.note||p.next||'')}</span></li>`).join('')}</ul></dd>`; }
+function compRow(o){ const c = o.competitors; if(!c) return ''; let h = '';
+  if((c.list||[]).length) h += `<ul class="cmpl">${c.list.map(a=>`<li><b>${esc(a.name)}</b>${a.amtTxt?`<span class="num">${esc(a.amtTxt)}</span>`:''}<span class="nmeta">${esc(a.note)}</span></li>`).join('')}</ul>`;
+  if(c.market) h += `<details class="mkt"${(c.list||[]).length?'':' open'}><summary>${esc(c.market.title)}</summary><ul class="cmpl">${c.market.list.map(a=>`<li><b>${esc(a.name)}</b><span class="num">${esc(a.n)}건</span><span class="nmeta">${esc(a.what)}</span></li>`).join('')}</ul></details>`;
+  if((c.bmc||[]).length) h += `<p class="nmeta bmcm"><span class="kl">BMC 경쟁 메모</span> ${c.bmc.map(m=>`<b>${esc(m.product)}</b> — ${esc(m.text)}`).join(' / ')}</p>`;
+  return h ? `<dt>유력 경쟁자</dt><dd>${h}</dd>` : ''; }
+function bmcBoard(){
+  const P = BMC.products||[]; if(!P.length) return '';
+  const segs = BMC.segments||[...new Set(P.map(p=>p.seg))];
+  const n = P.length, st = P.filter(p=>p.star).length, kw = (BMC.search||[]).length;
+  const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
+  const card = p => `<details class="bp${p.star?' st':''}"><summary><span class="bt"><b>${esc(p.name)}</b>${tierPill(p)}</span><span class="bty">${esc([p.type, p.grp].filter(Boolean).join(' · '))}</span><span class="bcn">${esc(p.concept||p.note||'')}</span></summary>
+    <dl>${row('현황', esc(p.note||''))}${row('고객', esc(p.customer||''))}${(p.value||[]).length?row('가치', `<ul>${p.value.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`):''}
+    ${row('레퍼런스', hl(p.ref||''))}${row('다음 행동', esc(p.next||''))}${(p.keywords||[]).length?row('나라장터 키워드', `<span class="pchips">${p.keywords.map(k=>`<span class="tc">${esc(k)}</span>`).join('')}</span>`):''}
+    ${row('경쟁', esc(p.competitors||''))}${(p.risks||[]).length?row('진입 리스크', `<ul>${p.risks.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`):''}</dl></details>`;
+  const mvp = (BMC.mvp||[]).length ? `<div class="mvp">${BMC.mvp.map(m=>`<div><span class="eyebrow">${esc(m.phase)} · ${esc(m.when)}</span><ul>${(m.items||[]).map(i=>`<li><b>${esc(i.name)}</b><span class="nmeta">${esc(i.mvp||'')}</span>${i.kpi?`<span class="nmeta">KPI · ${esc(i.kpi)}</span>`:''}</li>`).join('')}</ul></div>`).join('')}</div>` : '';
+  return `<div class="bmch"><span class="bmc-badge">WAYS1 BMC</span><span>BMC 수정 <b>${esc(String(BMC.updatedAt||'').slice(0,10))}</b> · 레이더 반영 ${esc(BMC.fetchedAt||'')} · 제품 <b class="num">${n}개</b> · ★ 우선 <b class="num">${st}개</b> · <span title="${esc((BMC.search||[]).join(', '))}">나라장터 검색어 <b class="num">+${kw}개</b>(BMC 키워드)</span></span>${BMC.url?`<a class="dbtn pg" href="${esc(BMC.url)}" target="_blank" rel="noopener">BMC 열기(비밀번호)</a>`:''}</div>
+    ${segs.map(sg=>`<section class="bseg"><h3>${esc(sg)}</h3><div class="bgrid">${P.filter(p=>p.seg===sg).sort((a,b)=>(b.star-a.star)).map(card).join('')}</div></section>`).join('')}
+    ${mvp?`<div class="panel" style="display:grid;gap:10px"><h3>BMC MVP 로드맵</h3>${mvp}</div>`:''}`;
+}
 let oppFilter = load('opp','');
 const MG = GROUPS.filter(g=>g.id!=='gov');
 function renderWays1(){
   $('#w1intro').textContent = D.company.intro;
-  $('#prods').innerHTML = D.products.map(p=>`<article class="prod"><span class="ly">${esc(p.layer)}</span><h3>${esc(p.name)}</h3><p>${hl(p.desc)}</p>${p.evidence?`<span class="ev">${hl(p.evidence)}</span>`:''}</article>`).join('');
+  $('#prods').innerHTML = bmcBoard() || D.products.map(p=>`<article class="prod"><span class="ly">${esc(p.layer||p.seg||'')}</span><h3>${esc(p.name)}</h3><p>${hl(p.desc||'')}</p></article>`).join('');
   let m = '<thead><tr><th>제품·역량</th>'+MG.map(g=>`<th><span class="dot" style="--c:${g.c};display:inline-block;margin-right:4px"></span>${esc(g.name)}</th>`).join('')+'</tr></thead><tbody>';
-  D.products.forEach(p=>{ m += `<tr><td>${esc(p.name)}</td>`+MG.map(g=>{const v=(p.fit||{})[g.id]||0; return `<td class="${v?'f'+v:''}" aria-label="${v===3?'바로 대응':v===2?'보완 후 진입':v===1?'신규 역량':'해당 없음'}"></td>`;}).join('')+'</tr>'; });
+  let lastSeg = null;
+  D.products.forEach(p=>{ if(p.seg && p.seg !== lastSeg){ lastSeg = p.seg; m += `<tr class="sg"><td colspan="${MG.length+1}">${esc(p.seg)}</td></tr>`; } m += `<tr><td>${esc(p.name)}${BMCP[p.name]?.star?' <span class="star">★</span>':''}</td>`+MG.map(g=>{const v=(p.fit||{})[g.id]||0; return `<td class="${v?'f'+v:''}" aria-label="${v===3?'바로 대응':v===2?'보완 후 진입':v===1?'신규 역량':'해당 없음'}"></td>`;}).join('')+'</tr>'; });
   $('#matrix').innerHTML = m+'</tbody>';
   const kinds = ['','발주계획 대응','사전규격 대응','즉시 공략','보완 후 진입','신규 진입 검토'];
   if(!kinds.includes(oppFilter)) oppFilter = '';
@@ -591,7 +627,7 @@ function renderWays1(){
       <dt>보완할 점</dt><dd>${hl(o.gap||'')}</dd>
       <dt>다음 행동</dt><dd>${hl(o.action||'')}</dd>
       <dt>협력 기술</dt><dd><div class="pchips">${(o.partners?.tech||[]).map(x=>`<span class="tc">${esc(x)}</span>`).join('')}</div></dd>
-      ${(o.partners?.orgs||[]).length?`<dt>협력 기업</dt><dd>${orgList(o.partners.orgs)}</dd>`:''}</dl></article>`).join('')
+      ${(o.partners?.orgs||[]).length?`<dt>협력 기업</dt><dd>${orgList(o.partners.orgs)}</dd>`:''}${bmcRow(o)}${compRow(o)}</dl></article>`).join('')
     + (DIS.length ? `<details class="panel discard"><summary>공고 마감·미공고로 폐기한 사업 ${DIS.length}건 (로드맵에서 제외)</summary><ul>${DIS.map(o=>`<li><b>${esc(o.title)}</b> — ${esc(discardReason(o))}${(o.notice?.items||[])[0]?.url?` · <a href="${esc(o.notice.items[0].url)}" target="_blank" rel="noopener">근거</a>`:''}</li>`).join('')}</ul></details>` : '');
   /* 로드맵은 진행 중인 기회만으로 만든다: 폐기한 사업은 들어가지 않는다 */
   const near = ACT.filter(o=>ACTIVE_ENTRY.includes(effEntry(o)) || isUpcoming(o));
