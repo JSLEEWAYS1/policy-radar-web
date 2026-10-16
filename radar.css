@@ -176,12 +176,23 @@ b.num{font-weight:700;color:var(--ink)}
 .pipe button.plan[aria-selected="true"]{background:var(--plan)}
 .pipe button.pre[aria-selected="true"]{background:var(--pre)}
 .pipe button.bid[aria-selected="true"]{background:var(--ok)}
+/* 참가자격 판정 */
+.elig{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.tag.gap{border-color:color-mix(in srgb,var(--warn) 55%,transparent);color:var(--warn);font-weight:600}
+.tag.out{border-color:var(--line2);color:var(--ink3);text-decoration:line-through}
+.nmeta.gapl{color:var(--warn)}
+details.qbox{border-top:1px solid var(--line);padding-top:8px}
+details.qbox>summary{cursor:pointer;font-size:.86rem;color:var(--ink2);font-weight:600}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px 18px;margin:8px 0;font-size:.84rem;color:var(--ink2)}
+.qgrid ul,.olist{margin:4px 0 0;padding-left:16px;display:grid;gap:2px}
+.olist{list-style:none;padding:0;gap:8px;margin-top:8px}
+.olist li{display:grid;gap:2px}
 /* 인사이트 카드 속 나라장터 3단계 */
 .bnara{display:grid;gap:6px;padding-top:8px;border-top:1px dashed var(--line)}
 .bstage{display:grid;gap:4px}
 .bstage>.tag{justify-self:start}
 details.rfp .docs{margin-top:6px}
-.bstage.none .tag{color:var(--ink3);border-style:dashed}
+.bnone{color:var(--ink3)}
 .brow{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .brow>li{display:grid;grid-template-columns:112px minmax(0,1fr);gap:2px 10px;font-size:.84rem;padding-left:2px}
 .brow .bw{font-size:.78rem;color:var(--ink2);padding-top:1px}

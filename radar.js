@@ -57,7 +57,10 @@ function preState(x){
   return addDays(od, PRE_WAIT) >= NOWK ? 'waiting' : 'stale';
 }
 const planLimit = x => x.planMonth ? addDays(monthEnd(x.planMonth), PLAN_WAIT) : (x.posted ? addDays(dlk(x.posted), 120) : '');
-const itemLive = x => isPlan(x) ? planLimit(x) >= NOWK : isPre(x) ? preState(x) !== 'stale' : (!!x.deadline && dlk(x.deadline) >= NOWK);
+const itemOpen = x => isPlan(x) ? planLimit(x) >= NOWK : isPre(x) ? preState(x) !== 'stale' : (!!x.deadline && dlk(x.deadline) >= NOWK);
+/* 참가자격 판정(elig.verdict): ok 참여 가능 · gap 보완 필요(부족 1~2개) · no 자격 미달(목록에서 제외) · unknown 확인 필요 */
+const isOut = x => x.elig?.verdict === 'no';
+const itemLive = x => !isOut(x) && itemOpen(x);
 const items = o => (o.notice?.items)||[];
 const liveBids = o => items(o).filter(x => isBid(x) && itemLive(x)).sort((a,b)=>dlk(a.deadline).localeCompare(dlk(b.deadline)));
 const livePres = o => items(o).filter(x => isPre(x) && itemLive(x)).sort((a,b)=>(preState(a)==='opinion'?0:1)-(preState(b)==='opinion'?0:1) || dlk(a.opinionDeadline).localeCompare(dlk(b.opinionDeadline)));
@@ -75,6 +78,8 @@ function effEntry(o){
 const isDiscarded = o => effEntry(o) === '폐기';
 const isUpcoming = o => !!o.notice && !items(o).length && o.notice.state === 'upcoming';
 function discardReason(o){
+  const op = items(o).filter(itemOpen);
+  if(op.length && op.every(isOut)) return '참가자격 미달로 제외 — ' + (op[0].elig.gaps||[]).slice(0,2).join(', ');
   if(o.entry === '폐기' && o.discardReason) return o.discardReason;
   const b = items(o).filter(x => isBid(x) && x.deadline).map(x => dlk(x.deadline)).sort().pop();
   if(b) return '입찰 마감(' + b.slice(0,10) + ')으로 폐기';
@@ -105,13 +110,24 @@ function noticeTag(o){
   if(!t.length && isUpcoming(o)) t.push('<span class="tag">공고 예정</span>');
   return t.join('');
 }
+function eligLine(x){
+  const e = x.elig;
+  if(!e) return isPlan(x) ? '' : '<div class="elig"><span class="tag">참가자격 판정 전</span></div>';
+  if(e.verdict === 'ok') return '<div class="elig"><span class="tag ok">참여 가능</span><span class="nmeta">보유 자격으로 참가자격 충족</span></div>';
+  if(e.verdict === 'gap') return `<div class="elig"><span class="tag gap">보완 필요 ${(e.gaps||[]).length}</span><span class="nmeta gapl">부족: ${(e.gaps||[]).map(esc).join(' · ')}</span></div>`;
+  if(e.verdict === 'no') return `<div class="elig"><span class="tag out">자격 미달</span><span class="nmeta">${(e.gaps||[]).map(esc).join(' · ')}</span></div>`;
+  return `<div class="elig"><span class="tag">자격 확인 필요</span><span class="nmeta">${esc(e.note||'')}</span></div>`;
+}
+const VERD = {ok:'참여 가능', gap:'보완 필요', no:'자격 미달', unknown:'확인 필요'};
 const docBtns = (x, label) => `<div class="docs">${(x.docs||[]).map(d=>`<a class="dbtn" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>`).join('')}<a class="dbtn pg" href="${esc(x.url)}" target="_blank" rel="noopener">${label}</a></div>`;
 const chain = x => { const s = []; if(x.planNo) s.push('발주계획 ' + x.planNo); if(x.preNo) s.push('사전규격 ' + x.preNo); return s.length ? `<div class="nmeta">이어진 단계 · ${esc(s.join(' → '))}</div>` : ''; };
 function rfpBlock(x){
   const r = x.rfp; if(!r || r.error) return '';
   const li = a => (a||[]).filter(Boolean).map(v=>`<li>${hl(v)}</li>`).join('');
   const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
+  const e = x.elig;
   return `<details class="rfp"><summary>제안요청서 요약 — 사업내용·참가자격</summary><dl>
+    ${e?row('참여 판정', `<b>${esc(VERD[e.verdict]||'')}</b>${(e.gaps||[]).length?' — 부족: '+e.gaps.map(esc).join(' · '):''}${e.note?'<br>'+esc(e.note):''}`):''}
     ${row('사업 개요', hl(r.overview||''))}${row('사업기간', esc(r.period||''))}${row('사업비', hl(r.budget||''))}
     ${(r.scope||[]).length?`<dt>주요 과업</dt><dd><ul>${li(r.scope)}</ul></dd>`:''}
     ${(r.qualification||[]).length?`<dt>참가자격</dt><dd><ul>${li(r.qualification)}</ul></dd>`:''}
@@ -134,16 +150,26 @@ function noticeBlock(o){
     ${B0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${bidMeta(x)}</div>
       ${x.lic?`<div class="nmeta">참가 업종 · ${esc(x.lic)}</div>`:''}${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
-      ${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div>`).join('')}</div>`;
+      ${eligLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div>`).join('')}</div>`;
   if(P0.length) h += `<div class="nwrap pre"><div class="nhead"><span class="nst pre">사전규격 ${P0.length}건</span><span>본공고 전에 공개된 제안요청서 초안입니다. 의견 마감 전에 과업 범위에 의견을 낼 수 있고, 마감 후에는 본공고가 이어집니다.</span></div>
     ${P0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${preMeta(x)}</div>${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
-      ${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div>`).join('')}</div>`;
+      ${eligLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div>`).join('')}</div>`;
   if(PL.length) h += `<div class="nwrap planw"><div class="nhead"><span class="nst plan">발주계획 ${PL.length}건</span><span>발주기관이 올해 발주하겠다고 등록한 계획입니다. 사전규격·본공고가 나오기 전 담당부서를 미리 만날 수 있는 단계입니다.</span></div>
     ${PL.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${planMeta(x)}</div>${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}</div>`).join('')}</div>`;
   if(h && n.checkedAt) h += `<span class="nmeta" style="grid-column:1/-1">나라장터 확인 ${esc(n.checkedAt)} KST</span>`;
   return h;
+}
+function qualBox(){
+  const Q = D.company?.quals; const out = [];
+  (D.opportunities||[]).forEach(o => items(o).filter(x => isOut(x) && itemOpen(x)).forEach(x => out.push({o, x})));
+  const ul = a => `<ul>${(a||[]).map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`;
+  return (out.length ? `<details class="qbox"><summary>참가자격이 많이 부족해 뺀 공고 ${out.length}건</summary><ul class="olist">${out.map(({o,x})=>`<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a><span class="nmeta">${esc(x.org||'')} · ${(x.elig.gaps||[]).map(esc).join(' · ')}</span></li>`).join('')}</ul></details>` : '')
+    + (Q ? `<details class="qbox"><summary>판정 기준 — 웨이즈원 보유 참가자격(${esc(Q.asOf||'')})</summary><div class="qgrid">
+      <div><span class="kl">업 등록·면허</span>${ul(Q.licenses)}</div><div><span class="kl">직접생산확인</span>${ul(Q.directProduction)}</div>
+      <div><span class="kl">보유로 본 것</span>${ul(Q.assumed)}</div><div><span class="kl">보유하지 않은 것</span>${ul(Q.notHeld)}</div></div>
+      <p class="nmeta">${esc(Q.rule||'')}</p></details>` : '');
 }
 let pipeTab = load('pipe', 'pre');
 function renderPipe(){
@@ -161,11 +187,11 @@ function renderPipe(){
     pre: ({o,x,st}) => `<li><div class="st">${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''} · ${opp(o)}</span>
-      ${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
+      ${eligLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
     bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span><span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
-      ${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
+      ${eligLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
   };
   const TAB = [['plan','발주계획','발주기관이 올해 발주하겠다고 등록한 계획. 담당부서를 미리 만나 사업 범위를 파악하는 단계'],['pre','사전규격','본공고 전에 제안요청서 초안을 공개하고 의견을 받는 단계. 과업 범위에 의견을 내고 협력사를 정하는 단계'],['bid','입찰공고','제안서·입찰서를 내는 본공고. 제출 마감 전에 응찰 여부를 정하는 단계']];
   if(!rows[pipeTab]) pipeTab = 'pre';
@@ -180,7 +206,7 @@ function renderPipe(){
   $('#prepanel').innerHTML = `<div class="sec-head"><span class="eyebrow">나라장터 · 발주계획 → 사전규격 → 입찰공고</span><h3>나라장터에서 잡을 사업 <em>${rows.plan.length + rows.pre.length + rows.bid.length}</em>건</h3>
     <p class="muted">웨이즈원 제품과 맞는 나라장터 사업을 단계별로 모아 봅니다. 같은 내용이 「한눈에 보기」 인사이트 카드의 사업마다 붙어 있습니다. 사전규격·입찰공고는 제안요청서를 직접 읽어 사업내용과 참가자격을 정리했습니다.</p></div>
     <div class="pipe" role="tablist">${TAB.map(([k,l])=>`<button type="button" role="tab" data-pipe="${k}" aria-selected="${String(k===pipeTab)}" class="${k}"><span>${l}</span><b>${rows[k].length}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
-    <p class="small muted">${esc(cur[2])}</p>${body}`;
+    <p class="small muted">${esc(cur[2])}</p>${body}${qualBox()}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-tabgo]'); if(b){e.preventDefault(); show(b.dataset.tabgo);}});
@@ -226,15 +252,17 @@ function bizNotice(o){
     return r.replace('<summary>제안요청서 요약 — 사업내용·참가자격</summary>', `<summary>제안요청서 요약(사업내용·참가자격)${d?' · 서류 '+(x.docs||[]).length+'건':''}</summary>`).replace(/<\/details>$/, d + '</details>'); };
   const row = {
     plan: x => `<li><span class="bw"><b>${esc(ym(x.planMonth))}</b> 발주 예정</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''}</span></div></li>`,
-    pre: x => `<li><span class="bw">${preState(x)==='opinion'?`의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>`:`본공고 대기`}</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}</span>${more(x)}</div></li>`,
-    bid: x => `<li><span class="bw">제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.lic?' · '+esc(x.lic):''}</span>${more(x)}</div></li>`
+    pre: x => `<li><span class="bw">${preState(x)==='opinion'?`의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>`:`본공고 대기`}</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}</span>${eligLine(x)}${more(x)}</div></li>`,
+    bid: x => `<li><span class="bw">제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.lic?' · '+esc(x.lic):''}</span>${eligLine(x)}${more(x)}</div></li>`
   };
   const SHOW = 2;
-  const sec = (k, cls, label, arr) => !arr.length ? `<div class="bstage none"><span class="tag">${label} 없음</span></div>` : `<div class="bstage ${k}"><span class="tag ${cls}">${label} ${arr.length}건</span>
+  const sec = (k, cls, label, arr) => !arr.length ? '' : `<div class="bstage ${k}"><span class="tag ${cls}">${label} ${arr.length}건</span>
     <ul class="brow">${arr.slice(0, SHOW).map(row[k]).join('')}</ul>
     ${arr.length > SHOW ? `<details class="bmore"><summary>${label} ${arr.length - SHOW}건 더 보기</summary><ul class="brow">${arr.slice(SHOW).map(row[k]).join('')}</ul></details>` : ''}</div>`;
+  const none = [['발주계획',PL],['사전규격',P0],['입찰공고',B0]].filter(([,a]) => !a.length).map(([l]) => l);
   return `<div class="bnara"><span class="kl">나라장터 발주계획 → 사전규격 → 입찰공고</span>
-    ${sec('plan','plan','발주계획',PL)}${sec('pre','pre','사전규격',P0)}${sec('bid','ok','입찰공고',B0)}</div>`;
+    ${sec('plan','plan','발주계획',PL)}${sec('pre','pre','사전규격',P0)}${sec('bid','ok','입찰공고',B0)}
+    ${none.length ? `<span class="nmeta bnone">아직 없음 · ${none.join(' · ')}</span>` : ''}</div>`;
 }
 function renderInsights(){
   const OPP = Object.fromEntries([...(D.opportunities||[]), ...(D.customBiz||[])].map(o=>[o.id,o]));
