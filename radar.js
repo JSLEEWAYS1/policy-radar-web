@@ -177,8 +177,8 @@ function renderPipe(){
     body = (op.length?`<ul class="prl">${op.map(li.pre).join('')}</ul>`:'<p class="muted small">의견 접수 중인 사전규격이 없습니다.</p>')
       + (wt.length?`<details class="prl"><summary>의견 마감 후 본공고를 기다리는 사전규격 ${wt.length}건</summary><ul class="prl">${wt.map(li.pre).join('')}</ul></details>`:'');
   } else body = list.length ? `<ul class="prl">${list.map(li[pipeTab]).join('')}</ul>` : '<p class="muted small">해당 단계의 사업이 없습니다.</p>';
-  $('#prepanel').innerHTML = `<div class="sec-head"><span class="eyebrow">나라장터 · 발주계획 → 사전규격 → 입찰공고</span><h2>나라장터에서 잡을 사업 <em>${rows.plan.length + rows.pre.length + rows.bid.length}</em>건</h2>
-    <p class="muted">웨이즈원 제품과 맞는 나라장터 사업을 세 단계로 모았습니다. 사전규격·입찰공고는 제안요청서를 직접 읽어 사업내용과 참가자격을 정리했습니다.</p></div>
+  $('#prepanel').innerHTML = `<div class="sec-head"><span class="eyebrow">나라장터 · 발주계획 → 사전규격 → 입찰공고</span><h3>나라장터에서 잡을 사업 <em>${rows.plan.length + rows.pre.length + rows.bid.length}</em>건</h3>
+    <p class="muted">웨이즈원 제품과 맞는 나라장터 사업을 단계별로 모아 봅니다. 같은 내용이 「한눈에 보기」 인사이트 카드의 사업마다 붙어 있습니다. 사전규격·입찰공고는 제안요청서를 직접 읽어 사업내용과 참가자격을 정리했습니다.</p></div>
     <div class="pipe" role="tablist">${TAB.map(([k,l])=>`<button type="button" role="tab" data-pipe="${k}" aria-selected="${String(k===pipeTab)}" class="${k}"><span>${l}</span><b>${rows[k].length}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     <p class="small muted">${esc(cur[2])}</p>${body}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
@@ -215,10 +215,39 @@ $$('.tab').forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1); if(TABS.includes(h)&&h!==cur) show(h)});
 
 /* overview */
+// 인사이트 카드 속 사업마다 나라장터 발주계획 → 사전규격 → 입찰공고를 단계별로 보여 준다
+function bizNotice(o){
+  const PL = livePlans(o), P0 = livePres(o), B0 = liveBids(o);
+  if(!(PL.length + P0.length + B0.length)) return '';
+  const a = x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`;
+  // 제안요청서 요약과 서류 버튼을 접힌 상자 하나에 담아 카드 길이를 줄인다
+  const more = x => { const d = (x.docs||[]).length ? docBtns(x, isBid(x)?'나라장터 공고 페이지':'나라장터에서 보기') : ''; const r = rfpBlock(x);
+    if(!r) return d ? `<details class="rfp"><summary>서류 ${(x.docs||[]).length}건</summary>${d}</details>` : '';
+    return r.replace('<summary>제안요청서 요약 — 사업내용·참가자격</summary>', `<summary>제안요청서 요약(사업내용·참가자격)${d?' · 서류 '+(x.docs||[]).length+'건':''}</summary>`).replace(/<\/details>$/, d + '</details>'); };
+  const row = {
+    plan: x => `<li><span class="bw"><b>${esc(ym(x.planMonth))}</b> 발주 예정</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''}</span></div></li>`,
+    pre: x => `<li><span class="bw">${preState(x)==='opinion'?`의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>`:`본공고 대기`}</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}</span>${more(x)}</div></li>`,
+    bid: x => `<li><span class="bw">제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.lic?' · '+esc(x.lic):''}</span>${more(x)}</div></li>`
+  };
+  const SHOW = 2;
+  const sec = (k, cls, label, arr) => !arr.length ? `<div class="bstage none"><span class="tag">${label} 없음</span></div>` : `<div class="bstage ${k}"><span class="tag ${cls}">${label} ${arr.length}건</span>
+    <ul class="brow">${arr.slice(0, SHOW).map(row[k]).join('')}</ul>
+    ${arr.length > SHOW ? `<details class="bmore"><summary>${label} ${arr.length - SHOW}건 더 보기</summary><ul class="brow">${arr.slice(SHOW).map(row[k]).join('')}</ul></details>` : ''}</div>`;
+  return `<div class="bnara"><span class="kl">나라장터 발주계획 → 사전규격 → 입찰공고</span>
+    ${sec('plan','plan','발주계획',PL)}${sec('pre','pre','사전규격',P0)}${sec('bid','ok','입찰공고',B0)}</div>`;
+}
 function renderInsights(){
   const OPP = Object.fromEntries([...(D.opportunities||[]), ...(D.customBiz||[])].map(o=>[o.id,o]));
   const ecls = ENTRY_CLS;
-  $('#insights').innerHTML = (D.insights||[]).map(i=>`<article class="ins">
+  // 나라장터 단계가 살아 있는데 어느 카드에도 없는 사업은 근거 정책·제품이 가장 많이 겹치는 카드에 붙인다
+  const INS = (D.insights||[]).map(i => ({...i, biz: [...(i.biz||[])]}));
+  const covered = new Set(INS.flatMap(i => i.biz));
+  (D.opportunities||[]).filter(o => !covered.has(o.id) && !isDiscarded(o) && items(o).some(itemLive)).forEach(o => {
+    let best = 0, score = -1;
+    INS.forEach((i, k) => { const s = (o.policies||[]).filter(p => (i.refs||[]).includes(p)).length * 2 + (o.products||[]).filter(p => (i.products||[]).some(q => p.includes(q) || q.includes(p))).length; if(s > score){ score = s; best = k; } });
+    if(INS[best]) INS[best].biz.push(o.id);
+  });
+  $('#insights').innerHTML = INS.map(i=>`<article class="ins">
     <span class="k">${esc(i.tag)}</span><h3>${esc(i.title)}</h3><p>${hl(i.body)}</p>
     <div class="refs"><span class="conf">근거 정책</span>${(i.refs||[]).map(pref).join('')}</div>
     <div class="w1box"><span class="w1h">웨이즈원 시사점</span><p>${hl(i.w1)}</p>
@@ -229,7 +258,8 @@ function renderInsights(){
         ${o.entry?`<button type="button" class="linkish bt" data-opp="${esc(o.id)}">${esc(o.title)}</button>`:`<span class="bt">${esc(o.title)}</span>`}
         ${o.entry?'':`<span class="small muted">${esc(o.why)}</span>`}
         <div class="kv"><span class="kl">협력 기술</span><div class="pchips">${(o.partners?.tech||[]).map(x=>`<span class="tc">${esc(x)}</span>`).join('')}</div></div>
-        ${(o.partners?.orgs||[]).length?`<div class="kv"><span class="kl">협력 기업</span>${orgList(o.partners.orgs)}</div>`:''}</div>`).join('')}</div>`:''}
+        ${(o.partners?.orgs||[]).length?`<div class="kv"><span class="kl">협력 기업</span>${orgList(o.partners.orgs)}</div>`:''}
+        ${bizNotice(o)}</div>`).join('')}</div>`:''}
     </div></article>`).join('');
 }
 function renderHeat(){
