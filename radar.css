@@ -409,6 +409,10 @@ section.view{gap:34px}
 .tag.hi{background:var(--mark-soft);color:var(--mark-ink)}
 .tag.rnd{background:color-mix(in srgb,var(--rnd) 13%,var(--surface));color:var(--rnd)}
 .tag.bizs{background:var(--sunk);color:var(--ink2)}
+.tag.ev{background:transparent;color:var(--ink2);box-shadow:inset 0 0 0 1px var(--line2)}
+.tag.ev.talk{color:var(--ink);font-weight:700;box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--ink) 60%,transparent)}
+.evl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.evl .nmeta{min-width:0}
 .fit{display:inline-flex;align-items:center;height:24px;padding:0 10px;border:0;border-radius:999px;font-size:.78rem;font-weight:700;line-height:1;white-space:nowrap}
 .fit.core{background:var(--mark);color:#fff}
 .fit.adj{background:var(--mark-soft);color:var(--mark-ink);border:0}

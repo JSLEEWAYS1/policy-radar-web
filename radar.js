@@ -119,6 +119,20 @@ function eligLine(x){
   return `<div class="elig"><span class="tag">자격 확인 필요</span><span class="nmeta">${esc(e.note||'')}</span></div>`;
 }
 const VERD = {ok:'참여 가능', gap:'보완 필요', no:'자격 미달', unknown:'확인 필요'};
+/* 평가 형태: 제안요청서에서 읽은 evalMode를 쓰고, 없으면 요약문(평가 방식·일정)에서 추정한다 */
+const EVSHORT = {'대면 발표평가':'대면 발표', '온라인 화상 발표평가':'화상 발표', '온라인 평가(발표 없음)':'온라인·발표 없음', '온라인 평가':'온라인 평가', '서면평가':'서면 평가', '발표평가(방식 미기재)':'발표 있음', '평가 방식 미기재':'평가 방식 확인', '최저가·적격심사':'최저가·적격심사'};
+const TALK = new Set(['대면 발표평가', '온라인 화상 발표평가', '발표평가(방식 미기재)']);
+function evalOf(x){
+  const r = x.rfp; if(!r) return null;
+  let mode = r.evalMode, detail = r.evalDetail;
+  if(!mode){ const s = [r.evaluation, r.schedule].join(' ');
+    mode = /최저가|적격심사|수의견적/.test(s) ? '최저가·적격심사' : /서면/.test(s) ? '서면평가' : /화상|비대면/.test(s) ? '온라인 화상 발표평가' : /발표하지 않|발표 없|발표 생략/.test(s) ? '온라인 평가(발표 없음)' : /오프라인|대면/.test(s) ? '대면 발표평가' : /온라인/.test(s) ? '온라인 평가' : /발표|PT|제안설명회/.test(s) ? '발표평가(방식 미기재)' : '평가 방식 미기재'; }
+  const m = String(r.evaluation||'').match(/기술(?:능력)?\s*(\d+)%?[^:：]{0,24}[:：]\s*(?:입찰)?가격\s*(\d+)/);
+  return {mode, detail, ratio: m ? `기술 ${m[1]} : 가격 ${m[2]}` : '', nego: /협상/.test(r.evaluation||'')};
+}
+const evTag = x => { const v = evalOf(x); return v ? `<span class="tag ev${TALK.has(v.mode)?' talk':''}" title="${esc(v.mode)}">${esc(EVSHORT[v.mode]||v.mode)}</span>` : ''; };
+const evLine = x => { const v = evalOf(x); if(!v) return '';
+  return `<div class="evl">${evTag(x)}<span class="nmeta">${[v.nego?'협상에 의한 계약':'', v.ratio, v.detail].filter(Boolean).map(esc).join(' · ')}</span></div>`; };
 const docBtns = (x, label) => `<div class="docs">${(x.docs||[]).map(d=>`<a class="dbtn" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>`).join('')}<a class="dbtn pg" href="${esc(x.url)}" target="_blank" rel="noopener">${label}</a></div>`;
 const chain = x => { const s = []; if(x.planNo) s.push('발주계획 ' + x.planNo); if(x.preNo) s.push('사전규격 ' + x.preNo); return s.length ? `<div class="nmeta">이어진 단계 · ${esc(s.join(' → '))}</div>` : ''; };
 function rfpBlock(x){
@@ -131,7 +145,7 @@ function rfpBlock(x){
     ${row('사업 개요', hl(r.overview||''))}${row('사업기간', esc(r.period||''))}${row('사업비', hl(r.budget||''))}
     ${(r.scope||[]).length?`<dt>주요 과업</dt><dd><ul>${li(r.scope)}</ul></dd>`:''}
     ${(r.qualification||[]).length?`<dt>참가자격</dt><dd><ul>${li(r.qualification)}</ul></dd>`:''}
-    ${row('평가 방식', hl(r.evaluation||''))}${row('일정', hl(r.schedule||''))}${row('웨이즈원 관점', hl(r.fit||''))}</dl>
+    ${r.evalMode||r.evalDetail?row('평가 형태', `<b>${esc(r.evalMode||'')}</b>${r.evalDetail?' — '+esc(r.evalDetail):''}`):''}${row('평가 방식', hl(r.evaluation||''))}${row('일정', hl(r.schedule||''))}${row('웨이즈원 관점', hl(r.fit||''))}</dl>
     <span class="nmeta">${esc(r.source||'제안요청서')}를 읽고 정리${r.checkedAt?' · '+esc(r.checkedAt):''} — 응찰 전 원문을 꼭 확인하세요.</span></details>`;
 }
 function preMeta(x){
@@ -150,11 +164,11 @@ function noticeBlock(o){
     ${B0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${bidMeta(x)}</div>
       ${x.lic?`<div class="nmeta">참가 업종 · ${esc(x.lic)}</div>`:''}${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
-      ${eligLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div>`).join('')}</div>`;
+      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div>`).join('')}</div>`;
   if(P0.length) h += `<div class="nwrap pre"><div class="nhead"><span class="nst pre">사전규격 ${P0.length}건</span><span>본공고 전에 공개된 제안요청서 초안입니다. 의견 마감 전에 과업 범위에 의견을 낼 수 있고, 마감 후에는 본공고가 이어집니다.</span></div>
     ${P0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${preMeta(x)}</div>${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
-      ${eligLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div>`).join('')}</div>`;
+      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div>`).join('')}</div>`;
   if(PL.length) h += `<div class="nwrap planw"><div class="nhead"><span class="nst plan">발주계획 ${PL.length}건</span><span>발주기관이 올해 발주하겠다고 등록한 계획입니다. 사전규격·본공고가 나오기 전 담당부서를 미리 만날 수 있는 단계입니다.</span></div>
     ${PL.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <div class="nmeta">${planMeta(x)}</div>${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}</div>`).join('')}</div>`;
@@ -187,11 +201,11 @@ function renderPipe(){
     pre: ({o,x,st}) => `<li><div class="st">${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''} · ${opp(o)}</span>
-      ${eligLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
+      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
     bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span><span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
-      ${eligLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
+      ${eligLine(x)}${evLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
   };
   const TAB = [['plan','발주계획','발주기관이 올해 발주하겠다고 등록한 계획. 담당부서를 미리 만나 사업 범위를 파악하는 단계'],['pre','사전규격','본공고 전에 제안요청서 초안을 공개하고 의견을 받는 단계. 과업 범위에 의견을 내고 협력사를 정하는 단계'],['bid','입찰공고','제안서·입찰서를 내는 본공고. 제출 마감 전에 응찰 여부를 정하는 단계']];
   if(!rows[pipeTab]) pipeTab = 'pre';
@@ -257,8 +271,8 @@ function bizNotice(o){
     return r.replace('<summary>제안요청서 요약 — 사업내용·참가자격</summary>', `<summary>제안요청서 요약(사업내용·참가자격)${d?' · 서류 '+(x.docs||[]).length+'건':''}</summary>`).replace(/<\/details>$/, d + '</details>'); };
   const row = {
     plan: x => `<li><span class="bw"><b>${esc(ym(x.planMonth))}</b> 발주 예정</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''}</span></div></li>`,
-    pre: x => `<li><span class="bw">${preState(x)==='opinion'?`의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>`:`본공고 대기`}</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}</span>${eligLine(x)}${more(x)}</div></li>`,
-    bid: x => `<li><span class="bw">제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.lic?' · '+esc(x.lic):''}</span>${eligLine(x)}${more(x)}</div></li>`
+    pre: x => `<li><span class="bw">${preState(x)==='opinion'?`의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>`:`본공고 대기`}</span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}</span>${eligLine(x)}${evLine(x)}${more(x)}</div></li>`,
+    bid: x => `<li><span class="bw">제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span><div class="bb">${a(x)}<span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.lic?' · '+esc(x.lic):''}</span>${eligLine(x)}${evLine(x)}${more(x)}</div></li>`
   };
   const SHOW = 2;
   const sec = (k, cls, label, arr) => !arr.length ? '' : `<div class="bstage ${k}"><span class="tag ${cls}">${label} ${arr.length}건</span>
@@ -323,8 +337,8 @@ function renderBoard(){
     ${list.length ? `<ul>${list.join('')}</ul>` : `<p class="empty">${empty}</p>`}
     <button type="button" class="btn go" data-tabgo="${go}"${pipe?` data-pipego="${pipe}"`:''}>전체 보기 →</button></div>`;
   $('#board').innerHTML =
-    col('var(--ok)', '입찰 마감', B.length, B.slice(0,N).map(x => li(dd(x.deadline), x.url, x.title, `${ev(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'bid', '응찰할 수 있는 입찰공고가 없습니다.')
-  + col('var(--pre)', '사전규격 의견 마감', PR.length, PR.slice(0,N).map(x => li(dd(x.opinionDeadline), x.url, x.title, `${ev(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'pre', '의견 접수 중인 사전규격이 없습니다.')
+    col('var(--ok)', '입찰 마감', B.length, B.slice(0,N).map(x => li(dd(x.deadline), x.url, x.title, `${ev(x)}${evTag(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'bid', '응찰할 수 있는 입찰공고가 없습니다.')
+  + col('var(--pre)', '사전규격 의견 마감', PR.length, PR.slice(0,N).map(x => li(dd(x.opinionDeadline), x.url, x.title, `${ev(x)}${evTag(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'pre', '의견 접수 중인 사전규격이 없습니다.')
   + col('var(--rnd)', 'R&D·기업지원 신청', PRG.length, [...RG.slice(0,N).map(x => li(dd(x.close), x.url || (x.links||[])[0]?.url, x.title, `${x.qual?.verdict==='ok'?'<span class="tag ok">신청 가능</span>':x.qual?.verdict==='gap'?'<span class="tag gap">보완 필요</span>':'<span class="tag">자격 확인</span>'}<span class="tag ${x.kind==='rnd'?'rnd':'bizs'}">${x.kind==='rnd'?'연구개발':'기업지원'}</span>${esc(x.agency||x.ministry||'')}${x.open && dlk(x.open) > NOWK ? ' · <b>' + esc(md(x.open)) + ' 접수 시작</b>' : ''}`)),
       ...(RG.length < N ? RS.slice(0, N - RG.length).map(x => li(`<span class="dday">상시<small>${esc(x.closeNote||'')}</small></span>`, x.url || (x.links||[])[0]?.url, x.title, `<span class="tag bizs">기업지원</span>${esc(x.agency||'')}`)) : [])], 'rnd', '', '신청할 수 있는 공고가 없습니다.');
 }
@@ -352,6 +366,7 @@ function renderPrograms(){
       ${x.use?`<p class="use"><b>웨이즈원 활용</b> — ${hl(x.use)}</p>`:''}
       ${(x.products||[]).length?`<div class="pchips">${x.products.map(p=>`<span class="pc">${esc(p)}</span>`).join('')}</div>`:''}</div>
     <dl><dt>신청 자격</dt><dd class="${x.qual?.verdict==='ok'?'qok':'chk'}">${x.qual?`<b>${esc(({ok:'신청 가능',gap:'보완 필요',unknown:'자격 확인 필요'})[x.qual.verdict]||'')}</b> — ${esc(x.qual.note||'')}`:'자격 판정 전 — 공고 원문으로 확인하세요'}</dd><dt>신청 기간</dt><dd><b class="num">${period(x)}</b></dd>
+      <dt>선정 방식</dt><dd>${x.evalm?`<b>${esc(x.evalm.mode)}</b> — ${esc(x.evalm.detail||'')}`:'공고문 확인'}</dd>
       ${x.support?`<dt>지원 내용</dt><dd>${hl(x.support)}</dd>`:''}
       ${x.target?`<dt>신청 대상</dt><dd>${hl(x.target)}</dd>`:''}
       ${x.check?`<dt>확인할 점</dt><dd class="chk">${hl(x.check)}</dd>`:''}
