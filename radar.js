@@ -226,7 +226,8 @@ $('#kpis').innerHTML = [
   [nPlanItems,'발주계획', 'plan', 'g2b', 'plan'],
   [PRG.length,'R&D·기업지원', 'rnd', 'rnd'],
   [P.length,'정책·계획', '', 'catalog']
-].map(([v,l,c,t,pp])=>`<button type="button" class="kpi ${c||''}" data-tabgo="${t}"${pp?` data-pipego="${pp}"`:''}><b>${v}</b><span>${l}</span></button>`).join('');
+].map(([v,l,c,t,pp])=>`<button type="button" class="kpi ${c||''}" data-tabgo="${t}"${pp?` data-pipego="${pp}"`:''}><b>${v}</b><span><i class="dot" style="--c:${({hot:'var(--ok)',pre:'var(--pre)',plan:'var(--plan)',rnd:'var(--rnd)'})[c]||'var(--ink3)'}"></i>${l}</span></button>`).join('');
+[['g2b', nPlanItems + nPreItems + nBidItems], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
 const TABS = ['overview','g2b','rnd','ways1','catalog','links','timeline','sources'];
@@ -318,13 +319,13 @@ function renderBoard(){
   const ev = x => { const e = x.elig?.verdict; return e === 'ok' ? '<span class="tag ok">참여 가능</span>' : e === 'gap' ? `<span class="tag gap">보완 ${(x.elig.gaps||[]).length}</span>` : e === 'unknown' ? '<span class="tag">자격 확인</span>' : ''; };
   const dd = s => { const n = ddN(s); return `<span class="dday ${n<=3?'hot':''}">${ddTxt(s)}<small>${esc(md(s))}</small></span>`; };
   const li = (d, url, title, meta) => `<li>${d}<div><a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a><div class="bm">${meta}</div></div></li>`;
-  const col = (c, title, n, list, go, pipe, empty) => `<div class="bcol" style="--c:${c}"><h3>${title} <b>${n}</b></h3>
+  const col = (c, title, n, list, go, pipe, empty) => `<div class="bcol" style="--c:${c}"><h3><i class="dot" style="--c:${c}"></i>${title}<b>${n}건</b></h3>
     ${list.length ? `<ul>${list.join('')}</ul>` : `<p class="empty">${empty}</p>`}
     <button type="button" class="btn go" data-tabgo="${go}"${pipe?` data-pipego="${pipe}"`:''}>전체 보기 →</button></div>`;
   $('#board').innerHTML =
     col('var(--ok)', '입찰 마감', B.length, B.slice(0,N).map(x => li(dd(x.deadline), x.url, x.title, `${ev(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'bid', '응찰할 수 있는 입찰공고가 없습니다.')
   + col('var(--pre)', '사전규격 의견 마감', PR.length, PR.slice(0,N).map(x => li(dd(x.opinionDeadline), x.url, x.title, `${ev(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'pre', '의견 접수 중인 사전규격이 없습니다.')
-  + col('var(--g-city)', 'R&D·기업지원 신청', PRG.length, [...RG.slice(0,N).map(x => li(dd(x.close), x.url || (x.links||[])[0]?.url, x.title, `${x.qual?.verdict==='ok'?'<span class="tag ok">신청 가능</span>':''}<span class="tag ${x.kind==='rnd'?'rnd':'bizs'}">${x.kind==='rnd'?'연구개발':'기업지원'}</span>${esc(x.agency||x.ministry||'')}${x.open && dlk(x.open) > NOWK ? ' · <b>' + esc(md(x.open)) + ' 접수 시작</b>' : ''}`)),
+  + col('var(--rnd)', 'R&D·기업지원 신청', PRG.length, [...RG.slice(0,N).map(x => li(dd(x.close), x.url || (x.links||[])[0]?.url, x.title, `${x.qual?.verdict==='ok'?'<span class="tag ok">신청 가능</span>':''}<span class="tag ${x.kind==='rnd'?'rnd':'bizs'}">${x.kind==='rnd'?'연구개발':'기업지원'}</span>${esc(x.agency||x.ministry||'')}${x.open && dlk(x.open) > NOWK ? ' · <b>' + esc(md(x.open)) + ' 접수 시작</b>' : ''}`)),
       ...(RG.length < N ? RS.slice(0, N - RG.length).map(x => li(`<span class="dday">상시<small>${esc(x.closeNote||'')}</small></span>`, x.url || (x.links||[])[0]?.url, x.title, `<span class="tag bizs">기업지원</span>${esc(x.agency||'')}`)) : [])], 'rnd', '', '신청할 수 있는 공고가 없습니다.');
 }
 /* 연구개발·기업지원 */
@@ -344,7 +345,7 @@ function renderPrograms(){
   const state = x => { if(!x.close) return '<span class="tag ing">상시 접수</span>';
     if(x.open && dlk(x.open) > NOWK) return `<span class="tag">접수 예정 · ${esc(md(x.open))} 시작</span>`;
     return `<span class="tag ing">접수 중</span><span class="dd ${ddN(x.close)<=7?'hot':'soon'}">${ddTxt(x.close)}</span>`; };
-  $('#rndlist').innerHTML = list.length ? list.map(x => `<article class="prg" style="--c:${x.kind==='rnd'?'var(--g-city)':'var(--g-its)'}">
+  $('#rndlist').innerHTML = list.length ? list.map(x => `<article class="prg">
     <div class="ph"><div class="top"><span class="tag ${x.kind==='rnd'?'rnd':'bizs'}">${KIND[x.kind]||''}</span>${x.fit==='high'?'<span class="tag hi">적합도 높음</span>':'<span class="tag">검토</span>'}${QV[x.qual?.verdict]||''}${state(x)}${isNew(x)?'<span class="tag new">신규</span>':''}</div>
       <h3><a href="${esc(x.url || (x.links||[])[0]?.url || '#')}" target="_blank" rel="noopener">${esc(x.title)}</a></h3>
       <span class="org">${esc(x.ministry||'')}${x.agency?' · '+esc(x.agency):''}</span>
