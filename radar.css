@@ -519,6 +519,7 @@ details.pol .vs{font-size:.95rem}
 .prg dt{color:var(--ink3);font-size:.84rem;padding-top:1px}
 .prg dd{margin:0;color:var(--ink2)}
 .prg dd.chk{color:var(--warn);font-weight:600}
+.prg dd.qok{color:var(--ok);font-weight:600}
 .tag.rnd{border-color:color-mix(in srgb,var(--g-city) 55%,transparent);color:var(--g-city);font-weight:600}
 .tag.bizs{border-color:color-mix(in srgb,var(--g-its) 55%,transparent);color:var(--g-its);font-weight:600}
 .tag.hi{background:var(--mark);border-color:var(--mark);color:#fff;font-weight:600}
