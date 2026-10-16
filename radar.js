@@ -422,7 +422,7 @@ function docBody(p){
   const parents = (p.links||[]).filter(l=>byId[l.id]).map(l=>`<li><span>${pref(l.id)} <span class="conf">${l.ex?'명시':'내용상 연계'}</span></span></li>`).join('');
   const ch = (kids[p.id]||[]).filter(k=>byId[k.id]).map(k=>`<li><span>${pref(k.id)}</span></li>`).join('');
   const w = p.w1||{};
-  return `<div class="dbtn">
+  return `<div class="doc">
     <div class="sq"><i>□</i><div><b>비전·목표</b><span class="muted">${hl(p.vision)}</span>${p.targets?.length?`<ul>${li(p.targets)}</ul>`:''}</div></div>
     ${p.keyTasks?.length?`<div class="sq"><i>□</i><div><b>주요 추진과제</b><ul>${li(p.keyTasks)}</ul></div></div>`:''}
     ${p.budget?`<div class="sq"><i>□</i><div><b>투자·예산</b><span class="muted">${hl(p.budget)}</span></div></div>`:''}
@@ -523,7 +523,7 @@ function selectNode(id){
   $('#ldetail').innerHTML = `<div class="top" style="display:flex;flex-wrap:wrap;gap:6px">${grpTag(p)}${lvTag(p)}${fitTag(p.w1?.fit)}</div>
     <h3>${esc(p.name)}</h3><p class="small muted">${esc(p.ministry)}${p.period?' · '+esc(p.period):''}${p.announced?' · '+esc(p.announced):''}</p>
     <p class="small">${hl(p.vision)}</p>
-    <div class="dbtn">
+    <div class="doc">
       <div class="sq"><i>□</i><div><b>상위 근거 ${ups.length}</b>${ups.length?`<ul>${ups.map(l=>`<li><span>${pref(l.id)} <span class="conf">${l.ex?'명시':'추정'}</span></span></li>`).join('')}</ul>`:'<span class="small muted">최상위 계획</span>'}</div></div>
       <div class="sq"><i>□</i><div><b>하위 실행 ${dn.length}</b>${dn.length?`<ul>${dn.map(k=>`<li><span>${pref(k.id)}</span></li>`).join('')}</ul>`:'<span class="small muted">하위 연계 없음</span>'}</div></div>
       ${p.spatialHooks?.length?`<div class="sq"><i>□</i><div><b>공간정보 결합 지점</b><ul>${p.spatialHooks.slice(0,4).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`:''}
