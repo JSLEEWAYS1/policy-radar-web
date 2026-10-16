@@ -325,7 +325,7 @@ function renderBoard(){
   $('#board').innerHTML =
     col('var(--ok)', '입찰 마감', B.length, B.slice(0,N).map(x => li(dd(x.deadline), x.url, x.title, `${ev(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'bid', '응찰할 수 있는 입찰공고가 없습니다.')
   + col('var(--pre)', '사전규격 의견 마감', PR.length, PR.slice(0,N).map(x => li(dd(x.opinionDeadline), x.url, x.title, `${ev(x)}${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}`)), 'g2b', 'pre', '의견 접수 중인 사전규격이 없습니다.')
-  + col('var(--rnd)', 'R&D·기업지원 신청', PRG.length, [...RG.slice(0,N).map(x => li(dd(x.close), x.url || (x.links||[])[0]?.url, x.title, `${x.qual?.verdict==='ok'?'<span class="tag ok">신청 가능</span>':''}<span class="tag ${x.kind==='rnd'?'rnd':'bizs'}">${x.kind==='rnd'?'연구개발':'기업지원'}</span>${esc(x.agency||x.ministry||'')}${x.open && dlk(x.open) > NOWK ? ' · <b>' + esc(md(x.open)) + ' 접수 시작</b>' : ''}`)),
+  + col('var(--rnd)', 'R&D·기업지원 신청', PRG.length, [...RG.slice(0,N).map(x => li(dd(x.close), x.url || (x.links||[])[0]?.url, x.title, `${x.qual?.verdict==='ok'?'<span class="tag ok">신청 가능</span>':x.qual?.verdict==='gap'?'<span class="tag gap">보완 필요</span>':'<span class="tag">자격 확인</span>'}<span class="tag ${x.kind==='rnd'?'rnd':'bizs'}">${x.kind==='rnd'?'연구개발':'기업지원'}</span>${esc(x.agency||x.ministry||'')}${x.open && dlk(x.open) > NOWK ? ' · <b>' + esc(md(x.open)) + ' 접수 시작</b>' : ''}`)),
       ...(RG.length < N ? RS.slice(0, N - RG.length).map(x => li(`<span class="dday">상시<small>${esc(x.closeNote||'')}</small></span>`, x.url || (x.links||[])[0]?.url, x.title, `<span class="tag bizs">기업지원</span>${esc(x.agency||'')}`)) : [])], 'rnd', '', '신청할 수 있는 공고가 없습니다.');
 }
 /* 연구개발·기업지원 */
@@ -335,7 +335,7 @@ function renderPrograms(){
   const KIND = {rnd: '연구개발', biz: '기업지원'};
   const QV = {ok: '<span class="tag ok">신청 가능</span>', gap: '<span class="tag gap">보완 필요</span>', unknown: '<span class="tag">자격 확인 필요</span>'};
   const src = (PG.sources||[]).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>`).join(' · ');
-  $('#rndintro').innerHTML = `${src}에서 웨이즈원 제품과 맞는 연구개발(R&amp;D)·기업지원 공고를 골랐습니다. 인력지원(채용연계·고령자 채용·재직자 교육훈련 등)은 넣지 않습니다. 신청 마감이 지나면 자동으로 빠집니다.<br><span class="nmeta">${PG.checkedAt?`확인 ${esc(PG.checkedAt)} KST · `:''}${esc(PG.note||'')}</span>`;
+  $('#rndintro').innerHTML = `${src}에서 웨이즈원 제품과 맞는 연구개발(R&amp;D)·기업지원 공고를 골랐습니다. 공고마다 신청 자격을 웨이즈원 보유 현황과 맞춰 판정했고, 웨이즈원이 신청할 수 없는 공고와 인력지원·컨설팅 단독 지원은 넣지 않습니다. 신청 마감이 지나면 자동으로 빠집니다.<br><span class="nmeta">${PG.checkedAt?`확인 ${esc(PG.checkedAt)} KST · `:''}${esc(PG.note||'')}</span>`;
   const ord = x => x.close ? dlk(x.close) : '9999';
   const list = PRG.filter(x => !rndKind || x.kind === rndKind).sort((a,b)=>(a.fit==='high'?0:1)-(b.fit==='high'?0:1) || ord(a).localeCompare(ord(b)));
   $('#rndseg').innerHTML = [['','전체'],['rnd','연구개발'],['biz','기업지원']].map(([k,l]) => `<button type="button" data-k="${k}" aria-pressed="${String(k===rndKind)}">${l} <span class="mono small">${k?PRG.filter(x=>x.kind===k).length:PRG.length}</span></button>`).join('');
@@ -351,7 +351,7 @@ function renderPrograms(){
       <span class="org">${esc(x.ministry||'')}${x.agency?' · '+esc(x.agency):''}</span>
       ${x.use?`<p class="use"><b>웨이즈원 활용</b> — ${hl(x.use)}</p>`:''}
       ${(x.products||[]).length?`<div class="pchips">${x.products.map(p=>`<span class="pc">${esc(p)}</span>`).join('')}</div>`:''}</div>
-    <dl>${x.qual?`<dt>참여 판정</dt><dd class="${x.qual.verdict==='ok'?'qok':'chk'}">${esc(x.qual.note||'')}</dd>`:''}<dt>신청 기간</dt><dd><b class="num">${period(x)}</b></dd>
+    <dl><dt>신청 자격</dt><dd class="${x.qual?.verdict==='ok'?'qok':'chk'}">${x.qual?`<b>${esc(({ok:'신청 가능',gap:'보완 필요',unknown:'자격 확인 필요'})[x.qual.verdict]||'')}</b> — ${esc(x.qual.note||'')}`:'자격 판정 전 — 공고 원문으로 확인하세요'}</dd><dt>신청 기간</dt><dd><b class="num">${period(x)}</b></dd>
       ${x.support?`<dt>지원 내용</dt><dd>${hl(x.support)}</dd>`:''}
       ${x.target?`<dt>신청 대상</dt><dd>${hl(x.target)}</dd>`:''}
       ${x.check?`<dt>확인할 점</dt><dd class="chk">${hl(x.check)}</dd>`:''}
