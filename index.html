@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=843eba47">
-<link rel="stylesheet" href="app.css?v=843eba47">
+<link rel="stylesheet" href="radar.css?v=76a8b093">
+<link rel="stylesheet" href="app.css?v=76a8b093">
 </head>
 <body>
 
@@ -135,6 +135,7 @@
     <button class="tab" role="tab" data-tab="g2b" id="t-g2b">나라장터 사업</button>
     <button class="tab" role="tab" data-tab="rnd" id="t-rnd">연구개발·기업지원</button>
     <button class="tab" role="tab" data-tab="ways1" id="t-ways1">웨이즈원 기회</button>
+    <button class="tab" role="tab" data-tab="track" id="t-track">수행 실적</button>
     <button class="tab" role="tab" data-tab="idea" id="t-idea">아이디어 검증</button>
     <button class="tab" role="tab" data-tab="catalog" id="t-catalog">정책 카탈로그</button>
     <button class="tab" role="tab" data-tab="links" id="t-links">정책 연계도</button>
@@ -236,6 +237,19 @@
   <div class="road" id="road"></div>
 </section>
 
+<section class="view" id="v-track" data-view="track" hidden>
+  <div class="sec-head"><h2>웨이즈원 수행 실적</h2>
+    <p class="muted">나라장터 계약 기록에서 웨이즈원이 <b>대표사(단독 포함)</b>이거나 <b>공동수급 구성원</b>으로 들어간 사업을 모아 사업 키워드별로 묶었습니다. 하도급으로 수행한 사업도 따로 표시합니다. 금액은 계약 총액이고, 「웨이즈원 몫」은 계약 총액에 웨이즈원 지분율을 곱한 값입니다.</p></div>
+  <div class="trkpi" id="trkpi"></div>
+  <div class="panel trkw">
+    <div class="trkwh"><h3>키워드별 정리</h3><span class="nmeta">줄을 누르면 그 키워드 사업만 봅니다</span></div>
+    <div class="tablebox"><table class="trtable" id="trtable"></table></div>
+  </div>
+  <div class="frow trbar"><div class="seg" id="trrole" role="group" aria-label="참여 형태"></div><span class="count" id="trcount"></span></div>
+  <div class="trgroups" id="trgroups"></div>
+  <p class="small muted trnote" id="trnote"></p>
+</section>
+
 <section class="view" id="v-idea" data-view="idea" hidden>
   <div class="sec-head"><h2>아이디어 검증</h2>
     <p class="muted" id="idea-intro">기획안이나 아이디어를 넣으면 먼저 레이더에서 바로 실행할 수 있는 나라장터 공고·사업·지원사업을 찾고, 이어서 정책·기술·경제·실행 네 축의 타당성을 점수로 보여 줍니다. 점수는 레이더 데이터로 정해진 공식에 따라 계산하고, AI는 필요한 기술 요소 정리와 사업 고르기, 해석 문장만 맡습니다. 사내 1차 검토용이며 정식 예비타당성조사를 대신하지 않습니다.</p></div>
@@ -297,8 +311,8 @@
   </div>
 </div>
 
-<script src="config.js?v=843eba47"></script>
-<script src="radar.js?v=843eba47"></script>
-<script type="module" src="app.js?v=843eba47"></script>
+<script src="config.js?v=76a8b093"></script>
+<script src="radar.js?v=76a8b093"></script>
+<script type="module" src="app.js?v=76a8b093"></script>
 </body>
 </html>

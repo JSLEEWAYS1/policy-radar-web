@@ -264,7 +264,7 @@ $('#kpis').innerHTML = [
 [['g2b', nPlanItems + nPreItems + nBidItems], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
-const TABS = ['overview','g2b','rnd','ways1','idea','catalog','links','timeline','sources'];
+const TABS = ['overview','g2b','rnd','ways1','track','idea','catalog','links','timeline','sources'];
 let cur = 'overview';
 function show(t, opt={}){
   if(!TABS.includes(t)) t='overview';
@@ -1309,6 +1309,92 @@ ${ax}
 
   /* 처음 화면: 예시 아이디어를 키워드로 분석해 둔다(AI 호출 없음) */
   S.sel = kwSelect(EXAMPLE); S.example = true; render();
+})();
+
+/* 웨이즈원 수행 실적(2026-10-19): 나라장터 계약에서 웨이즈원이 대표·단독·공동수급 구성원·하도급으로 들어간 사업을 사업 키워드별로 묶는다 */
+(function(){
+  const root = document.getElementById('v-track'); if(!root) return;
+  const T = D.track || {}, ALL = (T.items || []).map(x => ({...x}));
+  // 사업 키워드(위에서부터 먼저 맞는 것이 대표 키워드). 웨이즈원 사업군 단위로 같은 깊이를 맞춘다
+  const KW = [
+    ['defense', '국방·해외 공간정보', /전술|국방|군사|몽골|해외|ODA|주소정보\s*현대화/],
+    ['hdmap', '정밀도로지도·자율주행', /정밀\s*(도로\s*)?지도|고정밀|자율\s*주행|자율\s*운송|CAV|LDM|Local Dynamic|맵\s*데이터|모빌리티/i],
+    ['its', '교통신호·ITS·BIS', /신호|교통\s*데이터|교통정보|BIS|BMS|ITS|버스정보/],
+    ['road', '도로대장·도로 공간정보', /도로대장|도로\s*공간정보/],
+    ['land', '토지적성평가·재해취약성', /토지적성|재해취약성/],
+    ['urban', '연속도면·도시계획 DB', /연속도면|용도지역|도시계획|지적재조사|인허가|IPSS|토지이용/],
+    ['ugis', '지하시설물·관로 GIS DB', /GIS|관로|배수지|송수관|오수|하수|상수도|지하시설물|측량조사/],
+    ['map', '지도 제작·측량', /테마지도|지도\s*제작|지도제작|현황측량|측량|콘텐츠/],
+    ['platform', '공간정보 플랫폼·AI', /플랫폼|AI|인공지능|디지털\s*트윈|클라우드/]
+  ];
+  const NAME = Object.fromEntries(KW.map(k => [k[0], k[1]])); NAME.etc = '기타';
+  ALL.forEach(x => {
+    const k = KW.filter(r => r[2].test(x.title || '')).map(r => r[0]);
+    x._kw = k.length ? k : ['etc'];
+    x._mine = x.share != null && x.share !== '' ? Math.round((x.amt || 0) * (+x.share) / 100) : null;
+  });
+  const ROLE = {lead: ['대표', '단독'], mem: ['구성'], sub: ['하도급']};
+  const RTAG = {'대표': 'lead', '단독': 'solo', '구성': 'mem', '하도급': 'sub'};
+  const RNAME = {'대표': '대표사', '단독': '단독', '구성': '구성원', '하도급': '하도급'};
+  // 나라장터 계약방법 문구를 짧게
+  const mth = m => { m = String(m || ''); return /협상/.test(m) ? '협상에 의한 계약' : /2천만원 이하|소액/.test(m) ? '소액 수의계약' : /수의|1인뿐|특수한 기술/.test(m) ? '수의계약' : /제한/.test(m) ? '제한경쟁' : /일반경쟁/.test(m) ? '일반경쟁' : /중소벤처기업부장관|중기간/.test(m) ? '중소기업 간 경쟁' : m; };
+  const SRCH = 'https://www.g2b.go.kr/link/FIUA009_01/single/?searchKeyword=';
+  const won = v => v ? eokT(v) : '-';
+  let role = 'all', kw = null;
+  try { const r = JSON.parse(localStorage.getItem('w1radar.trrole') || '""'); if(r && (r === 'all' || ROLE[r])) role = r; } catch(e) {}
+
+  const tb = document.getElementById('t-track');
+  if(tb && ALL.length) tb.insertAdjacentHTML('beforeend', `<span class="n">${ALL.length}</span>`);
+
+  const seg = document.getElementById('trrole');
+  const segs = [['all', '전체'], ['lead', '대표·단독'], ['mem', '공동수급 구성원'], ['sub', '하도급']].filter(([k]) => k === 'all' || ALL.some(x => ROLE[k].includes(x.role)));
+  seg.innerHTML = segs.map(([k, l]) => `<button type="button" data-r="${k}" aria-pressed="${k === role}">${l} <span class="nmeta">${k === 'all' ? ALL.length : ALL.filter(x => ROLE[k].includes(x.role)).length}</span></button>`).join('');
+  seg.addEventListener('click', e => { const b = e.target.closest('button[data-r]'); if(!b) return; role = b.dataset.r; store('trrole', role); render(); });
+
+  const tbl = document.getElementById('trtable');
+  const pick = (tr) => { const k = tr.dataset.k; kw = kw === k ? null : k; render(); if(kw) document.getElementById('trgroups').scrollIntoView({behavior: 'smooth', block: 'start'}); };
+  tbl.addEventListener('click', e => { const tr = e.target.closest('tbody tr[data-k]'); if(tr) pick(tr); });
+  tbl.addEventListener('keydown', e => { const tr = e.target.closest('tbody tr[data-k]'); if(tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(tr); } });
+
+  function row(x){
+    const mem = (x.members || []).length > 1
+      ? `<span class="mem">공동수급${x.how ? '(' + esc(x.how) + ')' : ''} · ${x.members.map(m => m.name === '웨이즈원' ? `<b>웨이즈원 ${m.share != null ? m.share + '%' : ''}</b>${m.lead ? '(대표)' : ''}` : `${esc(m.name)} ${m.share != null ? m.share + '%' : ''}${m.lead ? '(대표)' : ''}`).join(' · ')}</span>`
+      : (x.role === '구성' && x.lead ? `<span class="mem">대표사 ${esc(x.lead)}</span>` : '');
+    const share = x.role === '대표' || x.role === '구성' ? (x.share != null ? ` <b class="num">${x.share}%</b>` : ' 지분 미상') : '';
+    const period = x.start || x.end ? ` · <span class="nw">기간 ${esc(x.start || '')}~${esc(x.end || '')}</span>` : '';
+    const extra = x._kw.slice(1).map(k => `<span class="tag kw">${esc(NAME[k])}</span>`).join('');
+    return `<li><div class="tw"><b>${esc(ym(x.date) || '-')}</b><span class="tag ${RTAG[x.role]}">${RNAME[x.role]}${share}</span></div>
+      <div class="tb"><a href="${SRCH + encodeURIComponent(x.title)}" target="_blank" rel="noopener">${esc(x.title)}</a>
+        <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer || x.org || '')} · 계약 <b class="num">${won(x.amt)}</b>${x.total ? ` (장기계속 총 ${won(x.total)})` : ''}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${x.method ? ' · ' + esc(mth(x.method)) : ''}${x.chg ? ' · 변경 ' + esc(x.chg) + '회' : ''}${period}</span>
+        ${mem}${extra ? `<span class="kws">${extra}</span>` : ''}</div></li>`;
+  }
+
+  function render(){
+    $$('button[data-r]', seg).forEach(b => b.setAttribute('aria-pressed', b.dataset.r === role ? 'true' : 'false'));
+    const L = ALL.filter(x => role === 'all' || ROLE[role].includes(x.role));
+    const sum = a => a.reduce((s, x) => s + (x.amt || 0), 0), mine = a => a.reduce((s, x) => s + (x._mine || 0), 0);
+    const buyers = new Set(L.map(x => x.buyer || x.org)).size;
+    document.getElementById('trkpi').innerHTML = [
+      [L.length + '건', '사업 수'], [won(sum(L)), '계약 총액'], [won(mine(L)), '웨이즈원 몫(지분 반영)'], [buyers + '곳', '발주·수요기관']
+    ].map(([v, l]) => `<div class="k"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+    // 키워드별 표(대표 키워드 기준이라 합계가 맞는다)
+    const G = {}; L.forEach(x => (G[x._kw[0]] ||= []).push(x));
+    const keys = Object.keys(G).sort((a, b) => mine(G[b]) - mine(G[a]) || G[b].length - G[a].length);
+    if(kw && !G[kw]) kw = null;
+    const mx = Math.max(1, ...keys.map(k => mine(G[k])));
+    tbl.innerHTML = `<thead><tr><th>키워드</th><th class="n">건수</th><th class="n">계약 총액</th><th class="n">웨이즈원 몫</th><th class="barc" aria-hidden="true"></th><th>최근 계약</th></tr></thead>
+      <tbody>${keys.map(k => { const a = G[k], last = a.map(x => x.date || '').sort().pop();
+        return `<tr data-k="${k}" tabindex="0" aria-selected="${kw === k}"><td class="kwc"><span class="kwn">${esc(NAME[k])}</span></td><td class="n" data-l="건수">${a.length}</td><td class="n" data-l="총액"><b class="num">${won(sum(a))}</b></td><td class="n" data-l="몫"><b class="num">${won(mine(a))}</b></td><td class="barc"><div class="bar"><i style="width:${Math.round(mine(a) / mx * 100)}%"></i></div></td><td data-l="최근">${esc(ym(last))}</td></tr>`; }).join('')}</tbody>
+      <tfoot><tr><td>합계</td><td class="n">${L.length}</td><td class="n">${won(sum(L))}</td><td class="n">${won(mine(L))}</td><td class="barc"></td><td></td></tr></tfoot>`;
+    const show = kw ? [kw] : keys;
+    document.getElementById('trcount').textContent = kw ? `${NAME[kw]} ${G[kw].length}건 · 다시 누르면 전체` : `${keys.length}개 키워드 · ${L.length}건`;
+    document.getElementById('trgroups').innerHTML = !L.length ? `<p class="trempty">${ALL.length ? '이 조건에 맞는 사업이 없습니다.' : '아직 수집된 실적이 없습니다. 나라장터 자동 수집이 다음에 돌 때 채워집니다.'}</p>`
+      : show.map(k => { const a = G[k].slice().sort((p, q) => (q.date || '').localeCompare(p.date || ''));
+        return `<section class="panel trg"><h3>${esc(NAME[k])} <span class="nmeta">${a.length}건 · 계약 총액 <b class="num">${won(sum(a))}</b> · 웨이즈원 몫 <b class="num">${won(mine(a))}</b></span></h3><ul class="trlist">${a.map(row).join('')}</ul></section>`; }).join('');
+  }
+  const yr = String(T.from || '').slice(0, 4);
+  document.getElementById('trnote').innerHTML = ALL.length ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다. 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
+  render();
 })();
 
 const h0 = location.hash.slice(1);

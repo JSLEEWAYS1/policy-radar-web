@@ -757,3 +757,61 @@ details.mkt ul{margin-top:6px}
 .ideaform.drag{outline:2px dashed var(--mark);outline-offset:4px}
 .idsum{font-size:.93rem;line-height:1.7;color:var(--ink);padding:10px 14px;border-radius:10px;background:var(--tint);box-shadow:inset 0 0 0 1px var(--line)}
 @media (max-width:620px){.idoclist li{grid-template-columns:minmax(0,1fr) auto}.idoclist li .nmeta{grid-column:1/-1;order:3}}
+
+/* 웨이즈원 수행 실적 (2026-10-19): 요약 숫자 → 키워드별 표 → 역할 필터 → 키워드 묶음 목록 */
+.trkpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:12px}
+.trkpi .k{display:grid;gap:4px;padding:14px 16px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
+.trkpi .k b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.5rem;font-weight:650;line-height:1.15;color:var(--ink)}
+.trkpi .k span{font-size:.82rem;color:var(--ink2)}
+.trkw{display:grid;gap:10px}
+.trkwh{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.trtable{width:100%;border-collapse:collapse;font-size:.9rem}
+.trtable th{font-size:.76rem;font-weight:600;color:var(--ink3);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.trtable th.n,.trtable td.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.trtable td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.trtable tbody tr{cursor:pointer}
+.trtable tbody tr:hover td{background:var(--tint)}
+.trtable tbody tr[aria-selected="true"] td{background:color-mix(in srgb,var(--mark) 8%,var(--surface))}
+.trtable tbody tr:focus-visible{outline:2px solid var(--mark);outline-offset:-2px}
+.trtable .kwn{font-weight:650;color:var(--ink)}
+.trtable .bar{position:relative;height:8px;min-width:80px;border-radius:999px;background:var(--sunk);overflow:hidden}
+.trtable .bar i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--mark)}
+.trtable tfoot td{font-weight:650;border-bottom:0;border-top:1px solid var(--line2)}
+.trbar{justify-content:space-between}
+.trgroups{display:grid;gap:16px}
+.trg{display:grid;gap:4px}
+.trg>h3{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-size:1.05rem}
+.trg>h3 .nmeta{font-weight:500}
+.trlist{list-style:none;margin:0;padding:0;display:grid}
+.trlist li{display:grid;grid-template-columns:124px minmax(0,1fr);gap:4px 18px;padding:14px 0;border-top:1px solid var(--line)}
+.trlist li:first-child{border-top:0}
+.trlist .tw{display:grid;gap:6px;align-content:start;justify-items:start}
+.trlist .tw b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.92rem}
+.trlist .tb{display:grid;gap:4px;min-width:0}
+.trlist .tb a{font-weight:650;color:var(--ink);text-decoration:none;overflow-wrap:anywhere}
+.trlist .tb a:hover{text-decoration:underline}
+.trlist .mem{font-size:.84rem;color:var(--ink2)}
+.trlist .mem b{color:var(--ink);font-weight:650}
+.trlist .kws{display:flex;flex-wrap:wrap;gap:4px}
+.tag.lead{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
+.tag.solo{background:color-mix(in srgb,var(--plan) 13%,var(--surface));color:var(--plan)}
+.tag.mem{background:color-mix(in srgb,var(--pre) 12%,var(--surface));color:var(--pre)}
+.tag.sub{background:var(--sunk);color:var(--ink2)}
+.tag.kw{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink3);font-weight:500;height:20px;font-size:.72rem}
+.trnote{max-width:90ch}
+.trlist .nw{white-space:nowrap}
+.trempty{padding:16px;border-radius:var(--r);background:var(--tint);color:var(--ink2)}
+@media (max-width:620px){
+  .trkpi .k{padding:12px 14px}
+  .trkpi .k b{font-size:1.25rem}
+  .trtable thead{display:none}
+  .trtable tbody tr{display:flex;flex-wrap:wrap;gap:2px 14px;padding:10px 6px;border-bottom:1px solid var(--line)}
+  .trtable tbody td{padding:0;border:0;font-size:.86rem}
+  .trtable tbody td.kwc{flex:1 0 100%}
+  .trtable tbody td[data-l]::before{content:attr(data-l) " ";color:var(--ink3);font-size:.74rem;font-family:var(--f-body)}
+  .trtable tbody td.barc{display:none}
+  .trtable tfoot{display:none}
+  .trtable td.n{text-align:left}
+  .trlist li{grid-template-columns:minmax(0,1fr);gap:6px}
+  .trlist .tw{grid-auto-flow:column;justify-content:start;align-items:center}
+}
