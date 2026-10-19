@@ -957,12 +957,19 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       let out = '';
       for (let i = 1; i <= Math.min(doc.numPages, 120); i++) {
         let tc; try { tc = await (await doc.getPage(i)).getTextContent(); } catch (e) { continue; }
+        // 발표자료(PPT)에서 만든 PDF는 낱말마다 따로 놓이고 띄어쓰기 글자가 없다. 한글 조각 대부분이 공백 없는 2자 이상 낱말이면
+        // 조각 사이를 띄어 쓴 것으로 본다(한글 문서처럼 문장째 놓이거나 글자마다 놓인 PDF는 그대로)
+        const hs = tc.items.filter(it => typeof it.str === 'string' && /[가-힣]/.test(it.str)).map(it => it.str.trim());
+        const ml = hs.length ? hs.map(t => t.length).sort((a, c) => a - c)[Math.floor(hs.length / 2)] : 0;
+        const wordMode = hs.length >= 8 && hs.filter(t => /\s/.test(t)).length / hs.length < .1 && ml >= 2;
         const lines = []; let cur = null;
         for (const it of tc.items) {
           if (typeof it.str !== 'string') continue;
           const x = it.transform ? it.transform[4] : 0, y = it.transform ? it.transform[5] : 0, w = +it.width || 0;
-          if (!cur || Math.abs(y - cur.y) > 2) { if (cur && cur.t.trim()) lines.push(cur); cur = {t: '', x0: x, x1: x + w, y}; }
-          cur.t += it.str; cur.x0 = Math.min(cur.x0, x); cur.x1 = Math.max(cur.x1, x + w);
+          const fs = it.transform ? Math.hypot(it.transform[0], it.transform[1]) || 10 : 10;
+          if (!cur || Math.abs(y - cur.y) > 2) { if (cur && cur.t.trim()) lines.push(cur); cur = {t: '', x0: x, x1: x + w, y, end: x}; }
+          if (wordMode && it.str && cur.t && /[가-힣A-Za-z0-9)\]%]$/.test(cur.t) && /^[가-힣A-Za-z(\[]/.test(it.str) && !/^(에서는|에서도|으로는|으로도|에서|으로|에게|까지|부터|처럼|에는|에도|로는|를|을|에|의|는|은|이|가|와|과|로|도|만|하여|하고|하는|하며|한|할|함|된|되는|되어|적|적인|적으로|화|들)(?![가-힣])/.test(it.str) && x - cur.end > -.6 * fs) cur.t += ' ';
+          cur.t += it.str; cur.x0 = Math.min(cur.x0, x); cur.x1 = Math.max(cur.x1, x + w); if (it.str) cur.end = x + w;
           if (it.hasEOL) { if (cur.t.trim()) lines.push(cur); cur = null; }
         }
         if (cur && cur.t.trim()) lines.push(cur);
@@ -979,7 +986,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
         out += paras.map(p => p.t).join('\n') + '\n';
       }
       try { doc.destroy(); } catch (e) {}
-      return out.replace(/[ \t]+\n/g, '\n');
+      return out.replace(/[ \t]+\n/g, '\n').replace(/(^|[^A-Za-z])((?:[A-Z] ){3,}[A-Z])(?![A-Za-z])/gm, (m, a, w) => a + w.replace(/ /g, ''));
     }
     // 파일 한 개 → {kind, text}. 형식은 확장자가 아니라 파일 앞부분으로 판단한다.
     async function readFile(file) {
@@ -1022,7 +1029,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     const VERB = /(?:고|며|다|던|게|는|은|운|도록|려고|려는|면서|지만|는데|니다|으면|어서|아서|해서|었|았|였|겠|하|되)$/;
     const ORG = /(사업본부|본부|사업부|사업단|팀장|부장|과장|실장|담당관|주무관|대표이사)$/;
     const STOP = new Set(('사업 추진 계획 구축 운영 개발 활용 기반 제공 지원 방안 목표 목적 내용 필요 현황 효과 기대 기대효과 단계 연도 예산 기간 일정 구성 개선 강화 확대 도입 마련 수행 검토 적용 수립 실시 대상 범위 주요 세부 기존 향후 현재 최근 해당 관련 위해 위한 대한 통해 통한 따른 따라 의한 관한 인한 대해 등 및 또는 그리고 이를 이에 경우 부분 문제 문제점 방향 결과 성과 체계 환경 기능 역할 제안 제안서 기획 기획안 기획서 계획서 계획안 보고 요청 자료 내역 항목 비고 구분 합계 소계 총계 금액 단위 천원 백만원 억원 만원 년 월 일 개월 차 회 명 건 개 곳 식 년도 연차 기관 담당 담당자 부서 연락처 전화 이메일 내선 문의 페이지 표 그림 참고 출처 첨부 별첨 붙임 비교 가능 불가 있음 없음 예정 완료 진행 시작 이후 이전 이상 이하 미만 초과 내외 정도 수준 연간 매년 매월 상시 기타 전체 일부 대부분 다양 각종 모든 다른 같은 우리 당사 자사 귀사 회사 웨이즈원 ways1 사업명 과제명 사업기간 사업예산 과업명 과업기간 발주처 주관 개요 배경 필요성 추진배경 추진체계 추진일정 효과적 국비 군비 시비 도비 첫째 둘째 셋째 넷째 다섯째 하나 함께 바로 매일 정작 평균 꾸준히 그러나 또한 특히 다만 생활 교육 보고서 착수 정제 수집 조회 확인 제작 산출 생성 연계 통합 분석 관리 처리 고도화 확보 확산 단축 감소 증가 제시 지정 발굴 배분 정비 보완 판매 자동 신규 대상은 때문 위에서 아래 경우에 슬라이드 목차 표지 메모 페이지 추정 추정금액 사업화 핵심 주요내용 기대효과 사업개요 제안개요 과업개요').split(' '));
-    const ENSTOP = new Set('the of and to in for on with an is are be by as at from this that it or we our you your will can may not but has have had its their they than then into about over per via using use used new plan line page project system service data based'.split(' '));
+    const ENSTOP = new Set('the of and to in for on with an is are be by as at from this that it or we our you your will can may not but has have had its their they than then into about over per via using use used new plan line page project system service data based all rights reserved right inc ltd corp co copyright confidential version ver draft'.split(' '));
     // 혼자서는 뜻이 약한 낱말: 다른 낱말과 붙은 구(공간정보 플랫폼)로는 살리고 혼자일 때는 점수를 깎는다
     const WEAK = new Set('데이터 정보 시스템 서비스 플랫폼 기술 솔루션 모델 센터 지도 도시 행정 공공 스마트 디지털 지역 고객 기업 사용자 이용자 현장 화면 모듈 웹 db ai 차량 시범 실증 운행 실시간 지자체'.split(' '));
     const hasB = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
@@ -1050,6 +1057,9 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       });
       return out;
     }
+    let SEGD = () => false, segBusy = false;
+    // 나누기 사전(레이더 낱말 모음)을 처음 만들 때 다시 이 함수로 들어오지 않게 막는다
+    const segd = w => { if(segBusy) return false; segBusy = true; try { return !!SEGD(w); } finally { segBusy = false; } };
     // 단위들을 낱말로: 어절마다 문서 안 근거(같은 어간이 나온 횟수)가 가장 많은 어간을 고른다(같으면 긴 쪽)
     function tokenize(U, known){
       const ev = new Map(), jev = new Map();
@@ -1082,7 +1092,31 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
         t.L = best[0]; t.R = best[1]; t.key = best[0];
         if(best[2] === 'bare' && !jev.get(best[0]) && !known(best[0]) && (VERB.test(best[0]) || JO.some(([j, k]) => j.length >= 2 && best[0].length - j.length === 1 && best[0].endsWith(j) && joOk(best[0][0], j, k)))) t.drop = true;
       }));
-      return toks;
+      const okW = w => w.length >= 2 && (known(w) || segd(w) || (ev.get(w) || 0) >= 2);
+      const ONEJ = new Set(['에', '의', '를', '을', '은', '는', '이', '가', '와', '과', '로', '도', '및']);
+      const seg = L => {
+        const out = []; let p = 0;
+        while(p < L.length){
+          let hit = null;
+          for(let n = Math.min(8, L.length - p); n >= 2; n--){ const w = L.substr(p, n); if(okW(w)){ hit = w; break; } }
+          if(hit){ out.push(hit); p += hit.length; continue; }
+          if(out.length && ONEJ.has(L[p])){ p++; continue; }
+          const rest = L.slice(p); if(out.length && rest.length <= 2){ out.push(rest); break; }
+          return null;
+        }
+        return out.length >= 2 && out.every(w => w.length >= 2) ? out : null;
+      };
+      return toks.map(ts => {
+        const res = [];
+        ts.forEach(t => {
+          if(t.lat || t.num || t.drop || !t.key || known(t.key) || segd(t.key)) { res.push(t); return; }
+          const L = t.key;
+          if(!(L.length >= 7 || (L.length >= 6 && (ev.get(L) || 0) <= 1))) { res.push(t); return; }
+          const parts = seg(L); if(!parts) { res.push(t); return; }
+          parts.forEach((w, i) => res.push({h: w, L: w, key: w, R: i === parts.length - 1 ? t.R : '', seg: true}));
+        });
+        return res;
+      });
     }
     // 다른 글(레이더 데이터)에서 쓰이는 명사 모음: 어간 고르기의 근거로 쓴다
     function stems(text){
@@ -1090,13 +1124,29 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       tokenize(units(text, 'c', 0), () => false).forEach(ts => ts.forEach(t => { if(!t.drop && !t.num && t.key && t.key.length >= 2) S.add(t.key); }));
       return S;
     }
+    const COPY = /(all\s*rights\s*reserved|copyright|ⓒ|©|\(c\)\s*\d{4}|confidential|대외비|무단\s*(복제|전재|배포))/i;
+    function clean(text){
+      const ls = String(text || '').split('\n');
+      const norm = l => l.replace(/\d+/g, '#').replace(/\s+/g, ' ').trim();
+      const cnt = new Map(); ls.forEach(l => { const n = norm(l); if(n) cnt.set(n, (cnt.get(n) || 0) + 1); });
+      return ls.filter(l => {
+        const n = norm(l); if(!n) return true;
+        if(COPY.test(l)) return false;
+        if(/^[-–—\s]*#+\s*(\/\s*#+)?[-–—\s]*$/.test(n) || /^page\s*#+(\s*(of|\/)\s*#+)?$/i.test(n)) return false;
+        // 되풀이되는 줄: 숫자·영문이 섞인 머리·꼬리말은 3번, 그 밖의 짧은 줄은 4번 이상 나오면 뺀다(과업 이름이 두세 번 나오는 것은 살린다)
+        const c = cnt.get(n) || 0, latinish = /#/.test(n) || (n.match(/[A-Za-z]/g) || []).length > n.length * .5;
+        if(n.length <= 100 && ((latinish && c >= 3) || (n.length <= 60 && c >= 4)) && !/^(주관|참여|공동|수요|위탁|협력)/.test(n)) return false;
+        return true;
+      }).join('\n');
+    }
     function learn({text = '', docs = [], known = () => false, lex = []} = {}){
+      SEGD = known;
       const U = [];
       if(text.trim()) units(text, 'text', 0).forEach(u => U.push(u));
       docs.forEach((d, di) => {
         const nm = String(d.name || '').replace(/\.[A-Za-z0-9]+$/, '').replace(/[_\-]+/g, ' ').replace(/\(.*?\)|\[.*?\]|v\d+(\.\d+)*|최종|수정본?|초안|\d{6,8}/gi, ' ').replace(/\s+/g, ' ').trim();
         if(nm.length >= 4) U.push({t: nm, src: 'name'});
-        units(String(d.text || '').slice(0, 200000), 'doc' + di, U.length).forEach(u => U.push(u));
+        units(clean(String(d.text || '').slice(0, 200000)), 'doc' + di, U.length).forEach(u => U.push(u));
       });
       const NU = U.length || 1;
       const LEX = [...new Set((lex || []).map(x => String(x).toLowerCase()).filter(x => x.length >= 2))];
@@ -1226,12 +1276,12 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
         const cov = new Set(s1.ks), A = tset(s1.c.t);
         const s2 = cand.filter(c => c !== s1.c).map(c => ({c, ...score(c, cov), j: jac(A, tset(c.t))}))
           .filter(x => x.j < .5 && x.ks.some(k => !cov.has(k))).sort((a, b) => b.s - a.s)[0];
-        brief = [s1, s2].filter(Boolean).sort((a, b) => a.c.k - b.c.k).map(x => clip(x.c.t.replace(/\s*\|\s*/g, ' · '), 100));
+        brief = [s1, s2].filter(Boolean).sort((a, b) => a.c.k - b.c.k).map(x => clip(x.c.t.replace(/\s*\|\s*/g, ' · ').replace(/^(?:최종\s*개발\s*목표|개발\s*목표|최종\s*목표|사업\s*목표|TO-BE|AS-IS|목표|목적|비전|개요)\s*[:：\-–]?\s+/i, ''), 100));
       }
       if(!title) title = brief.length ? clip(brief[0], 60) : '';
       return {kw: kw.map(k => ({t: k.t, key: k.key, parts: k.parts, s: +k.s.toFixed(2)})), brief, title: title.slice(0, 80), terms: L.slice(0, 400).map(x => ({key: x.key, t: x.t, s: x.s, phrase: x.phrase})), units: U.length, chars: total};
     }
-    return {learn, stems, weak: t => WEAK.has(t)};
+    return {learn, stems, clean, weak: t => WEAK.has(t)};
   })();
   /* ── 웨이즈원 핵심기술 적합도: 기획안의 핵심 낱말이 웨이즈원이 실제로 가진 기술인지 따진다.
      근거는 BMC 제품 이름·키워드, 나라장터 수행 실적 계약명, 사업군 핵심어다.
@@ -1239,12 +1289,12 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
   const makeFit = ({products = [], track = [], stems}) => {
     const W = s => String(s || '').toLowerCase().split(/\s+/).filter(Boolean);
     // 사업군 핵심어(지도 SW·데이터, 공간데이터 서비스, LDM 인프라, 스마트 모빌리티)
-    const CORE = '정밀지도 정밀도로지도 고정밀지도 공간정보 지리정보 측량 수치지도 점군 도화 동적지도 교통 신호 교차로 횡단보도 보행신호 버스 자율주행 셔틀 도로 도로대장 포장관리 공원 수목 토지적성평가 토지적성 용도지역지구 용도지역 도시계획 재해취약성 인허가 행정 민원 입지분석 적지분석 입지 후보지 토지이용 개발제한구역 경사도 표고 주제도 연속지적도 지적 필지 위치정보 주소정보 내비게이션 실내지도 하수관로 상수관로 지하시설물 테마지도 품질검증 신뢰도 정합성 이상치 결측 오류검지 맵매칭 링크 노드 차로 교통량 신호정보';
-    const LAT = new Set(W('hd map hdmap ldm v2x c-its its dsrc bis bms mms gis lis cav opendrive xodr adasis indoorgml upis pms tls ipss'));
+    const CORE = '정밀지도 정밀도로지도 고정밀지도 공간정보 지리정보 측량 수치지도 점군 도화 동적지도 교통 신호 교차로 횡단보도 보행신호 버스 자율주행 셔틀 도로 도로대장 포장관리 공원 수목 토지적성평가 토지적성 용도지역지구 용도지역 도시계획 재해취약성 인허가 행정 민원 입지분석 적지분석 입지 후보지 토지이용 개발제한구역 경사도 표고 주제도 연속지적도 지적 필지 위치정보 주소정보 내비게이션 실내지도 하수관로 상수관로 지하시설물 테마지도 품질검증 신뢰도 정합성 이상치 결측 오류검지 맵매칭 링크 노드 차로 교통량 신호정보 유고 유고상황 유고검지 신호현시 정지선 검지기 시범운행지구 실증도시 교통안전 원격관제 매핑 교차로';
+    const LAT = new Set(W('hd map hdmap ldm v2x c-its its dsrc bis bms mms gis lis cav opendrive xodr adasis indoorgml upis pms tls ipss odd mrc'));
     // 인접 기술: 웨이즈원도 쓰지만 다른 분야에서도 흔한 기술. 절반 이하로만 센다
     const ADJ = new Set(W('디지털트윈 트윈 3차원 시뮬레이션 관제 통합관제 영상분석 cctv 돌발상황 엣지 측위 지도 위치 좌표 hmi amr lidar 라이다 twin 3d edge 모빌리티 차량'));
     // 누구나 쓰는 말·계약 행정 말: 어느 쪽으로도 세지 않는다
-    const GEN = new Set(W(`ai 인공지능 데이터 빅데이터 플랫폼 시스템 솔루션 서비스 통합 실시간 스마트 디지털 digital 기술 기술개발 개발 구축 실증 모델 학습 분석 관리 운영 안전 센터 정보 시각화 모니터링 예측 자동 자율 고도화 연계 표준 클라우드 소프트웨어 sw 사업화 생태계 인력 양성 기업 지역 산업 현장 공간 환경 위험 국내 해외 글로벌 시장 정부 지원 확산 활용 기반 구현 적용 검증 테스트베드 테스트 체계 고도 피지컬 ax dx 전환 혁신 지능형 차세대 미래 핵심 공정 품질 장비 설비 모듈 단계 과제 연구 성과 효과 수요 수요처 참여 참여기업 기관 대학 지자체 공공기관 작업 구역 구간 기준 조건 타당성 시나리오 접수 분류 추천 공무원 상황 오류 결과 사업 용역 유지보수 유지관리 홈페이지 시행 총괄 차분 협상 계약 수의계약 하자보수 기능개선 응용소프트웨어 개선 관련 건립 현황 건설공사 공구 신설공사 정비 저감사업 조사 구매 신규 콘텐츠 제작 예비조사 강화 조성 조성사업 특화도시 세트 데이터세트 신규 갱신체계 효율적 수립 서버 모델 db 웹 앱 api iot 5g 클라우드 보안 사용자 고객 이용자 시민 주민 국민 플랫폼화 대시보드 리포트 보고서 알림 경보 검지 감지 인식 탐지 추적 자동화 최적화 효율화 무인 원격 실시간성 정확도 오차 영상 융합 객체 탑재 처리 검토 생성 이미지 결과물 추출 변환 측정 운행 성능 속도 범위 정밀 고정밀 자료 문서 내용 화면 입력 출력 연동 전송 수신 저장 조회 등록 관리자 담당자 사용자용 담당자용`));
+    const GEN = new Set(W(`ai 인공지능 데이터 빅데이터 플랫폼 시스템 솔루션 서비스 통합 실시간 스마트 디지털 digital 기술 기술개발 개발 구축 실증 모델 학습 분석 관리 운영 안전 센터 정보 시각화 모니터링 예측 자동 자율 고도화 연계 표준 클라우드 소프트웨어 sw 사업화 생태계 인력 양성 기업 지역 산업 현장 공간 환경 위험 국내 해외 글로벌 시장 정부 지원 확산 활용 기반 구현 적용 검증 테스트베드 테스트 체계 고도 피지컬 ax dx 전환 혁신 지능형 차세대 미래 핵심 공정 품질 장비 설비 모듈 단계 과제 연구 성과 효과 수요 수요처 참여 참여기업 기관 대학 지자체 공공기관 작업 구역 구간 기준 조건 타당성 시나리오 접수 분류 추천 공무원 상황 오류 결과 사업 용역 유지보수 유지관리 홈페이지 시행 총괄 차분 협상 계약 수의계약 하자보수 기능개선 응용소프트웨어 개선 관련 건립 현황 건설공사 공구 신설공사 정비 저감사업 조사 구매 신규 콘텐츠 제작 예비조사 강화 조성 조성사업 특화도시 세트 데이터세트 신규 갱신체계 효율적 수립 서버 모델 db 웹 앱 api iot 5g 클라우드 보안 사용자 고객 이용자 시민 주민 국민 플랫폼화 대시보드 리포트 보고서 알림 경보 검지 감지 인식 탐지 추적 자동화 최적화 효율화 무인 원격 실시간성 정확도 오차 영상 융합 객체 탑재 처리 검토 생성 이미지 결과물 추출 변환 측정 운행 성능 속도 범위 정밀 고정밀 자료 문서 내용 화면 입력 출력 연동 전송 수신 저장 조회 등록 관리자 담당자 사용자용 담당자용 인프라 여건 사업계획서 계획서 제품소개서 소개서 기획서 제안서 inc all rights reserved 전후 확인 상황 파악 부족 곤란 객관 객관적 직접 즉시 공백 기존 신규 추가 수단 기준 근거 자료 구간 구간별 단계 모듈 결과 이력 기록 요소 일반 제작사 책임 판단 대응 개선 지연 증가 확대 절감 향상 신속 육안`));
     const PLACE = /^[가-힣]{1,3}(시|군|구)$/;
     const OWN = new Set();
     const addAll = txt => stems(txt).forEach(k => { if (!GEN.has(k) && !ADJ.has(k) && !PLACE.test(k) && k.length >= 2) OWN.add(k); });
@@ -1258,7 +1308,8 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       if (ADJ.has(k) || [...ADJ].some(a => /[가-힣]/.test(a) && a.length >= 2 && k.includes(a) && k.length - a.length <= 5 && !OWN.has(k))) return 'adj';
       if (OWN.has(k)) return 'own';
       if (/^[a-z0-9+&-]+$/.test(k)) return 'out';
-      return ownH.some(o => k.includes(o) && k.length - o.length <= 4) ? 'own' : 'out';
+      // 붙여 쓴 긴 낱말은 웨이즈원 낱말(3자 이상)이 들어 있으면 웨이즈원 기술로 본다(자율주행운영지원 → 자율주행)
+      return ownH.some(o => k.includes(o) && (k.length - o.length <= 4 || o.length >= 3)) ? 'own' : 'out';
     };
     // 기획안에서 점수가 높은 낱말 15개(누구나 쓰는 말 제외)로 판단한다
     function judge(plan, docText) {
@@ -1269,32 +1320,35 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
         if (own.length + adj.length + out.length >= 15) break;
         if (x.phrase) continue;
         const c = kind(x.key); if (!c) continue;
-        const show = ph[x.key] && ph[x.key].s >= .6 * x.s ? ph[x.key].t : (x.t || x.key); keys.push(x.key);
+        const show = /^[a-z0-9+&-]+$/.test(x.key) && ph[x.key] && ph[x.key].s >= .6 * x.s ? ph[x.key].t : (x.t || x.key); keys.push(x.key);
         const put = (arr, v) => { if (!arr.includes(v)) arr.push(v); };
         if (c === 'own') { put(own, show); so += x.s; } else if (c === 'adj') { put(adj, show); sa += x.s; } else { put(out, show); sx += x.s; }
       }
       const tot = so + sa + sx;
-      const fit = tot ? (so + .4 * sa) / tot : .5;
+      // 인접 기술(디지털트윈·관제 등)은 보통 40%만 센다. 다만 웨이즈원 기술이 웨이즈원에 없는 요소만큼 이상 나오는 기획안(웨이즈원 분야)에서는
+      // 같은 말이 웨이즈원 제품(LDM TWIN 등)을 가리키므로 80%로 센다
+      const adjW = so >= sx && so > 0 ? .8 : .4;
+      const fit = tot ? (so + adjW * sa) / tot : .5;
       const level = !tot ? 'unknown' : fit >= .5 ? 'core' : fit >= .3 ? 'part' : 'none';
       // 기획안의 추진체계·참여기관에 웨이즈원이 없으면(이미 짜인 컨소시엄) 따로 알린다
       const t = String(docText || '');
       const team = /(참여기관|참여기업|참여 기업|추진체계|컨소시엄|기관명|주관기관|공동연구기관|수행기관)/.test(t) && !/(웨이즈원|ways1|WAYS1|Ways1)/.test(t);
-      return {fit, level, own, adj, out, keys, team};
+      return {fit, level, own, adj, out, keys, team, adjW};
     }
-    return {judge, kind};
+    return {judge, kind, has: k => OWN.has(k) || ADJ.has(k)};
   };
   /* ── 과업별 검증: 기획안을 과업 단위로 나눠, 과업마다 웨이즈원이 맡을 수 있는지(직접·인접·불가),
      근거가 되는 웨이즈원 제품·수행 실적, 기획안에서 이미 그 과업을 맡은 기관, 문서에 적힌 금액을 보여 준다. ── */
-  const makeTasks = ({stems, kind, products = [], track = []}) => {
+  const makeTasks = ({stems, kind, products = [], track = [], clean = null}) => {
     const META = /^(추진\s*배경|사업\s*목적|목\s*적|목\s*표|사업\s*기간|사업\s*예산|사업기간\s*\/\s*예산|예\s*산|추진\s*체계|추진\s*방향|추진\s*전략|해외\s*현황|국내\s*현황|지역\s*현황|현\s*황|운용\s*범위|실증\s*범위|성능\s*지표|AI\s*모델\s*역할|수행\s*주체|작업\s*내용|폼팩터\s*요구사항|감지\s*대상|기대\s*효과|필요성|배\s*경|문제점|대\s*상|기\s*간|근\s*거|비\s*고|단\s*위|출\s*처|예\s*시|정\s*의|개\s*념|주\s*관|참\s*여|역\s*할|사업명|과제명|과업명|발주처|과업기간|추정금액|사업비|총\s*사업비|['’‘]?\d{2}\s*년.*|\d{4}.*|\d+\s*차.*|\d+\s*단계.*|\d+\s*년차.*)$/;
     const DELIV = /(시스템|플랫폼|개발|구축|모델|데이터셋|데이터|모듈|기술|센서|실증|운영환경|서비스|솔루션|DB|SW|소프트웨어|장비|로봇|지도|맵|센터|앱|도구|툴|엔진|인프라|제작|설계|조사|분석|연계|화면|관리|어시스트|보고서|교육|유지보수|유지관리|고도화|검증|발굴|수집|관제|탐지|인식|검수|이송|시뮬레이션|디지털\s*트윈|Digital\s*Twin)/i;
-    const CONTENT = /(주요\s*(사업\s*)?내용|사업\s*내용|과업\s*내용|세부\s*(내용|과업|과제)|추진\s*내용|핵심\s*기능|주요\s*기능|제안\s*내용|사업\s*범위|과업\s*범위|결과물|성과물|가시적\s*성과|시스템\s*구성|구축\s*내용|개발\s*내용|해\s*결|주요\s*과업|과업\s*구성|핵심\s*기술)/;
+    const CONTENT = /(OBJECTIVE|ACTION|SOLUTION|SYSTEM\s*ARCHITECTURE|TECHNOLOGY\s*DEVELOPMENT|DELIVERABLES?|SCOPE|기술\s*개발|개발\s*목표|주요\s*(사업\s*)?내용|사업\s*내용|과업\s*내용|세부\s*(내용|과업|과제)|추진\s*내용|핵심\s*기능|주요\s*기능|제안\s*내용|사업\s*범위|과업\s*범위|결과물|성과물|가시적\s*성과|시스템\s*구성|구축\s*내용|개발\s*내용|해\s*결|주요\s*과업|과업\s*구성|핵심\s*기술)/;
     const BGH = /(배경|필요성|현황|문제|동향|사례|기대\s*효과|파급|추진\s*체계|기관별\s*역할|일정|연차별|로드맵|예산|소요|수혜|요\s*약|개\s*요|목\s*적|목\s*표|평가|위험|리스크|고객|사업화|강점|확산|단계별|추진\s*계획|성과\s*지표|활용\s*계획)/;
-    const BGFIRST = /(연차별|로드맵|일정|예산|소요|추진\s*체계|기관별|단계별|추진\s*계획|성과\s*지표|현황|배경|필요성)/;
+    const BGFIRST = /(BACKGROUND|MARKET|TRENDS|EXPECTED\s*EFFECTS?|ROADMAP|SCHEDULE|BUDGET|연차별|로드맵|일정|예산|소요|추진\s*체계|기관별|단계별|추진\s*계획|성과\s*지표|현황|배경|필요성)/;
     const HEAD = /^(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\s*[.\s]|\d{1,2}\s+(?=[가-힣])|\d{1,2}\.\s*(?=[가-힣])|□|■|▶|◆|【)/;
     const BUL = /^(?:ㅇ|○|◦|•|·|▪|◾|-|\*|※)\s*/;
     // 같은 기술을 가리키는 말 맞추기(영문·한글)
-    const SYN = {twin: '디지털트윈', digitaltwin: '디지털트윈', lidar: '라이다', 'ai': 'ai', amr: 'amr', gis: 'gis'};
+    const SYN = {twin: '디지털트윈', '트윈': '디지털트윈', digitaltwin: '디지털트윈', lidar: '라이다', 'ai': 'ai', amr: 'amr', gis: 'gis', '관제센터': '관제'};
     const norm = k => SYN[k] || k;
     const keysOf = t => [...new Set([...stems(t)].map(k => k.toLowerCase()).filter(k => k.length >= 2))];
     const money = t => { const m = String(t).match(/(\d[\d,.]*)\s*(억|백만|천만)\s*원?/); return m ? m[1] + m[2] + '원' : ''; };
@@ -1318,7 +1372,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       return orgs.filter(o => o.roles.length).map(o => ({...o, keys: new Set(keysOf(o.roles.join(' ')).filter(k => kind(k) !== null).map(norm)), ways1: /웨이즈원|ways1/i.test(o.name)}));
     }
     function extract(text) {
-      const lines = String(text || '').split(/\n+/).map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l && !/^-\s*\d+\s*-$/.test(l));
+      const lines = String(clean ? clean(text) : text || '').split(/\n+/).map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l && !/^-\s*\d+\s*-$/.test(l));
       const cands = []; let zone = 'n', gid = 0;
       const push = (type, name, desc, i) => {
         name = name.replace(/\s+/g, ' ').replace(/[,·\s]+$/, '').trim();
@@ -1341,6 +1395,11 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
         let m;
         if ((m = l.match(/^(?:ㅇ|○|◦|•|·|▪|◾|-)?\s*\(((?:[^()]|\([^()]*\))+)\)\s*(.*)$/))) { if (DELIV.test(m[1])) push('label', m[1], m[2] + ' ' + next(), i); continue; }
         if ((m = l.match(/^(?:[❶-❿➊-➓]|[①-⑳]|\d{1,2}\)|\(\d{1,2}\)|[가-하]\.|[가-하]\))\s*(.{3,})$/))) { const nm = m[1].split(/\s+-\s+|[.。]\s/)[0].slice(0, 70); push('num', nm, m[1].slice(nm.length) + ' ' + next(3), i); continue; }
+        if (/^(?:0?\d{1,2}|ACTION\s*\d|STEP\s*\d|과업\s*\d|과제\s*\d)\s*[가-힣A-Za-z]{0,6}$/i.test(l) && lines[i + 1] && lines[i + 1].length >= 4 && lines[i + 1].length <= 40 && /[가-힣]/.test(lines[i + 1]) && !HEAD.test(lines[i + 1])) {
+          const nm = lines[i + 1].replace(/\s*(개발\s*내용|입력|산출)$/, ''), d = [];
+          for (let j = i + 2; j < lines.length && d.length < 4; j++) { if (/^(?:0?\d{1,2}|ACTION\s*\d)\b/i.test(lines[j]) || HEAD.test(lines[j]) || /^[A-Z][A-Z\s&-]{5,}$/.test(lines[j])) break; d.push(lines[j]); }
+          push('num', nm, d.join(' '), i); i++; continue;
+        }
         if ((m = l.match(/^□\s*(.{2,40})$/))) { const d = []; for (let j = i + 1; j < lines.length && d.length < 3; j++) { if (/^(□|■|▶|[ⅠⅡⅢⅣⅤ])/.test(lines[j])) break; d.push(lines[j].replace(BUL, '')); } push('box', m[1], d.join(' '), i); continue; }
         // 「첫째, … 둘째, …」(한 문단에 여럿이 있어도 나눈다)
         if (/(^|\s)(첫째|둘째|셋째|넷째|다섯째|여섯째)[,.]?\s/.test(l)) { l.split(/(?=첫째|둘째|셋째|넷째|다섯째|여섯째)/).forEach(p => { const mm = p.match(/^(첫째|둘째|셋째|넷째|다섯째|여섯째)[,.]?\s*(.+)$/); if (mm) { const nm = mm[2].split(/[.。]/)[0]; push('ord', nm.replace(/(한다|하다|합니다|함)$/, '').slice(0, 70), mm[2].slice(nm.length).replace(/^[.。\s]+/, ''), i); } }); continue; }
@@ -1364,18 +1423,23 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     }
     const prodKeys = products.map(p => ({p, keys: new Set(keysOf([p.name, Array.isArray(p.keywords) ? p.keywords.join(' ') : ''].join(' ')).map(norm))}));
     const trackKeys = track.map(x => ({x, keys: new Set(keysOf(x.title).map(norm))}));
-    function judgeTask(c, orgs, sal) {
+    function judgeTask(c, orgs, sal, adjW = .4) {
       const salient = k => !sal || sal.has(k) || kind(k) === 'own' || kind(k) === 'adj';
       const nameK = keysOf(c.name).filter(k => salient(k) || k.length >= 3), descK = keysOf(c.desc).filter(k => !nameK.includes(k) && salient(k));
       // 과업 이름의 낱말을 60%, 설명의 낱말을 40%로 본다(설명에는 일반적인 말이 많이 섞인다)
       const own = [], adj = [], outT = [];
-      const part = ks => { let so = 0, sa = 0, sx = 0; ks.forEach(k => { const t = kind(k); if (!t) return; if (t === 'own') { so++; own.push(k); } else if (t === 'adj') { sa++; adj.push(k); } else { sx++; outT.push(k); } }); const tot = so + sa + sx; return {so, tot, r: tot ? (so + .4 * sa) / tot : null}; };
+      const part = ks => { let so = 0, sa = 0, sx = 0; ks.forEach(k => { const t = kind(k); if (!t) return; if (t === 'own') { so++; own.push(k); } else if (t === 'adj') { sa++; adj.push(k); } else { sx++; outT.push(k); } }); const tot = so + sa + sx; return {so, tot, r: tot ? (so + adjW * sa) / tot : null}; };
       const pn = part(nameK), pd = part(descK.slice(0, 25));
       let r = pn.r == null && pd.r == null ? null : pn.r == null ? pd.r : pd.r == null ? pn.r : .6 * pn.r + .4 * pd.r;
       const mine = new Set([...own, ...adj].map(norm));
       const ev = [];
-      const ownN = new Set(own.map(norm));
-      prodKeys.forEach(({p, keys}) => { const hit = [...mine].filter(k => keys.has(k)), oh = hit.filter(k => ownN.has(k)); if (oh.length || (hit.length && !ownN.size)) ev.push({t: 'p', name: p.name, hit, adjOnly: !oh.length, n: hit.length + oh.length}); });
+      // 웨이즈원 분야 기획안이면(adjW 0.8) 인접 기술 말도 웨이즈원 제품의 근거로 본다(디지털트윈 → LDM TWIN)
+      const ownN = new Set([...own, ...(adjW >= .8 ? adj : [])].map(norm));
+      // 근거 점수: 구체적인 낱말(길수록)일수록 높게, 웨이즈원 집중·★ 제품을 먼저
+      const spec = k => Math.min(3, Math.max(1, k.length - 1));
+      const TR = {'집중': 3, '신규': 2, '정비': 2, '유지': 1, '별도': 1};
+      prodKeys.forEach(({p, keys}) => { const hit = [...mine].filter(k => keys.has(k)), oh = hit.filter(k => ownN.has(k)); const sc = hit.reduce((z, k) => z + spec(k), 0) + oh.length;
+        if ((oh.length || (hit.length && !ownN.size)) && sc >= 2) ev.push({t: 'p', name: p.name, hit, adjOnly: !oh.length, n: sc + (TR[p.tier] || 0) * .1 + (p.star ? .2 : 0)}); });
       trackKeys.forEach(({x, keys}) => { const hit = [...mine].filter(k => keys.has(k) && kind(k) === 'own'); if (hit.length) ev.push({t: 't', name: x.title, role: x.role, hit, n: hit.length}); });
       ev.sort((a, b) => b.n - a.n);
       // 웨이즈원 제품이 이 과업의 웨이즈원 낱말을 2개 이상 담고 있으면 근거가 뚜렷하다고 본다
@@ -1389,12 +1453,12 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       return {name: c.name, desc: c.desc, verdict: v, r: r == null ? 0 : r, own: [...new Set(own)], adj: [...new Set(adj)], out: [...new Set(outT)].slice(0, 6),
         ev: [...ev.filter(e => e.t === 'p').slice(0, 2), ...ev.filter(e => e.t === 't').slice(0, 1)], who, amount: money(c.name + ' ' + c.desc)};
     }
-    function judge(text, plan) {
+    function judge(text, plan, adjW = .4) {
       const {tasks, orgs, lines} = extract(text);
       const sal = plan && plan.terms ? new Set(plan.terms.slice(0, 150).map(x => x.key)) : null;
       const DSP = {}; ((plan && plan.terms) || []).forEach(x => { if (!x.phrase && x.t && !DSP[x.key]) DSP[x.key] = x.t; });
       const dsp = a => a.map(k => DSP[k] || k);
-      const rows = tasks.map(c => judgeTask(c, orgs, sal)).map(r => ({...r, own: dsp(r.own), adj: dsp(r.adj), out: dsp(r.out), ev: r.ev.map(e => ({...e, hit: dsp(e.hit)}))}));
+      const rows = tasks.map(c => judgeTask(c, orgs, sal, adjW)).map(r => ({...r, own: dsp(r.own), adj: dsp(r.adj), out: dsp(r.out), ev: r.ev.map(e => ({...e, hit: dsp(e.hit)}))}));
       const tl = lines.find(l => /(총\s*사업비|사업\s*예산|사업기간\s*\/\s*예산|총\s*예산|추정\s*금액|사업비)/.test(l));
       const total = tl ? money(tl.replace(/^.*?(총\s*사업비|사업\s*예산|사업기간\s*\/\s*예산|총\s*예산|추정\s*금액|사업비)/, '').replace(/\d{2,4}\s*년|['’‘]\d{2}/g, '')) : '';
       const n = {own: rows.filter(r => r.verdict === 'own').length, adj: rows.filter(r => r.verdict === 'adj').length, out: rows.filter(r => r.verdict === 'out').length, unk: rows.filter(r => r.verdict === 'unk').length};
@@ -1443,7 +1507,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
   const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: (D.track && D.track.items) || [], stems: PLAN.stems}));
   const LV = {none: 0, part: 1, core: 2};
   let TKM = null;
-  const tkM = () => TKM || (TKM = makeTasks({stems: PLAN.stems, kind: fitM().kind, products: BMCL, track: (D.track && D.track.items) || []}));
+  const tkM = () => TKM || (TKM = makeTasks({stems: PLAN.stems, kind: fitM().kind, products: BMCL, track: (D.track && D.track.items) || [], clean: PLAN.clean}));
   // 과업별 검증 결과로 적합도 판정을 다잡는다: 문서 전체로는 「일치」가 아닌데 직접 맡을 과업도 없으면 불일치로 내린다
   function taskGate(fit, tasks){
     if(!fit || !tasks || !tasks.gate || fit.level === 'core' || fit.level === 'unknown') return fit;
@@ -1455,7 +1519,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
   // 기획안 학습: 입력란 글과 붙인 문서 전체(문서당 20만 자까지)를 읽어 키워드·요약·낱말 가중치를 만든다
   function learnPlan(text){
     const C = corpus();
-    return PLAN.learn({text, docs: DOCS.filter(d => d.text).map(d => ({name: d.name, text: d.text})), known: L => C.words.has(L), lex: C.lex});
+    return PLAN.learn({text, docs: DOCS.filter(d => d.text).map(d => ({name: d.name, text: d.text})), known: L => C.words.has(L) || fitM().has(L), lex: C.lex});
   }
   function kwSelect(text, plan, fit, tasks){
     const C = corpus(), low = text.toLowerCase(), terms = new Set(), W = {};
@@ -1776,7 +1840,7 @@ ${ax}
       ${f.team ? `<p class="ithin">기획안의 추진체계·참여기관 명단에 웨이즈원이 없습니다. 이미 짜인 컨소시엄이면 들어갈 역할이 있는지 주관기관에 먼저 확인하세요.</p>` : ''}
       ${f.byTasks ? `<p class="ithin">${f.byTasks === 'adjonly' ? '과업별로 보면 웨이즈원이 직접 맡을 과업이 없어 「일부 일치」로 낮췄습니다.' : '과업별로 보면 웨이즈원이 직접 맡을 과업이 없고 인접 과업도 이미 다른 기관이 맡고 있어 「핵심기술 불일치」로 판정했습니다.'}</p>` : ''}
       ${f.ai ? `<p class="nmeta">AI 판정 · ${esc(f.ai.why)}</p>` : ''}
-      <p class="nmeta">기획안에서 점수가 높은 낱말 15개(AI·플랫폼·데이터처럼 누구나 쓰는 말 제외)를 웨이즈원 BMC 제품·나라장터 수행 실적·사업군 핵심어와 맞춰 본 비중입니다. 인접 기술(디지털트윈·관제·3D 등)은 40%만 셉니다. 50% 이상 일치, 30~50% 일부 일치, 30% 미만 불일치.</p>
+      <p class="nmeta">기획안에서 점수가 높은 낱말 15개(AI·플랫폼·데이터처럼 누구나 쓰는 말 제외)를 웨이즈원 BMC 제품·나라장터 수행 실적·사업군 핵심어와 맞춰 본 비중입니다. 인접 기술(디지털트윈·관제·3D 등)은 40%만 세고, 웨이즈원 기술이 웨이즈원에 없는 요소만큼 이상 나오는 기획안에서는 80%로 셉니다(같은 말이 LDM TWIN 같은 웨이즈원 제품을 가리키므로). 50% 이상 일치, 30~50% 일부 일치, 30% 미만 불일치.</p>
     </div>`;
   }
   // 과업별 검증 상자
@@ -1884,8 +1948,8 @@ ${ax}
     }
     Object.assign(S, {text, docs: docsMeta, example: false, cm: null, docId: null, deep: null, at: null, byName: null, pending: false});
     const kwText = (text + '\n' + dt.slice(0, 12000)).trim();
-    const plan = learnPlan(text), full = [text, ...DOCS.filter(d => d.text).map(d => d.text)].join('\n');
-    const tasks = tkM().judge(full.slice(0, 400000), plan), fit0 = fitM().judge(plan, full.slice(0, 120000)), fit = taskGate(fit0, tasks);
+    const plan = learnPlan(text), full = [text, ...DOCS.filter(d => d.text).map(d => PLAN.clean(d.text))].join('\n');
+    const fit0 = fitM().judge(plan, full.slice(0, 120000)), tasks = tkM().judge(full.slice(0, 400000), plan, fit0.adjW), fit = taskGate(fit0, tasks);
     const sample = aiOff ? null : await SAMPLE;
     if(!sample){ S.sel = kwSelect(kwText, plan, fit, tasks); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
     ctl = new AbortController(); const sig = ctl.signal; busy(true);
@@ -1976,7 +2040,7 @@ ${ax}
   })();
 
   /* 처음 화면: 예시 아이디어를 키워드로 분석해 둔다(AI 호출 없음) */
-  { const p0 = PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L), lex: corpus().lex}); S.sel = kwSelect(EXAMPLE, p0, fitM().judge(p0, EXAMPLE)); S.example = true; render(); }
+  { const p0 = PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L) || fitM().has(L), lex: corpus().lex}); S.sel = kwSelect(EXAMPLE, p0, fitM().judge(p0, EXAMPLE)); S.example = true; render(); }
 })();
 
 /* 웨이즈원 수행 실적(2026-10-19): 나라장터 계약에서 웨이즈원이 대표·단독·공동수급 구성원·하도급으로 들어간 사업을 사업 키워드별로 묶는다 */
