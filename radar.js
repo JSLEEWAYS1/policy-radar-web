@@ -865,7 +865,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderHeat(); r
     return {readFile};
   
   })();
-  const RT = (typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function') ? window.claude : null;
+  const RT = null; // 홈페이지: 키워드 분석 전용
   const T = v => Array.isArray(v) ? v.join(' ') : String(v ?? '');
   const IW0 = {policy:30, tech:30, econ:30, exec:10};
   const AXES = [['policy','정책 타당성','상위계획·예산·시의성'],['tech','기술 타당성','보유 제품·성숙도·실적'],['econ','경제 타당성','시장 규모·반복성·경쟁·수익성'],['exec','실행 가능성','참가자격·지원사업·자체 수행']];
