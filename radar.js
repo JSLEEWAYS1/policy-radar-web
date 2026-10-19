@@ -327,7 +327,7 @@ function renderInsights(){
     return `<p class="verdict">${hl(a.verdict)}</p>
     ${(a.nums||[]).length ? `<div class="inums">${a.nums.map(n => `<div><b>${esc(n.v)}</b><span>${esc(n.l)}</span></div>`).join('')}</div>` : ''}
     <details class="insev"><summary>${i.sec === 'market' ? '시장 근거' : '정책 근거'} 읽기</summary><p>${hl(i.body)}</p></details>
-    <div class="w1box act"><span class="w1h">웨이즈원 실행 계획</span>
+    <div class="w1box act"><span class="w1h">웨이즈원 시사점·실행 액션</span>
       ${a.edge ? `<p class="edge"><span class="kl">우리 강점</span>${hl(a.edge)}</p>` : ''}
       <ol class="acts">${[...(a.actions||[])].sort((p, q) => actKey(p.due).localeCompare(actKey(q.due))).map(x => { const d = actDue(x.due);
         return `<li><span class="ad${x.done ? ' done' : d.past ? ' past' : ''}">${esc(d.txt)}${x.done ? '<span class="tag ok">완료</span>' : d.dd}</span><div class="ab"><b>${hl(x.do)}</b><span class="nmeta">${esc(x.who || '')}${x.out ? ' · ' + esc(x.out) : ''}</span></div></li>`; }).join('')}</ol>
@@ -766,7 +766,7 @@ function renderSources(){
   $('#foot').innerHTML = `${esc(D.meta.footer)}`;
 }
 
-renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderActs(); renderNewFound(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
+renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
 
 /* ── 아이디어 검증 (2026-10-19) ─────────────────────────
    기획안 → ① 레이더에서 실행할 사업 찾기 → ② 정책·기술·경제·실행 점수.
