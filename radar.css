@@ -758,6 +758,85 @@ details.mkt ul{margin-top:6px}
 .idsum{font-size:.93rem;line-height:1.7;color:var(--ink);padding:10px 14px;border-radius:10px;background:var(--tint);box-shadow:inset 0 0 0 1px var(--line)}
 @media (max-width:620px){.idoclist li{grid-template-columns:minmax(0,1fr) auto}.idoclist li .nmeta{grid-column:1/-1;order:3}}
 
+/* 인사이트 실행 계획 (2026-10-19): 판단 한 줄 → 핵심 숫자 → 실행 액션·목표·리스크. 실행 보드는 기한 순 */
+.ins .verdict{font-size:1.02rem;line-height:1.72;color:var(--ink);font-weight:600;padding-left:14px;border-left:3px solid var(--mark)}
+.inums{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.inums>div{display:grid;gap:3px;align-content:start;padding:10px 12px;background:var(--surface)}
+.inums b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.12rem;font-weight:650;line-height:1.2;color:var(--ink)}
+.inums span{font-size:.76rem;line-height:1.45;color:var(--ink2)}
+details.insev>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:.86rem;font-weight:600;color:var(--ink2)}
+details.insev>summary::-webkit-details-marker{display:none}
+details.insev>summary::before{content:"+";flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);font-family:var(--f-mono);font-size:.85rem;color:var(--ink2);background:var(--surface)}
+details.insev[open]>summary::before{content:"−"}
+details.insev[open]>summary{margin-bottom:8px}
+details.insev p{font-size:.92rem!important}
+.w1box.act{gap:12px}
+.w1box .edge{font-size:.9rem;line-height:1.65;color:var(--ink2)}
+.w1box .edge .kl{margin-right:6px;color:var(--mark-ink)}
+ol.acts{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:a}
+ol.acts li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:2px 12px;padding:9px 0;border-top:1px dashed color-mix(in srgb,var(--mark) 22%,var(--line))}
+ol.acts li:first-child{border-top:0;padding-top:2px}
+ol.acts .ad{display:grid;gap:3px;align-content:start;justify-items:start;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.84rem;font-weight:650;color:var(--ink)}
+ol.acts .ad .dd{margin-left:0}
+ol.acts .ad.past{color:var(--ink3);font-weight:500;text-decoration:line-through}
+ol.acts .ab{display:grid;gap:2px;min-width:0}
+ol.acts .ab>b{font-weight:600;font-size:.93rem;line-height:1.6;color:var(--ink)}
+ol.acts .ab .nmeta{font-size:.82rem}
+dl.agr{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px 12px;margin:0;padding-top:10px;border-top:1px solid color-mix(in srgb,var(--mark) 20%,var(--line));font-size:.88rem;line-height:1.6}
+dl.agr dt{font-size:.78rem;font-weight:700;color:var(--mark-ink);padding-top:2px}
+dl.agr dd{margin:0;color:var(--ink)}
+dl.agr dd.r{color:var(--ink2)}
+.actboard{display:grid;gap:14px}
+.actsum{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;font-size:.9rem;color:var(--ink2)}
+.actsum b{font-family:var(--f-mono);font-size:1.15rem;color:var(--ink)}
+ul.actl{list-style:none;margin:0;padding:0;display:grid}
+ul.actl li{display:grid;grid-template-columns:92px minmax(0,1fr) minmax(0,220px);gap:4px 18px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
+ul.actl li:first-child{border-top:0;padding-top:2px}
+ul.actl .ad{display:grid;gap:4px;justify-items:start;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:650;font-size:.92rem}
+ul.actl .ad .dd{margin-left:0}
+ul.actl .ab{display:grid;gap:3px;min-width:0}
+ul.actl .ab>b{font-weight:600;line-height:1.55}
+ul.actl .ab .nmeta{font-size:.84rem}
+ul.actl .ar{display:grid;gap:4px;font-size:.84rem;color:var(--ink2);min-width:0}
+ul.actl .ar .linkish{font-weight:600;color:var(--ink);text-decoration:none;text-align:left}
+ul.actl .ar .linkish:hover{text-decoration:underline}
+details.actmore>summary{list-style:none;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--ink2);display:flex;gap:10px;align-items:center}
+details.actmore>summary::-webkit-details-marker{display:none}
+details.actmore>summary::before{content:"+";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);font-family:var(--f-mono);font-size:.85rem}
+details.actmore[open]>summary::before{content:"−"}
+.ins.flash{animation:flash 1.4s ease}
+.ins{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
+@media (max-width:760px){ul.actl li{grid-template-columns:minmax(0,1fr)}ul.actl .ad{grid-auto-flow:column;justify-content:start;align-items:center;gap:8px}}
+@media (max-width:620px){ol.acts li{grid-template-columns:minmax(0,1fr)}ol.acts .ad{grid-auto-flow:column;justify-content:start;align-items:center;gap:8px}dl.agr{grid-template-columns:minmax(0,1fr);gap:2px}dl.agr dt{margin-top:6px}}
+
+/* 신규 발견 사업 (2026-10-19): 자동 수집이 최근 7일 안에 새로 찾은 공고만 따로 모은 프레임 */
+.newfound{display:grid;gap:16px;border:1.5px solid color-mix(in srgb,var(--mark) 45%,var(--line));background:color-mix(in srgb,var(--mark) 3%,var(--surface))}
+.nfh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.nfh h2{font-size:1.3rem}
+.nfbadge{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:6px;background:var(--mark);color:#fff;font-family:var(--f-mono);font-size:.74rem;font-weight:700;letter-spacing:.06em}
+.nfcols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px 28px;align-items:start}
+.nfcol{display:grid;gap:8px;min-width:0}
+.nfcol>h3{display:flex;align-items:baseline;gap:8px;font-size:1rem;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.nfcol>h3 .nmeta{font-family:var(--f-body);font-weight:500}
+ul.nfl{list-style:none;margin:0;padding:0;display:grid}
+ul.nfl li{display:grid;grid-template-columns:104px minmax(0,1fr);gap:3px 14px;padding:11px 0;border-top:1px solid var(--line)}
+ul.nfl li:first-child{border-top:0;padding-top:4px}
+ul.nfl .nft{display:grid;gap:5px;align-content:start;justify-items:start}
+ul.nfl .nfw{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.76rem;color:var(--ink3)}
+ul.nfl .nfb{display:grid;gap:3px;min-width:0}
+ul.nfl .nfb>a{font-weight:650;color:var(--ink);text-decoration:none;line-height:1.5;overflow-wrap:anywhere}
+ul.nfl .nfb>a:hover{text-decoration:underline}
+ul.nfl .nfb .nmeta{font-size:.84rem}
+ul.nfl .nfb .linkish{font-size:.84rem}
+.nfempty{font-size:.9rem;color:var(--ink3);padding:6px 0}
+details.nfmore>summary{list-style:none;cursor:pointer;font-size:.86rem;font-weight:600;color:var(--ink2);display:flex;gap:10px;align-items:center;padding-top:6px}
+details.nfmore>summary::-webkit-details-marker{display:none}
+details.nfmore>summary::before{content:"+";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);font-family:var(--f-mono);font-size:.85rem}
+details.nfmore[open]>summary::before{content:"−"}
+ol.acts .ad.done{color:var(--ok)}
+@media (max-width:900px){.nfcols{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:620px){ul.nfl li{grid-template-columns:minmax(0,1fr)}ul.nfl .nft{grid-auto-flow:column;justify-content:start;align-items:center;gap:8px}}
+
 /* 웨이즈원 수행 실적 (2026-10-19): 요약 숫자 → 키워드별 표 → 역할 필터 → 키워드 묶음 목록 */
 .trkpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:12px}
 .trkpi .k{display:grid;gap:4px;padding:14px 16px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}

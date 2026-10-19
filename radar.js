@@ -24,7 +24,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const $ = (s,r=document)=>r.querySelector(s);
 const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 const gcol = p => (GC[p.group]||GC.base).c;
-const NUMRE = /(^|[^A-Za-z0-9.,])((?:약\s?)?\d[\d,.]*(?:\s?[~→]\s?\d[\d,.]*)?\s?(?:(?:조|억|만|천)\s?(?:원|장|명)?|원|장|곳|개\s?(?:도시|기관|지자체|권역)|km|㎢|%p|%|배|GW|평)(?:\s?이상|\s?이내)?)/g;
+const NUMRE = /(^|[^A-Za-z0-9.,])((?:약\s?)?\d[\d,.]*(?:\s?[~→]\s?\d[\d,.]*)?\s?(?:(?:조|억|만|천)\s?(?:원|장|명)?|원|장|곳|개\s?(?:도시|기관|지자체|권역)|km|㎢|%p|%|배|GW|평|건|회)(?:\s?이상|\s?이내)?)/g;
 const VEHRE = /(^|[^A-Za-z0-9.,])((?:\d{1,3}(?:,\d{3})+|\d{3,})(?:\s?[~→]\s?(?:\d{1,3}(?:,\d{3})+|\d{3,}))?대(?:\s?이상)?)(?!\s?국정)/g;
 const hl = s => esc(s).replace(NUMRE,'$1<b class="num">$2</b>').replace(VEHRE,'$1<b class="num">$2</b>');
 const BASIS = {in:'사업 참여 확인', cand:'역량 기반 후보'};
@@ -43,6 +43,8 @@ const recentDate = p => String(p.update?.date || p.announced || '');
 const dayNum = s => { const m = String(s||'').match(/(\d{4})-(\d{2})-(\d{2})/); return m ? Date.UTC(+m[1],+m[2]-1,+m[3])/864e5 : NaN; };
 const isNew = p => p.addedAt && (dayNum(CHK) - dayNum(p.addedAt)) <= 7;
 const newTag = p => isNew(p) ? '<span class="tag new">신규</span>' : '';
+const ageD = s => dayNum(NOWK.slice(0,10)) - dayNum(String(s).slice(0,10));
+const itemNew = x => (x.foundAt && ageD(x.foundAt) <= 7) ? '<span class="tag new">신규</span>' : '';
 const NOWK = new Date(Date.now() + 9*3600e3).toISOString().slice(0,16).replace('T',' ');
 const dlk = s => !s ? '' : (String(s).length <= 10 ? s + ' 23:59' : String(s));
 /* 나라장터 3단계: 발주계획(stage 'plan') → 사전규격('pre') → 입찰공고(본공고). 판정 기준은 자동 갱신 스크립트와 같다. */
@@ -215,14 +217,14 @@ function renderPipe(){
   rows.bid.sort((a,b)=>dlk(a.x.deadline).localeCompare(dlk(b.x.deadline)));
   const opp = o => `<button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>`;
   const li = {
-    plan: ({o,x}) => `<li><div class="st"><span class="tag plan">발주계획</span><span><b>${esc(ym(x.planMonth))}</b> 발주 예정</span></div>
+    plan: ({o,x}) => `<li><div class="st"><span class="tag plan">발주계획</span>${itemNew(x)}<span><b>${esc(ym(x.planMonth))}</b> 발주 예정</span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''} · ${opp(o)}</span>${prevLine(x)}</div></li>`,
-    pre: ({o,x,st}) => `<li><div class="st">${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
+    pre: ({o,x,st}) => `<li><div class="st">${itemNew(x)}${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)} · ${opp(o)}</span>
       ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
-    bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span><span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
+    bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span>${itemNew(x)}<span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
       ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
@@ -320,13 +322,25 @@ function renderInsights(){
   const bizWhen = o => { const n = items(o).length ? [livePlans(o).length && `발주계획 ${livePlans(o).length}`, livePres(o).length && `사전규격 ${livePres(o).length}`, liveBids(o).length && `입찰공고 ${liveBids(o).length}`].filter(Boolean).join(' · ') : '';
     const h = horizonTxt(o) || (isUpcoming(o) ? '공고 예정' : '');
     return [h, n].filter(Boolean).join(' — '); };
+  // 실행 계획이 있는 카드: 판단 → 핵심 숫자 → 근거(접힘) → 웨이즈원 실행 계획
+  const actBlock = i => { const a = i.act;
+    return `<p class="verdict">${hl(a.verdict)}</p>
+    ${(a.nums||[]).length ? `<div class="inums">${a.nums.map(n => `<div><b>${esc(n.v)}</b><span>${esc(n.l)}</span></div>`).join('')}</div>` : ''}
+    <details class="insev"><summary>${i.sec === 'market' ? '시장 근거' : '정책 근거'} 읽기</summary><p>${hl(i.body)}</p></details>
+    <div class="w1box act"><span class="w1h">웨이즈원 실행 계획</span>
+      ${a.edge ? `<p class="edge"><span class="kl">우리 강점</span>${hl(a.edge)}</p>` : ''}
+      <ol class="acts">${[...(a.actions||[])].sort((p, q) => actKey(p.due).localeCompare(actKey(q.due))).map(x => { const d = actDue(x.due);
+        return `<li><span class="ad${x.done ? ' done' : d.past ? ' past' : ''}">${esc(d.txt)}${x.done ? '<span class="tag ok">완료</span>' : d.dd}</span><div class="ab"><b>${hl(x.do)}</b><span class="nmeta">${esc(x.who || '')}${x.out ? ' · ' + esc(x.out) : ''}</span></div></li>`; }).join('')}</ol>
+      <dl class="agr">${a.goal ? `<dt>목표</dt><dd>${hl(a.goal)}</dd>` : ''}${a.risk ? `<dt>리스크</dt><dd class="r">${hl(a.risk)}</dd>` : ''}${a.watch ? `<dt>판단 시점</dt><dd class="r">${esc(a.watch)}</dd>` : ''}</dl>
+      ${i.products?.length?`<div class="pchips">${i.products.map(x=>`<span class="pc">${esc(x)}</span>`).join('')}</div>`:''}</div>`; };
   const card = i=>{
     const B = (i.biz||[]).map(id=>OPP[id]).filter(o=>o && !isDiscarded(o));
     const g = GC[i.group];
-    return `<article class="ins${i.sec==='market'?' mk':''}">
-    <span class="k">${g?`<span class="dot" style="--c:${g.c}"></span>`:''}${esc(i.tag)}</span><h3>${esc(i.title)}</h3><p>${hl(i.body)}</p>
+    return `<article class="ins${i.sec==='market'?' mk':''}" id="ins-${(D.insights||[]).indexOf(D.insights.find(z => z.title === i.title))}">
+    <span class="k">${g?`<span class="dot" style="--c:${g.c}"></span>`:''}${esc(i.tag)}</span><h3>${esc(i.title)}</h3>
+    ${i.act ? actBlock(i) : `<p>${hl(i.body)}</p>
     <div class="w1box"><span class="w1h">웨이즈원 시사점</span><p>${hl(i.w1)}</p>
-      ${i.products?.length?`<div class="pchips">${i.products.map(x=>`<span class="pc">${esc(x)}</span>`).join('')}</div>`:''}</div>
+      ${i.products?.length?`<div class="pchips">${i.products.map(x=>`<span class="pc">${esc(x)}</span>`).join('')}</div>`:''}</div>`}
     ${B.length?`<div class="bizsum"><span class="kl">추진할 사업 ${B.length}건</span><ul>${B.map(o=>`<li>${entryTag(o)}
       ${o.entry?`<button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>`:`<span style="font-weight:600">${esc(o.title)}</span>`}
       ${bizWhen(o)?`<span class="when">${esc(bizWhen(o))}</span>`:''}</li>`).join('')}</ul></div>`:''}
@@ -344,6 +358,87 @@ function renderInsights(){
   $('#insights').innerHTML = INS.map(card).join('');
   $('#mkins').innerHTML = MKI.map(card).join('');
   $('#mkins').previousElementSibling.hidden = !MKI.length; $('#mkins').hidden = !MKI.length;
+}
+
+/* 웨이즈원 실행 계획: 인사이트 카드의 act.actions를 기한 순으로 모은다 */
+const actKey = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : (/^\d{4}-\d{2}$/.test(d || '') ? d + '-31' : '9999-12-31');
+const actDue = d => {
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d || '')){ const n = ddN(d); return {txt: md(d), dd: n < 0 ? '' : `<span class="dd${n <= 7 ? ' hot' : ''}">${n === 0 ? 'D-day' : 'D-' + n}</span>`, past: n < 0}; }
+  if(/^\d{4}-\d{2}$/.test(d || '')){ const [y, m] = d.split('-'); const cur = NOWK.slice(0, 7); return {txt: (y === NOWK.slice(0, 4) ? '' : y + '.') + (+m) + '월', dd: d === cur ? '<span class="dd">이번 달</span>' : '', past: d < cur}; }
+  return {txt: '상시', dd: '', past: false};
+};
+const actRef = r => {
+  if(!r) return '';
+  const o = [...(D.opportunities||[]), ...(D.customBiz||[])].find(x => x.id === r);
+  if(o) return `<button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>`;
+  const p = ((D.programs||{}).items||[]).find(x => x.id === r);
+  if(p) return `<a class="linkish" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`;
+  return '';
+};
+function renderActs(){
+  const box = document.getElementById('actboard'); if(!box) return;
+  const L = [];
+  (D.insights||[]).forEach((i, k) => ((i.act||{}).actions||[]).filter(a => !a.done).forEach(a => L.push({...a, k, ins: i})));
+  if(!L.length){ box.hidden = true; if(box.previousElementSibling) box.previousElementSibling.hidden = true; return; }
+  L.sort((a, b) => actKey(a.due).localeCompare(actKey(b.due)));
+  const now = NOWK.slice(0, 10), wk = dayNum(now) + 7, mo = NOWK.slice(0, 7);
+  const up = L.filter(a => !actDue(a.due).past), past = L.filter(a => actDue(a.due).past);
+  const nWeek = up.filter(a => /^\d{4}-\d{2}-\d{2}$/.test(a.due) && dayNum(a.due) <= wk).length;
+  const nMonth = up.filter(a => (a.due || '').slice(0, 7) === mo).length;
+  const row = a => { const d = actDue(a.due);
+    return `<li><span class="ad">${esc(d.txt)}${d.dd}</span>
+      <div class="ab"><b>${hl(a.do)}</b><span class="nmeta">${esc(a.who || '')}${a.out ? ' · ' + esc(a.out) : ''}</span></div>
+      <div class="ar"><span class="kl">근거</span><button type="button" class="linkish" data-ins="${a.k}">${esc(a.ins.title)}</button>${a.ref ? actRef(a.ref) : ''}</div></li>`; };
+  const SHOW = 10;
+  box.innerHTML = `<div class="actsum"><span>앞으로 7일 <b>${nWeek}</b>건</span><span>이번 달 <b>${nMonth}</b>건</span><span>전체 <b>${up.length}</b>건</span></div>
+    <ul class="actl">${up.slice(0, SHOW).map(row).join('')}</ul>
+    ${up.length > SHOW ? `<details class="actmore"><summary>이후 액션 ${up.length - SHOW}건 더 보기</summary><ul class="actl">${up.slice(SHOW).map(row).join('')}</ul></details>` : ''}
+    ${past.length ? `<details class="actmore"><summary>기한이 지난 액션 ${past.length}건</summary><ul class="actl">${past.map(row).join('')}</ul></details>` : ''}`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-ins]'); if(!b) return; e.preventDefault();
+  const el = document.getElementById('ins-' + b.dataset.ins); if(!el) return; if(typeof show === 'function' && cur !== 'overview') show('overview', {keepScroll: true});
+  el.scrollIntoView({behavior: 'smooth', block: 'start'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); });
+
+/* 신규 발견 사업: 최근 7일 안에 자동 수집이 새로 찾은 나라장터 공고(foundAt)·단계가 바뀐 공고(stageAt)와 연구개발·기업지원 공고(addedAt) */
+const NEWD = 7;
+function renderNewFound(){
+  const box = document.getElementById('newfound'); if(!box) return;
+  const G = [];
+  (D.opportunities||[]).filter(o => !isDiscarded(o)).forEach(o => items(o).forEach(x => {
+    if(!itemLive(x) || (x.elig||{}).verdict === 'no') return;
+    const f = x.stageAt && ageD(x.stageAt) <= NEWD ? {t: x.stageAt, k: 'stage'} : (x.foundAt && ageD(x.foundAt) <= NEWD ? {t: x.foundAt, k: 'new'} : null);
+    if(f) G.push({o, x, ...f});
+  }));
+  const seen = new Set(); const GG = G.filter(r => { const k = r.x.no || r.x.title; if(seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => String(b.t).localeCompare(String(a.t)) || dlk(a.x.deadline || a.x.opinionDeadline || '').localeCompare(dlk(b.x.deadline || b.x.opinionDeadline || '')));
+  const R = PRG.filter(x => x.addedAt && ageD(x.addedAt) <= NEWD).sort((a, b) => String(b.addedAt).localeCompare(String(a.addedAt)) || (a.fit === 'high' ? 0 : 1) - (b.fit === 'high' ? 0 : 1));
+  const when = t => { const n = ageD(t); return n <= 0 ? '오늘' : n === 1 ? '어제' : md(t); };
+  const ST = x => x.stage === 'plan' ? ['plan', '발주계획'] : x.stage === 'pre' ? ['pre', '사전규격'] : ['ok', '입찰공고'];
+  const due = x => x.stage === 'plan' ? `<b>${esc(ym(x.planMonth))}</b> 발주 예정`
+    : x.stage === 'pre' ? (x.opinionDeadline ? `의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span>` : '')
+    : (x.deadline ? `제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline) <= 7 ? 'hot' : ''}">${ddTxt(x.deadline)}</span>` : '');
+  const EV = {ok: '<span class="tag ok">참여 가능</span>', gap: '<span class="tag gap">보완 필요</span>', unknown: '<span class="tag">자격 확인 필요</span>'};
+  const gRow = ({o, x, t, k}) => { const [c, l] = ST(x);
+    return `<li><div class="nft"><span class="tag ${c}">${l}</span><span class="nfw">${k === 'stage' ? '단계 전환 · ' : ''}${esc(when(t))} 발견</span></div>
+      <div class="nfb"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
+        <span class="nmeta">${esc(x.org || '')}${x.budget ? ` · <b class="num">${esc(x.budget)}</b>` : ''}${due(x) ? ' · ' + due(x) : ''}</span>
+        <span class="nmeta">${EV[(x.elig||{}).verdict] || ''} <button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button></span></div></li>`; };
+  const KIND = {rnd: ['rnd', '연구개발'], biz: ['bizs', '기업지원']};
+  const QV = {ok: '<span class="tag ok">신청 가능</span>', gap: '<span class="tag gap">보완 필요</span>', unknown: '<span class="tag">자격 확인 필요</span>'};
+  const rRow = x => { const [c, l] = KIND[x.kind] || ['bizs', '공고'];
+    const cl = x.close ? `마감 <b>${esc(md(x.close))}</b> <span class="dd ${ddN(x.close) <= 7 ? 'hot' : 'soon'}">${ddTxt(x.close)}</span>` : esc(x.closeNote || '상시 접수');
+    return `<li><div class="nft"><span class="tag ${c}">${l}</span><span class="nfw">${esc(when(x.addedAt))} 발견</span></div>
+      <div class="nfb"><a href="${esc(x.url || (x.links||[])[0]?.url || '#')}" target="_blank" rel="noopener">${esc(x.title)}</a>
+        <span class="nmeta">${esc(x.ministry || '')}${x.agency ? ' · ' + esc(x.agency) : ''} · ${cl}</span>
+        <span class="nmeta">${x.fit === 'high' ? '<span class="tag hi">적합도 높음</span> ' : ''}${QV[(x.qual||{}).verdict] || ''} ${hl(String(x.support || '').slice(0, 70))}${String(x.support || '').length > 70 ? '…' : ''}</span></div></li>`; };
+  const list = (a, f, n, empty) => !a.length ? `<p class="nfempty">${empty}</p>`
+    : `<ul class="nfl">${a.slice(0, n).map(f).join('')}</ul>${a.length > n ? `<details class="nfmore"><summary>${a.length - n}건 더 보기</summary><ul class="nfl">${a.slice(n).map(f).join('')}</ul></details>` : ''}`;
+  const nNew = GG.filter(r => r.k === 'new').length, nSt = GG.length - nNew;
+  document.getElementById('nf-sum').textContent = `최근 ${NEWD}일 동안 자동 수집이 새로 찾은 공고 · 새로 찾은 순서`;
+  document.getElementById('nf-gn').textContent = GG.length ? `${GG.length}건${nSt ? ` (신규 ${nNew} · 단계 전환 ${nSt})` : ''}` : '';
+  document.getElementById('nf-rn').textContent = R.length ? `${R.length}건` : '';
+  document.getElementById('nf-g2b').innerHTML = list(GG, gRow, 6, `최근 ${NEWD}일 새로 찾은 나라장터 공고가 없습니다.`);
+  document.getElementById('nf-rnd').innerHTML = list(R, rRow, 5, `최근 ${NEWD}일 새로 찾은 연구개발·기업지원 공고가 없습니다.`);
 }
 /* 한눈에 보기 맨 위: 마감이 가까운 일 */
 function renderBoard(){
@@ -671,7 +766,7 @@ function renderSources(){
   $('#foot').innerHTML = `${esc(D.meta.footer)}`;
 }
 
-renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
+renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderActs(); renderNewFound(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
 
 /* ── 아이디어 검증 (2026-10-19) ─────────────────────────
    기획안 → ① 레이더에서 실행할 사업 찾기 → ② 정책·기술·경제·실행 점수.
