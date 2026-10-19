@@ -960,6 +960,234 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     return {readFile};
   
   })();
+  /* ── 기획안 학습: 기획안 전문의 낱말 분포(자주·앞쪽·제목에 나오는 낱말, 붙어 다니는 낱말)를 익혀
+     핵심 키워드 5개와 두 줄 요약을 만들고, 사업 찾기에 쓸 낱말 가중치를 넘긴다.
+     AI 없이 이 브라우저 안에서만 계산하고 원문은 저장하지 않는다. ── */
+  const PLAN = (() => {
+    // 체언 뒤 조사. b: 받침 있는 말 뒤에만, v: 받침 없는 말(또는 ㄹ) 뒤에만, a: 아무 데나
+    const JO = [];
+    const add = (k, list) => list.split(' ').forEach(j => JO.push([j, k]));
+    add('b', '으로부터 으로써 으로서 으로는 으로도 으로의 이라는 이라고 이라면 이라도 이란 이며 이고 이다 이면 이자 이나 과의 과는 과도 으로 이 을 은 과');
+    add('v', '로부터 로써 로서 로는 로도 로의 라는 라고 라면 와의 와는 와도 로 가 를 는 와 란');
+    add('a', '에서부터 에게서는 에서는 에서도 에서의 에게는 에게도 까지는 까지도 부터는 부터도 에는 에도 에서 에게 께서 까지 부터 마다 처럼 보다 만큼 에의 의 에 도 만');
+    JO.sort((a, b) => b[0].length - a[0].length);
+    const JOSET = new Set(JO.map(j => j[0]));
+    // 낱말 끝 글자일 때가 많은 조사(정밀지도·고속도로·사전협의): 문서 안 근거가 없으면 떼지 않는다
+    const AMBIG = new Set(['도', '의', '만', '로', '이란', '란']);
+    // 하다·되다 꼴(구축하는·검증해·운영됨·효율적인) → 앞의 명사만 남긴다
+    const HA = /(하였으며|하였다|하였고|하겠다|하고자|하기로|하기에|하도록|하려는|하려고|하면서|하는데|하지만|하여야|했으며|합니다|되었으며|되었다|되었고|되도록|되면서|됩니다|시키는|시키고|적으로|적인|해야|하여|하고|하며|하면|하는|하던|하게|하지|한다|했다|했고|하기|되는|되어|되고|되며|되면|되던|되게|되지|된다|됐다|시켜|시킨|시킴|할|한|함|해|될|된|됨|돼)$/;
+    // 앞뒤 근거가 없는 맨 낱말이 이 꼴로 끝나면 용언으로 보고 뺀다(만들고·싶다·쌓이는)
+    const VERB = /(?:고|며|다|던|게|는|은|운|도록|려고|려는|면서|지만|는데|니다|으면|어서|아서|해서|었|았|였|겠|하|되)$/;
+    const ORG = /(사업본부|본부|사업부|사업단|팀장|부장|과장|실장|담당관|주무관|대표이사)$/;
+    const STOP = new Set(('사업 추진 계획 구축 운영 개발 활용 기반 제공 지원 방안 목표 목적 내용 필요 현황 효과 기대 기대효과 단계 연도 예산 기간 일정 구성 개선 강화 확대 도입 마련 수행 검토 적용 수립 실시 대상 범위 주요 세부 기존 향후 현재 최근 해당 관련 위해 위한 대한 통해 통한 따른 따라 의한 관한 인한 대해 등 및 또는 그리고 이를 이에 경우 부분 문제 문제점 방향 결과 성과 체계 환경 기능 역할 제안 제안서 기획 기획안 기획서 계획서 계획안 보고 요청 자료 내역 항목 비고 구분 합계 소계 총계 금액 단위 천원 백만원 억원 만원 년 월 일 개월 차 회 명 건 개 곳 식 년도 연차 기관 담당 담당자 부서 연락처 전화 이메일 내선 문의 페이지 표 그림 참고 출처 첨부 별첨 붙임 비교 가능 불가 있음 없음 예정 완료 진행 시작 이후 이전 이상 이하 미만 초과 내외 정도 수준 연간 매년 매월 상시 기타 전체 일부 대부분 다양 각종 모든 다른 같은 우리 당사 자사 귀사 회사 웨이즈원 ways1 사업명 과제명 사업기간 사업예산 과업명 과업기간 발주처 주관 개요 배경 필요성 추진배경 추진체계 추진일정 효과적 국비 군비 시비 도비 첫째 둘째 셋째 넷째 다섯째 하나 함께 바로 매일 정작 평균 꾸준히 그러나 또한 특히 다만 생활 교육 보고서 착수 정제 수집 조회 확인 제작 산출 생성 연계 통합 분석 관리 처리 고도화 확보 확산 단축 감소 증가 제시 지정 발굴 배분 정비 보완 판매 자동 신규 대상은 때문 위에서 아래 경우에 슬라이드 목차 표지 메모 페이지 추정 추정금액 사업화 핵심 주요내용 기대효과 사업개요 제안개요 과업개요').split(' '));
+    // 혼자서는 뜻이 약한 낱말: 다른 낱말과 붙은 구(공간정보 플랫폼)로는 살리고 혼자일 때는 점수를 깎는다
+    const WEAK = new Set('데이터 정보 시스템 서비스 플랫폼 기술 솔루션 모델 센터 지도 도시 행정 공공 스마트 디지털 지역 고객 기업 사용자 이용자 현장 화면 모듈 웹 db ai 차량 시범 실증 운행 실시간 지자체'.split(' '));
+    const hasB = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
+    const isR = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 === 8; };
+    const joOk = (L, j, k) => { const last = L[L.length - 1]; if(k === 'a') return true; if(k === 'b') return hasB(last); return !hasB(last) || (j[0] === '로' && isR(last)); };
+    // 한글 덩어리 하나에서 나올 수 있는 [어간, 꼬리, 종류]
+    function cands(h){
+      const out = [[h, '', 'bare']];
+      for(const [j, k] of JO){ if(h.length - j.length >= 2 && h.endsWith(j)){ const L = h.slice(0, -j.length); if(joOk(L, j, k)) out.push([L, j, (AMBIG.has(j) || (j === '는' && L.endsWith('이'))) ? 'amb' : 'jo']); } }
+      const m = h.match(HA); if(m && h.length - m[0].length >= 2) out.push([h.slice(0, -m[0].length), m[0], 'ha']);
+      return out;
+    }
+    const RUN = /[A-Za-z][A-Za-z0-9+&-]*[A-Za-z0-9]|[A-Za-z]|[0-9]+[A-Za-z]+[A-Za-z0-9]*|[0-9][0-9.,]*|[가-힣]+/g;
+    // 문장 단위로 나누기: 줄 → 문장 끝(. ? !) → 앞의 기호·번호 떼기
+    const LEAD = /^\s*(?:[□■○●◦◎◇◆▶▷►▸•·∙\-–—*※☞▪▫❍❏✓✔>]+|\(?\d{1,2}[.)]|\(?[가-하][.)]|[①-⑳]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ]+[.)]?)\s*/;
+    const LABEL = /^(?:사업명|과제명|과업명|제안명|사업\s*개요|제안\s*개요|과업\s*개요|개\s*요|목\s*적|사업\s*목적|추진\s*목적|목\s*표|주요\s*내용|사업\s*내용|내\s*용|핵심\s*기능|해\s*결)\s*[:：\-–]\s*/;
+    function units(text, src, base){
+      const out = [];
+      String(text || '').replace(/\r/g, '').split(/\n+/).forEach(line => {
+        line = line.replace(/\t+/g, ' | ').replace(/\s+/g, ' ').trim(); if(!line) return;
+        line.split(/(?<=[.!?])\s+(?=\S)|(?<=다\.)(?=\S)/).forEach(s => {
+          let t = s.trim(); for(let i = 0; i < 2; i++) t = t.replace(LEAD, '');
+          t = t.trim(); if(t) out.push({t, src, i: base + out.length});
+        });
+      });
+      return out;
+    }
+    // 단위들을 낱말로: 어절마다 문서 안 근거(같은 어간이 나온 횟수)가 가장 많은 어간을 고른다(같으면 긴 쪽)
+    function tokenize(U, known){
+      const ev = new Map(), jev = new Map();
+      const toks = U.map(u => {
+        const out = [];
+        let m; RUN.lastIndex = 0;
+        while((m = RUN.exec(u.t))){
+          const r = m[0], nx = u.t[m.index + r.length] || '';
+          if(/^[가-힣]/.test(r)){
+            const prev = out[out.length - 1];
+            // 영문 바로 뒤에 붙은 조사(AI를, GIS의)는 앞 낱말의 꼬리로 본다
+            if(prev && prev.lat && prev.glued && JOSET.has(r)){ prev.R = r; continue; }
+            const cs = cands(r); cs.forEach(([L, , k]) => { ev.set(L, (ev.get(L) || 0) + 1); if(k === 'jo' || k === 'ha') jev.set(L, (jev.get(L) || 0) + 1); });
+            out.push({h: r, cs, sp: nx !== '' && /\s/.test(nx)});
+          } else if(/^[A-Za-z]/.test(r) || /^[0-9]+[A-Za-z]/.test(r)){
+            out.push({lat: true, h: r, L: r, key: r.toLowerCase(), R: '', glued: /[가-힣]/.test(nx)});
+          } else out.push({num: true, h: r});
+        }
+        return out;
+      });
+      toks.forEach(ts => ts.forEach(t => {
+        if(t.lat || t.num) return;
+        let best = null, bs = -1;
+        t.cs.forEach(([L, R, k]) => {
+          if(L.length < 2) return;
+          const s = (ev.get(L) || 0) + (known(L) ? 2 : 0) + (k === 'jo' || k === 'ha' ? .5 : k === 'bare' ? .25 : 0);
+          if(s > bs || (s === bs && L.length > best[0].length)){ bs = s; best = [L, R, k]; }
+        });
+        if(!best){ t.drop = true; return; }
+        t.L = best[0]; t.R = best[1]; t.key = best[0];
+        if(best[2] === 'bare' && !jev.get(best[0]) && !known(best[0]) && (VERB.test(best[0]) || JO.some(([j, k]) => j.length >= 2 && best[0].length - j.length === 1 && best[0].endsWith(j) && joOk(best[0][0], j, k)))) t.drop = true;
+      }));
+      return toks;
+    }
+    // 다른 글(레이더 데이터)에서 쓰이는 명사 모음: 어간 고르기의 근거로 쓴다
+    function stems(text){
+      const S = new Set();
+      tokenize(units(text, 'c', 0), () => false).forEach(ts => ts.forEach(t => { if(!t.drop && !t.num && t.key && t.key.length >= 2) S.add(t.key); }));
+      return S;
+    }
+    function learn({text = '', docs = [], known = () => false, lex = []} = {}){
+      const U = [];
+      if(text.trim()) units(text, 'text', 0).forEach(u => U.push(u));
+      docs.forEach((d, di) => {
+        const nm = String(d.name || '').replace(/\.[A-Za-z0-9]+$/, '').replace(/[_\-]+/g, ' ').replace(/\(.*?\)|\[.*?\]|v\d+(\.\d+)*|최종|수정본?|초안|\d{6,8}/gi, ' ').replace(/\s+/g, ' ').trim();
+        if(nm.length >= 4) U.push({t: nm, src: 'name'});
+        units(String(d.text || '').slice(0, 200000), 'doc' + di, U.length).forEach(u => U.push(u));
+      });
+      const NU = U.length || 1;
+      const LEX = [...new Set((lex || []).map(x => String(x).toLowerCase()).filter(x => x.length >= 2))];
+      const toks = tokenize(U, known);
+      const okTerm = t => !t.drop && !t.num && !!t.key && !STOP.has(t.key) && !ORG.test(t.key) && t.key.length <= 30 && (t.lat ? (t.key.length >= 2 || /^\d+[a-z]/.test(t.key)) : (t.key.length >= 2 && !/^\d/.test(t.key)));
+      // 단위별 무게: 파일 이름·문서 첫머리·짧은 제목 줄·입력란 문장은 더 무겁게
+      const firstOf = {}, lenOf = {};
+      U.forEach((u, k) => { if(firstOf[u.src] === undefined) firstOf[u.src] = k; lenOf[u.src] = (lenOf[u.src] || 0) + 1; });
+      const uw = U.map((u, k) => {
+        if(u.src === 'name') return 2;
+        const rel = (k - firstOf[u.src]) / Math.max(1, lenOf[u.src]);
+        let w = 1 + .8 * Math.max(0, 1 - rel / .15);
+        if(k - firstOf[u.src] < 2 && u.t.length <= 60) w += .8;
+        if(u.t.length <= 30 && !/[.다음함임됨]$/.test(u.t)) w *= 1.25;
+        if(u.src === 'text') w *= 1.3;
+        return w;
+      });
+      // 낱말과 붙어 다니는 구(2~3어절)의 점수
+      const T = new Map(), disp = new Map(), PH = new Map();
+      const show = (key, s, n) => { const dm = disp.get(key) || {}; dm[s] = (dm[s] || 0) + n; disp.set(key, dm); };
+      toks.forEach((ts, ui) => {
+        const w = uw[ui], seen = new Map();
+        ts.forEach((t, ti) => {
+          if(!okTerm(t)) return;
+          const key = t.key;
+          let e = T.get(key); if(!e){ e = {key, s: 0, n: 0, us: new Set(), parts: [key]}; T.set(key, e); }
+          const c = (seen.get(key) || 0) + 1; seen.set(key, c);
+          e.n++; e.us.add(ui); e.s += w * (c === 1 ? 1 : c <= 3 ? .3 : 0); show(key, t.L, 1);
+          // 구: 앞 낱말에 조사가 없고 바로 다음 낱말도 쓸 만할 때
+          let parts = [t], j = ti;
+          while(parts.length < 3 && !parts[parts.length - 1].R){
+            const nx = ts[j + 1]; if(!nx || !okTerm(nx)) break;
+            parts = parts.concat([nx]); j++;
+            const k2 = parts.map(p => p.key).join(' ');
+            const p = PH.get(k2) || {n: 0, us: new Set(), s: 0, parts: parts.map(q => q.key), show: {}};
+            if(!p.us.has(ui)) p.s += w; p.us.add(ui); p.n++;
+            const sh = parts.map(q => q.L).join(' '); p.show[sh] = (p.show[sh] || 0) + 1; PH.set(k2, p);
+          }
+        });
+      });
+      // 구는 두 단위 이상에 나오고, 구성 낱말이 나올 때 함께 나오는 비율이 높을 때만 쓴다
+      PH.forEach(p => {
+        const mn = Math.min(...p.parts.map(q => (T.get(q) || {n: 1}).n));
+        if(p.us.size < 2 || p.n < .34 * mn) return;
+        const key = p.parts.join(''), sh = Object.entries(p.show).sort((a, b) => b[1] - a[1])[0][0];
+        const cur = T.get(key);
+        if(cur){ cur.s = Math.max(cur.s, p.s) + .2 * Math.min(cur.s, p.s); cur.phrase = true; }
+        else T.set(key, {key, s: p.s, n: p.n, us: p.us, phrase: true, parts: p.parts});
+        show(key, sh, p.n);
+      });
+      // 최종 점수: 복합어일수록 구체적이라 조금 올리고, 영문 약어·업계 낱말 가산, 뜻이 약한 낱말 감산
+      const L = [...T.values()].map(e => {
+        const k = e.key, hang = (k.match(/[가-힣]/g) || []).length;
+        let s = e.s * (1 + .07 * Math.min(6, Math.max(0, hang - 2)));
+        if(/^[a-z0-9+&-]+$/.test(k) && k.length >= 2 && k.length <= 6) s *= 1.15;
+        if(LEX.some(x => k === x || (k.length >= 3 && x.length >= 3 && (k.includes(x) || x.includes(k))))) s *= 1.25;
+        if(WEAK.has(k)) s *= .4;
+        if(!e.phrase && e.us.size === 1 && NU > 12) s *= .7;
+        const dm = disp.get(k) || {}; const sh = Object.entries(dm).sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0];
+        return {key: k, t: sh ? sh[0] : k, s, n: e.n, phrase: !!e.phrase, parts: e.parts || [k]};
+      }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+      // 키워드 5개: 서로 겹치면(교통 ⊂ 교통정보센터) 더 구체적인 쪽을 남기되, 뜻이 약한 말만 덧붙은 긴 구는 쓰지 않는다
+      const lcs = (a, b) => { let m = 0; for(let i = 0; i < a.length; i++) for(let j = 0; j < b.length; j++){ let n = 0; while(a[i + n] && a[i + n] === b[j + n]) n++; if(n > m) m = n; } return m; };
+      const kw = [];
+      for(const c of L.slice(0, 80)){
+        if(kw.some(k => k.key.includes(c.key))) continue;
+        // 겹치는 구(교통데이터 품질검증 · 품질검증 서비스)는 하나만
+        if(kw.some(k => !c.key.includes(k.key) && lcs(k.key, c.key) >= Math.max(3, .5 * Math.min(k.key.length, c.key.length)))) continue;
+        const sub = kw.filter(k => c.key.includes(k.key));
+        if(sub.length){
+          const rest = sub.length === 1 ? c.key.replace(sub[0].key, '') : '';
+          if(sub.every(k => c.s >= .5 * k.s) && !(rest && (WEAK.has(rest) || STOP.has(rest)) && c.t.length > 10)){ sub.forEach(k => kw.splice(kw.indexOf(k), 1)); kw.push(c); kw.sort((a, b) => b.s - a.s); }
+          continue;
+        }
+        if(kw.length < 5) kw.push(c);
+      }
+      kw.splice(5);
+      // 제목: 첫 문서 첫머리의 짧은 줄 → 사업명 줄 → 파일 이름
+      const top = L.slice(0, 14), mx = top.length ? top[0].s : 1;
+      const tw = new Map(top.map(x => [x.key, x.s / mx]));
+      const nos = s => s.replace(/\s+/g, '').toLowerCase();
+      const keysIn = t => { const z = nos(t); return top.filter(x => z.includes(x.key)).map(x => x.key); };
+      const lab = U.find(u => /^(사업명|과제명|과업명|제안명)\s*[:：]/.test(u.t));
+      const head = U.filter(u => u.src !== 'name' && u.src !== 'text').slice(0, 3).find(u => u.t.length >= 6 && u.t.length <= 60 && keysIn(u.t).length >= 1 && !/[.]$/.test(u.t));
+      const nameU = U.find(u => u.src === 'name');
+      let title = (head && head.t) || (lab && lab.t.replace(LABEL, '').trim()) || (nameU && nameU.t.length >= 6 ? nameU.t : '');
+      // 두 줄 요약: 핵심 낱말을 많이 담은 문장 둘. 첫 문장은 목적·개요 쪽, 둘째 문장은 첫 문장이 덜 담은 낱말 쪽
+      const CUE = /(목적|목표|하고자|하려|제공한다|제공하려|제공함|만들고 싶|구축하여|하나의 플랫폼|서비스를|위한 .*(구축|개발|서비스))/;
+      const BG = /(현황|문제점|배경|필요성|지적|부족|어려움|소요|증가하고|포화|의존)/;
+      const tset = s => new Set(s.replace(/[^가-힣A-Za-z0-9\s]/g, ' ').split(/\s+/).filter(x => x.length >= 2));
+      const jac = (A, B) => { const i = [...B].filter(x => A.has(x)).length; return i / Math.max(1, new Set([...A, ...B]).size); };
+      const TS = tset(title);
+      const cand = U.map((u, k) => ({u, k, t: u.t.replace(LABEL, '').trim()})).filter(({u, t}) => {
+        if(u.src === 'name' || u === head || u === lab) return false;
+        const hg = (t.match(/[가-힣]/g) || []).length, dg = (t.match(/[0-9]/g) || []).length;
+        return t.length >= 12 && t.length <= 260 && hg >= .45 * t.length && dg <= .2 * t.length && (t.match(/\s/g) || []).length >= 2 && !/[:：]$/.test(t) && !/(☎|@|https?:|내선|문의\s*:|\|.*\|)/.test(t) && jac(TS, tset(t)) < .6;
+      });
+      const score = (c, cov) => {
+        const ks = keysIn(c.t); let s = 0; ks.forEach(k => { s += (tw.get(k) || 0) * (cov && cov.has(k) ? .25 : 1); });
+        const rel = (c.k - firstOf[c.u.src]) / Math.max(1, lenOf[c.u.src]);
+        s *= 1 + .5 * Math.max(0, 1 - rel / .3);
+        if(CUE.test(c.u.t)) s *= 1.3; if(BG.test(c.u.t)) s *= .7; if(/(기획안|기획서|제안서|계획서|보고서|기획)\s*(\(안\))?$/.test(c.t)) s *= .4;
+        if(c.u.src === 'text') s *= 1.2;
+        const n = c.t.length; s /= 1 + Math.max(0, n - 110) / 120; if(n < 22) s *= .65; else if(n < 32) s *= .85;
+        return {s, ks};
+      };
+      const clip = (t, max) => {
+        if(t.length <= max) return t;
+        const cl = t.split(/(?<=[,，;])\s+|(?<=(?:하고|하며|하여|되어|으며|면서|이고|이며|해|고|며))\s+/);
+        if(cl.length > 1){
+          let bw = null, bs = -1;
+          for(let a = 0; a < cl.length; a++){ let s = ''; for(let b = a; b < cl.length; b++){ s = s ? s + ' ' + cl[b] : cl[b]; if(s.length > max) break;
+            const z = nos(s); const sc = top.reduce((y, x) => y + (z.includes(x.key) ? tw.get(x.key) : 0), 0) + (b === cl.length - 1 ? .5 : 0);
+            if(sc > bs){ bs = sc; bw = s; } } }
+          if(bw && bw.length >= 20) return bw.replace(/[,，;]\s*$/, '');
+        }
+        const cut = t.slice(0, max - 1), sp = cut.lastIndexOf(' ');
+        return (sp > max * .6 ? cut.slice(0, sp) : cut).replace(/[,，;·\s]+$/, '') + '…';
+      };
+      const total = U.filter(u => u.src !== 'name').reduce((s, u) => s + u.t.length, 0);
+      let brief = [];
+      if(!docs.length && total <= 300) brief = U.filter(u => u.src === 'text').map(u => clip(u.t, 140)).slice(0, 2);
+      else if(cand.length){
+        const s1 = cand.map(c => ({c, ...score(c)})).sort((a, b) => b.s - a.s)[0];
+        const cov = new Set(s1.ks), A = tset(s1.c.t);
+        const s2 = cand.filter(c => c !== s1.c).map(c => ({c, ...score(c, cov), j: jac(A, tset(c.t))}))
+          .filter(x => x.j < .5 && x.ks.some(k => !cov.has(k))).sort((a, b) => b.s - a.s)[0];
+        brief = [s1, s2].filter(Boolean).sort((a, b) => a.c.k - b.c.k).map(x => clip(x.c.t.replace(/\s*\|\s*/g, ' · '), 100));
+      }
+      if(!title) title = brief.length ? clip(brief[0], 60) : '';
+      return {kw: kw.map(k => ({t: k.t, key: k.key, parts: k.parts, s: +k.s.toFixed(2)})), brief, title: title.slice(0, 80), terms: L.slice(0, 400).map(x => ({key: x.key, s: x.s, phrase: x.phrase})), units: U.length, chars: total};
+    }
+    return {learn, stems, weak: t => WEAK.has(t)};
+  })();
   const RT = null; // 홈페이지: 키워드 분석 전용
   const T = v => Array.isArray(v) ? v.join(' ') : String(v ?? '');
   const IW0 = {policy:30, tech:30, econ:30, exec:10};
@@ -991,10 +1219,16 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     const lex = new Set();
     const add = w => { w = String(w).trim().toLowerCase(); if(w.length >= 2 && !STOP.has(w)) lex.add(w); };
     BMCL.forEach(p => { String(p.name).split(/[()·&/\s]+/).forEach(add); (p.keywords || []).forEach(k => String(k).split(/\s+/).forEach(add)); });
-    return CORP = {all, lex:[...lex]};
+    let words = null;
+    return CORP = {all, lex:[...lex], get words(){ return words || (words = PLAN.stems(all.map(d => d.t).join('\n'))); }};
   }
-  function kwSelect(text){
-    const C = corpus(), low = text.toLowerCase(), terms = new Set();
+  // 기획안 학습: 입력란 글과 붙인 문서 전체(문서당 20만 자까지)를 읽어 키워드·요약·낱말 가중치를 만든다
+  function learnPlan(text){
+    const C = corpus();
+    return PLAN.learn({text, docs: DOCS.filter(d => d.text).map(d => ({name: d.name, text: d.text})), known: L => C.words.has(L), lex: C.lex});
+  }
+  function kwSelect(text, plan){
+    const C = corpus(), low = text.toLowerCase(), terms = new Set(), W = {};
     // 낱말마다 조사·어미를 떼어 보고, 레이더 데이터에 실제로 나오는 가장 짧은 형태를 쓴다(데이터를 → 데이터, 교통정보센터에 → 교통정보센터)
     const inC = t => C.all.some(d => d.t.includes(t));
     low.replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').forEach(w => {
@@ -1004,23 +1238,32 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       const t = cands.slice().reverse().find(c => c.length >= 2 && !STOP.has(c) && inC(c)); if(t) terms.add(t);
     });
     C.lex.forEach(k => { if(low.includes(k)) terms.add(k); });
+    // 기획안에서 익힌 낱말: 기획안에서 점수가 높을수록, 핵심 키워드일수록 사업 고르기에서 무겁게 센다
+    if(plan && plan.terms.length){
+      const mx = plan.terms[0].s || 1;
+      plan.terms.slice(0, 300).forEach(x => { const t = x.key; if(x.phrase || t.length < 2 || STOP.has(t) || !(terms.has(t) || inC(t))) return; terms.add(t); W[t] = Math.max(W[t] || 0, .8 + .7 * Math.sqrt(x.s / mx)); });
+      plan.kw.forEach(k => (k.parts || [k.key]).forEach(t => { if(t.length < 2 || STOP.has(t) || !(terms.has(t) || inC(t))) return; terms.add(t); W[t] = Math.max(W[t] || 0, PLAN.weak(t) ? 1.1 : 1.8); }));
+    }
+    const wt = t => W[t] || (plan ? .9 : 1);
     const N = C.all.length, idf = {};
     terms.forEach(t => { const df = C.all.filter(d => d.t.includes(t)).length; if(df) idf[t] = Math.log(1 + N / df); });
     // 드문 낱말(전체 문서의 10% 이하에 나오는 낱말)을 따로 센다: 흔한 낱말만 겹치면 고르지 않는다
     const RARE = Math.log(1 + 10);
-    const hit = d => { let s = 0, r = 0; const h = []; for(const t in idf) if(d.t.includes(t)){ s += idf[t]; h.push(t); if(idf[t] >= RARE) r++; } return {s, h, r}; };
+    const hit = d => { let s = 0, r = 0; const h = []; for(const t in idf) if(d.t.includes(t)){ s += idf[t] * wt(t); h.push(t); if(idf[t] >= RARE) r++; } return {s, h, r}; };
     const pick = (k, n, rel) => { const r = C.all.filter(d => d.k === k).map(d => ({id:d.id, ...hit(d)})).filter(d => d.h.length >= 2 && d.r >= 1).sort((a, b) => b.s - a.s);
       const top = r.length ? r[0].s : 0; return r.filter(d => d.s >= top * rel).slice(0, n); };
-    const why = d => '겹치는 낱말: ' + d.h.sort((a, b) => idf[b] - idf[a]).slice(0, 4).join(', ');
+    const why = d => '겹치는 낱말: ' + d.h.sort((a, b) => idf[b] * wt(b) - idf[a] * wt(a)).slice(0, 4).join(', ');
     const pick3 = (k, n, rel) => pick(k, n, rel).filter(d => d.h.length >= 3 && d.r >= 2);
     const prods = pick('prod', 4, .5), opps = pick('opp', 4, .55), its = pick('item', 6, .6), pols = pick3('pol', 6, .55), prgs = pick3('prg', 3, .6);
-    return {mode:'keyword', summary: text.replace(/\s+/g, ' ').slice(0, 70) + (text.length > 70 ? '…' : ''),
+    const kw5 = plan ? plan.kw.map(k => k.t) : [];
+    return {mode:'keyword', summary: (plan && plan.title) || text.replace(/\s+/g, ' ').slice(0, 70) + (text.length > 70 ? '…' : ''),
+      brief: plan ? plan.brief : [], kw5,
       elements: prods.map(d => ({name:d.id, product:d.id})),
       policies: pols.map(d => ({id:d.id, why:why(d)})),
       opps: opps.map((d, i) => ({id:d.id, strength: i === 0 && d.h.length >= 3 ? 'strong' : 'partial', why:why(d)})),
       items: its.map(d => ({no:d.id, why:why(d)})),
       programs: prgs.map(d => ({id:d.id, why:why(d)})),
-      keywords: Object.keys(idf).sort((a, b) => idf[b] - idf[a]).slice(0, 4), buyers: [], risks: []};
+      keywords: kw5.length ? kw5.slice(0, 4) : Object.keys(idf).sort((a, b) => idf[b] - idf[a]).slice(0, 4), buyers: [], risks: []};
   }
 
   /* ── AI 분석: 레이더 목록 안에서만 고르게 하고, 받은 값은 목록과 대조해 거른다 ── */
@@ -1054,8 +1297,9 @@ ${its}
 ${prgs || '(없음)'}
 
 답 형식(JSON 하나, 다른 글 없이):
-{"summary": "아이디어를 40자 안팎 한 문장으로(첨부 문서가 있으면 문서 내용을 반영)",
- "docSummary": "첨부 문서가 제안하는 사업을 목적·대상·주요 기능·추진 방식 순으로 3~4문장(첨부 문서가 없으면 빈 문자열)",
+{"summary": "기획안 제목처럼 30자 안팎 한 줄",
+ "brief": ["기획안 요약 첫 문장: 무엇을 누구에게 하려는지, 60자 안팎", "기획안 요약 둘째 문장: 어떤 기술·방식으로 무엇을 기대하는지, 60자 안팎"],
+ "planKeywords": ["기획안 핵심 키워드 5개, 각 2~12자, 기획안에 실제로 나오는 말"],
  "elements": [{"name": "필요한 기술·역량 요소(15자 안팎)", "product": "그 요소를 맡을 BMC 제품 이름 그대로, 없으면 null"}],
  "policies": [{"id": "정책 id", "why": "연계 이유 한 문장"}],
  "opps": [{"id": "사업 묶음 id", "strength": "strong 또는 partial", "why": "한 문장"}],
@@ -1074,8 +1318,11 @@ ${prgs || '(없음)'}
     return f ? f.name : null;
   }
   const uniq = (a, k) => { const s = new Set(); return a.filter(x => !s.has(x[k]) && s.add(x[k])); };
-  function cleanSel(r, text){
-    const sel = {mode:'ai', summary: str(r && r.summary, 120) || str(text, 70), docSummary: str(r && r.docSummary, 700),
+  function cleanSel(r, text, plan){
+    const kwA = [...new Set(arr(r && r.planKeywords).map(x => str(x, 24)).filter(Boolean))];
+    (plan ? plan.kw.map(k => k.t) : []).forEach(t => { if(kwA.length < 5 && !kwA.some(k => k.replace(/\s+/g, '') === t.replace(/\s+/g, ''))) kwA.push(t); });
+    const brA = arr(r && r.brief).map(x => str(x, 140)).filter(Boolean).slice(0, 2);
+    const sel = {mode:'ai', summary: str(r && r.summary, 80) || (plan && plan.title) || str(text, 70), brief: brA.length ? brA : (plan ? plan.brief : []), kw5: kwA.slice(0, 5),
       elements: arr(r && r.elements).slice(0, 8).map(e => ({name: str(e && e.name, 40), product: prodName(e && e.product)})).filter(e => e.name),
       policies: uniq(arr(r && r.policies).filter(x => x && byId[x.id]).map(x => ({id:x.id, why:str(x.why, 180)})), 'id').slice(0, 6),
       opps: uniq(arr(r && r.opps).filter(x => x && OPPI[x.id]).map(x => ({id:x.id, strength: x.strength === 'strong' ? 'strong' : 'partial', why:str(x.why, 180)})), 'id').slice(0, 4),
@@ -1084,7 +1331,7 @@ ${prgs || '(없음)'}
       buyers: arr(r && r.buyers).map(x => str(x, 30)).filter(Boolean).slice(0, 3),
       keywords: arr(r && r.keywords).map(x => str(x, 30)).filter(Boolean).slice(0, 4),
       risks: arr(r && r.risks).map(x => str(x, 90)).filter(Boolean).slice(0, 3)};
-    if(!sel.elements.length) sel.elements = kwSelect(text).elements;
+    if(!sel.elements.length) sel.elements = kwSelect(text, plan).elements;
     return sel;
   }
   function cmPrompt(sel, R){
@@ -1092,7 +1339,7 @@ ${prgs || '(없음)'}
     const direct = R.direct.map(x => `${x.title} (${STG(x)[1]}, ${x.org || ''})`).join('; ') || '없음';
     return `아래는 웨이즈원 사내 아이디어 검증 결과다. 점수와 근거 숫자는 페이지가 정해진 공식으로 계산했다. 숫자를 바꾸거나 새 숫자·기관명·시장 규모를 지어내지 말고, 근거에 있는 내용으로만 해석한다. JSON 하나로만 답한다. 한국어, 존댓말 없이 보고서 문체.
 
-[아이디어] ${sel.summary}${sel.docSummary ? '\n[첨부 문서 요지] ' + sel.docSummary : ''}
+[아이디어] ${sel.summary}${(sel.brief || []).length ? '\n[기획안 요약] ' + sel.brief.join(' ') : sel.docSummary ? '\n[첨부 문서 요지] ' + sel.docSummary : ''}${(sel.kw5 || []).length ? '\n[핵심 키워드] ' + sel.kw5.join(', ') : ''}
 [종합] ${Math.round(R.total)}점 · ${R.verdict[1]}
 ${ax}
 [필요 요소 중 협력이 필요한 것] ${R.axes.tech.gaps.join(', ') || '없음'}
@@ -1198,6 +1445,7 @@ ${ax}
   }
   async function addFiles(list){
     const fs = [...(list || [])].slice(0, 6 - DOCS.length);
+    if(fs.length && ta.value.trim() === EXAMPLE) ta.value = '';
     for(const f of fs){
       if(f.size > 40 * 1024 * 1024){ DOCS.push({id: ++docSeq, name: f.name, err: '40MB가 넘는 파일은 읽지 않습니다', text: ''}); continue; }
       const d = {id: ++docSeq, name: f.name, busy: true, text: ''}; DOCS.push(d); renderDocs();
@@ -1272,7 +1520,9 @@ ${ax}
     out.innerHTML = `${ex}
     <div class="panel isec">
       <div class="ihead"><div class="it"><div class="top"><span class="tag ${kw ? '' : 'hi'}">${kw ? '키워드 분석' : 'AI 분석'}</span>${who}</div>
-        <h3>${esc(sel.summary)}</h3>${(S.docs || []).length ? `<p class="nmeta">첨부 문서 ${S.docs.map(d => esc(d.name)).join(' · ')}</p>` : ''}${sel.docSummary ? `<p class="idsum">${hl(sel.docSummary)}</p>` : ''}${cm && cm.overall ? `<p class="muted">${hl(cm.overall)}</p>` : ''}</div>
+        ${(sel.brief || []).length ? `<span class="kl">기획안 요약</span><h3 class="ibrief">${sel.brief.map(b => `<span>${esc(b)}</span>`).join('')}</h3>` : `<h3>${esc(sel.summary)}</h3>`}
+        ${(sel.kw5 || []).length ? `<div class="ikw"><span class="kl">핵심 키워드</span>${sel.kw5.map(k => `<span class="kwc">${esc(k)}</span>`).join('')}</div>` : ''}
+        ${(S.docs || []).length ? `<p class="nmeta">학습한 문서 ${S.docs.map(d => `${esc(d.name)}${d.chars ? ` <b class="num">${(+d.chars).toLocaleString()}자</b>` : ''}`).join(' · ')}</p>` : ''}${!(sel.brief || []).length && sel.docSummary ? `<p class="idsum">${hl(sel.docSummary)}</p>` : ''}${cm && cm.overall ? `<p class="muted">${hl(cm.overall)}</p>` : ''}</div>
         <div class="itotal"><span class="big">${pt(R.total)}<small> / 100</small></span><span class="vd ${R.verdict[0]}">${R.verdict[1]}</span>
           <span class="iwts">가중치 ${AXES.map(([k, n]) => n.slice(0, 2) + ' ' + w[k]).join(' · ')}</span></div></div>
     </div>
@@ -1301,28 +1551,29 @@ ${ax}
   const ERR = {rate_limited: 'AI 사용 한도에 걸려', session_expired: '로그인이 만료되어', prompt_too_large: 'AI에 보낼 내용이 너무 길어', invalid_json: 'AI 답을 읽지 못해', refused: 'AI가 이 입력을 처리하지 않아', empty_completion: 'AI 답이 비어'};
   const errText = c => OFF.has(c) ? '이 화면에서 AI 사용이 허용되지 않아' : (ERR[c] || 'AI 연결이 잠시 끊겨');
   if(!RT){
-    $i('idea-intro').textContent = '기획안이나 아이디어를 넣으면 먼저 레이더에서 바로 실행할 수 있는 나라장터 공고·사업·지원사업을 찾고, 이어서 정책·기술·경제·실행 네 축의 타당성을 점수로 보여 줍니다. 이 화면은 아이디어 문장과 레이더 데이터의 겹치는 낱말로 사업을 고르는 키워드 분석으로 계산합니다. 사내 1차 검토용이며 정식 예비타당성조사를 대신하지 않습니다.';
+    $i('idea-intro').textContent = '기획안 문장이나 기획 문서를 넣으면 먼저 기획안 전체를 읽고 익혀 핵심 키워드 5개와 두 줄 요약을 보여 주고, 레이더에서 바로 실행할 수 있는 나라장터 공고·사업·지원사업을 찾은 뒤 정책·기술·경제·실행 네 축의 타당성을 점수로 보여 줍니다. 이 화면은 기획안에서 익힌 낱말과 레이더 데이터의 겹침으로 계산하는 키워드 분석입니다. 사내 1차 검토용이며 정식 예비타당성조사를 대신하지 않습니다.';
   }
   function busy(b){ runB.disabled = b; stopB.hidden = !b; ta.readOnly = b; }
   stopB.addEventListener('click', () => { if(ctl) ctl.abort(); });
   async function run(){
-    const text = ta.value.trim();
+    const text0 = ta.value.trim(), text = DOCS.some(d => d.text) && text0 === EXAMPLE ? '' : text0;
     if(DOCS.some(d => d.busy)){ status('첨부 문서를 읽는 중입니다. 잠시 뒤 다시 눌러 주세요.', true); return; }
     const dt = docTxt(45000), docsMeta = DOCS.filter(d => d.text).map(d => ({name: d.name, kind: d.kind, chars: d.text.length}));
     if(text.length < 15 && !dt){ status('아이디어를 한두 문장 이상 적거나 기획 문서를 붙여 주세요.', true); ta.focus(); return; }
     if(text) store('ideaDraft', text);
     Object.assign(S, {text, docs: docsMeta, example: false, cm: null, docId: null, deep: null, at: null, byName: null, pending: false});
     const kwText = (text + '\n' + dt.slice(0, 12000)).trim();
+    const plan = learnPlan(text);
     const sample = aiOff ? null : await SAMPLE;
-    if(!sample){ S.sel = kwSelect(kwText); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
+    if(!sample){ S.sel = kwSelect(kwText, plan); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
     ctl = new AbortController(); const sig = ctl.signal; busy(true);
     status(dt ? `1/2 · 첨부 문서 ${docsMeta.length}건과 아이디어를 읽고 맞는 사업을 고르는 중입니다. 보통 1~2분 걸립니다.` : '1/2 · 아이디어에서 기술 요소를 정리하고 맞는 사업을 고르는 중입니다. 보통 30초~1분 걸립니다.');
-    try { S.sel = cleanSel(await sample.json(selPrompt(text, dt), {signal: sig, modelTier: 'default'}), kwText); }
+    try { S.sel = cleanSel(await sample.json(selPrompt(text, dt), {signal: sig, modelTier: 'default'}), kwText, plan); }
     catch(e){
       busy(false);
       if(e && e.code === 'cancelled'){ status('멈췄습니다.'); return; }
       if(e && OFF.has(e.code)) aiOff = true;
-      S.sel = kwSelect(kwText); render(); status(errText(e && e.code) + ' 키워드 분석으로 계산했습니다.', true); return;
+      S.sel = kwSelect(kwText, plan); render(); status(errText(e && e.code) + ' 키워드 분석으로 계산했습니다.', true); return;
     }
     S.pending = true; render(); out.scrollIntoView({block:'start', behavior:'smooth'});
     status('2/2 · 점수 해석을 쓰는 중입니다.');
@@ -1403,7 +1654,7 @@ ${ax}
   })();
 
   /* 처음 화면: 예시 아이디어를 키워드로 분석해 둔다(AI 호출 없음) */
-  S.sel = kwSelect(EXAMPLE); S.example = true; render();
+  S.sel = kwSelect(EXAMPLE, PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L), lex: corpus().lex})); S.example = true; render();
 })();
 
 /* 웨이즈원 수행 실적(2026-10-19): 나라장터 계약에서 웨이즈원이 대표·단독·공동수급 구성원·하도급으로 들어간 사업을 사업 키워드별로 묶는다 */

@@ -757,6 +757,13 @@ details.mkt ul{margin-top:6px}
 .ideaform.drag{outline:2px dashed var(--mark);outline-offset:4px}
 .idsum{font-size:.93rem;line-height:1.7;color:var(--ink);padding:10px 14px;border-radius:10px;background:var(--tint);box-shadow:inset 0 0 0 1px var(--line)}
 @media (max-width:620px){.idoclist li{grid-template-columns:minmax(0,1fr) auto}.idoclist li .nmeta{grid-column:1/-1;order:3}}
+/* 기획안 요약(두 줄)·핵심 키워드(5개) — 2026-10-19 */
+.ihead .it>.kl{margin-bottom:-4px}
+.ihead h3.ibrief{display:grid;gap:4px;font-family:var(--f-body);font-size:1.04rem;line-height:1.62;font-weight:600;letter-spacing:0}
+.ihead h3.ibrief span{display:block}
+.ikw{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ikw .kl{margin-right:4px}
+.kwc{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:color-mix(in srgb,var(--mark) 9%,var(--surface));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mark) 30%,var(--line));color:var(--ink);font-size:.86rem;font-weight:650;white-space:nowrap}
 
 /* 인사이트 실행 계획 (2026-10-19): 판단 한 줄 → 핵심 숫자 → 실행 액션·목표·리스크. 실행 보드는 기한 순 */
 .ins .verdict{font-size:1.02rem;line-height:1.72;color:var(--ink);font-weight:600;padding-left:14px;border-left:3px solid var(--mark)}
