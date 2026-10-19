@@ -916,28 +916,70 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       const xml = await z.text('word/document.xml');
       return unesc(xml.replace(/<w:tab\/>/g, '\t').replace(/<w:br\b[^>]*\/>/g, '\n').replace(/<\/w:p>/g, '\n').replace(/<[^>]+>/g, '')).replace(/\n{3,}/g, '\n\n');
     }
-    // PDF는 글자 정보가 들어 있는 문서만 읽는다(스캔 이미지는 못 읽음). 처음 PDF를 넣을 때 PDF 읽기 도구를 불러온다.
+    // PDF는 글자 정보가 들어 있는 문서만 읽는다(스캔 이미지는 못 읽음). 처음 PDF를 넣을 때 PDF 읽기 도구(pdf.js)를 불러온다.
+    // ① 이 페이지와 같은 곳에 둔 사본(vendor/pdfjs) → ② cdnjs 순서로 시도한다. 회원 홈페이지는 보안 정책상 외부 스크립트를 막으므로 ①만 쓴다.
+    // 작업 스크립트도 페이지 안에 불러와 별도 작업자(worker) 없이 페이지 안에서 읽는다(보안 정책에 걸리지 않게).
     let PDFJS = null;
+    const PDF_LOCAL = 'vendor/pdfjs/';
     function pdfjs() {
       if (PDFJS) return PDFJS;
-      PDFJS = new Promise((res, rej) => {
-        if (window.pdfjsLib) return res(window.pdfjsLib);
-        // 본체와 작업 스크립트를 모두 페이지에 불러와 별도 작업자(worker) 없이 페이지 안에서 읽는다
+      PDFJS = (async () => {
+        try {
+          const base = new URL(PDF_LOCAL, document.baseURI).href;
+          const L = await import(base + 'pdf.esm.js');
+          if (!(globalThis.pdfjsWorker && globalThis.pdfjsWorker.WorkerMessageHandler)) globalThis.pdfjsWorker = await import(base + 'pdf.worker.esm.js');
+          L.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.esm.js';
+          // 한국어 글꼴 표(cmaps)는 묶음 하나(cmaps_ko.json)로 두고 필요할 때 꺼내 준다
+          let CM = null;
+          const cmaps = () => CM || (CM = fetch(base + 'cmaps_ko.json').then(r => { if (!r.ok) throw new Error('cmap'); return r.json(); }).catch(e => { CM = null; throw e; }));
+          class KoBinary { constructor() {} async fetch({kind, filename}) {
+            if (kind !== 'cMapUrl') throw new Error('지원하지 않는 자료: ' + kind);
+            const b64 = (await cmaps())[String(filename).replace(/\.bcmap$/, '')]; if (!b64) throw new Error('글꼴 표 없음: ' + filename);
+            const bin = atob(b64), out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; } }
+          return {L, opt: {cMapUrl: base + 'cmaps/', cMapPacked: true, BinaryDataFactory: KoBinary, useWorkerFetch: false}};
+        } catch (e) {}
         const BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
         const load = f => new Promise((ok, no) => { const s = document.createElement('script'); s.src = BASE + f; s.onload = ok; s.onerror = () => no(new Error('PDF 읽기 도구를 불러오지 못함')); document.head.appendChild(s); });
-        load('pdf.min.js').then(() => load('pdf.worker.min.js')).then(() => { const L = window.pdfjsLib; if (!L) throw new Error('PDF 읽기 도구 없음'); L.GlobalWorkerOptions.workerSrc = BASE + 'pdf.worker.min.js'; res(L); }).catch(e => { PDFJS = null; rej(e); });
-      });
+        if (!window.pdfjsLib) { await load('pdf.min.js'); await load('pdf.worker.min.js'); }
+        const L = window.pdfjsLib; if (!L) throw new Error('PDF 읽기 도구를 불러오지 못함');
+        L.GlobalWorkerOptions.workerSrc = BASE + 'pdf.worker.min.js';
+        return {L, opt: {cMapUrl: BASE + 'cmaps/', cMapPacked: true}};
+      })().catch(e => { PDFJS = null; throw e; });
       return PDFJS;
     }
     async function pdfText(buf) {
-      const L = await pdfjs(); const doc = await L.getDocument({data: u8(buf), isEvalSupported: false}).promise; let out = '';
-      for (let i = 1; i <= Math.min(doc.numPages, 80); i++) {
-        const pg = await doc.getPage(i); const tc = await pg.getTextContent();
-        let line = '', lastY = null;
-        for (const it of tc.items) { const y = it.transform ? Math.round(it.transform[5]) : null; if (lastY != null && y != null && Math.abs(y - lastY) > 2) { out += line.trim() + '\n'; line = ''; } line += it.str + (it.hasEOL ? '\n' : ' '); lastY = y; }
-        out += line.trim() + '\n';
+      const {L, opt} = await pdfjs();
+      let doc;
+      try { doc = await L.getDocument({data: u8(buf), isEvalSupported: false, disableFontFace: true, useSystemFonts: false, stopAtErrors: false, ...opt}).promise; }
+      catch (e) { throw new Error(e && e.name === 'PasswordException' ? '암호가 걸린 PDF는 읽지 못합니다' : 'PDF를 열지 못했습니다(손상되었거나 지원하지 않는 형식)'); }
+      // 줄을 모은 뒤, 오른쪽 끝까지 찬 줄은 다음 줄과 이어 한 문단으로 만든다(PDF는 문단이 눈에 보이는 줄마다 끊겨 있다)
+      const BUL = /^\s*(?:[□■○●◦◎◇◆▶▷►▸•·∙\-–—*※☞▪❍]|\(?\d{1,2}[.)]|\(?[가-하][.)]\s|[①-⑳]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ])/;
+      let out = '';
+      for (let i = 1; i <= Math.min(doc.numPages, 120); i++) {
+        let tc; try { tc = await (await doc.getPage(i)).getTextContent(); } catch (e) { continue; }
+        const lines = []; let cur = null;
+        for (const it of tc.items) {
+          if (typeof it.str !== 'string') continue;
+          const x = it.transform ? it.transform[4] : 0, y = it.transform ? it.transform[5] : 0, w = +it.width || 0;
+          if (!cur || Math.abs(y - cur.y) > 2) { if (cur && cur.t.trim()) lines.push(cur); cur = {t: '', x0: x, x1: x + w, y}; }
+          cur.t += it.str; cur.x0 = Math.min(cur.x0, x); cur.x1 = Math.max(cur.x1, x + w);
+          if (it.hasEOL) { if (cur.t.trim()) lines.push(cur); cur = null; }
+        }
+        if (cur && cur.t.trim()) lines.push(cur);
+        const longs = lines.filter(l => l.t.trim().length >= 12).map(l => l.x1).sort((a, c) => a - c);
+        const R = longs.length ? longs[Math.floor(longs.length * .9)] : 0, Lm = lines.length ? Math.min(...lines.map(l => l.x0)) : 0;
+        const gaps = lines.slice(1).map((l, k) => lines[k].y - l.y).filter(g => g > 0).sort((a, c) => a - c), gap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0;
+        const paras = [];
+        lines.forEach(l => {
+          const p = paras[paras.length - 1], t = l.t.replace(/\s+/g, ' ').trim();
+          const dy = p ? p.y - l.y : 0;
+          if (p && R > Lm && R - p.x1 <= (R - Lm) * .07 && !/[.!?。:;]$/.test(p.t) && !BUL.test(t) && dy > 0 && dy <= gap * 1.6 + 1) { p.t += ' ' + t; p.x1 = l.x1; p.y = l.y; }
+          else paras.push({t, x1: l.x1, y: l.y});
+        });
+        out += paras.map(p => p.t).join('\n') + '\n';
       }
-      return out;
+      try { doc.destroy(); } catch (e) {}
+      return out.replace(/[ \t]+\n/g, '\n');
     }
     // 파일 한 개 → {kind, text}. 형식은 확장자가 아니라 파일 앞부분으로 판단한다.
     async function readFile(file) {
@@ -980,6 +1022,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     const VERB = /(?:고|며|다|던|게|는|은|운|도록|려고|려는|면서|지만|는데|니다|으면|어서|아서|해서|었|았|였|겠|하|되)$/;
     const ORG = /(사업본부|본부|사업부|사업단|팀장|부장|과장|실장|담당관|주무관|대표이사)$/;
     const STOP = new Set(('사업 추진 계획 구축 운영 개발 활용 기반 제공 지원 방안 목표 목적 내용 필요 현황 효과 기대 기대효과 단계 연도 예산 기간 일정 구성 개선 강화 확대 도입 마련 수행 검토 적용 수립 실시 대상 범위 주요 세부 기존 향후 현재 최근 해당 관련 위해 위한 대한 통해 통한 따른 따라 의한 관한 인한 대해 등 및 또는 그리고 이를 이에 경우 부분 문제 문제점 방향 결과 성과 체계 환경 기능 역할 제안 제안서 기획 기획안 기획서 계획서 계획안 보고 요청 자료 내역 항목 비고 구분 합계 소계 총계 금액 단위 천원 백만원 억원 만원 년 월 일 개월 차 회 명 건 개 곳 식 년도 연차 기관 담당 담당자 부서 연락처 전화 이메일 내선 문의 페이지 표 그림 참고 출처 첨부 별첨 붙임 비교 가능 불가 있음 없음 예정 완료 진행 시작 이후 이전 이상 이하 미만 초과 내외 정도 수준 연간 매년 매월 상시 기타 전체 일부 대부분 다양 각종 모든 다른 같은 우리 당사 자사 귀사 회사 웨이즈원 ways1 사업명 과제명 사업기간 사업예산 과업명 과업기간 발주처 주관 개요 배경 필요성 추진배경 추진체계 추진일정 효과적 국비 군비 시비 도비 첫째 둘째 셋째 넷째 다섯째 하나 함께 바로 매일 정작 평균 꾸준히 그러나 또한 특히 다만 생활 교육 보고서 착수 정제 수집 조회 확인 제작 산출 생성 연계 통합 분석 관리 처리 고도화 확보 확산 단축 감소 증가 제시 지정 발굴 배분 정비 보완 판매 자동 신규 대상은 때문 위에서 아래 경우에 슬라이드 목차 표지 메모 페이지 추정 추정금액 사업화 핵심 주요내용 기대효과 사업개요 제안개요 과업개요').split(' '));
+    const ENSTOP = new Set('the of and to in for on with an is are be by as at from this that it or we our you your will can may not but has have had its their they than then into about over per via using use used new plan line page project system service data based'.split(' '));
     // 혼자서는 뜻이 약한 낱말: 다른 낱말과 붙은 구(공간정보 플랫폼)로는 살리고 혼자일 때는 점수를 깎는다
     const WEAK = new Set('데이터 정보 시스템 서비스 플랫폼 기술 솔루션 모델 센터 지도 도시 행정 공공 스마트 디지털 지역 고객 기업 사용자 이용자 현장 화면 모듈 웹 db ai 차량 시범 실증 운행 실시간 지자체'.split(' '));
     const hasB = ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
@@ -1058,7 +1101,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       const NU = U.length || 1;
       const LEX = [...new Set((lex || []).map(x => String(x).toLowerCase()).filter(x => x.length >= 2))];
       const toks = tokenize(U, known);
-      const okTerm = t => !t.drop && !t.num && !!t.key && !STOP.has(t.key) && !ORG.test(t.key) && t.key.length <= 30 && (t.lat ? (t.key.length >= 2 || /^\d+[a-z]/.test(t.key)) : (t.key.length >= 2 && !/^\d/.test(t.key)));
+      const okTerm = t => !t.drop && !t.num && !!t.key && !STOP.has(t.key) && !ORG.test(t.key) && t.key.length <= 30 && (t.lat ? ((/^[A-Z0-9][A-Z0-9+&-]*$/.test(t.h) && t.key.length >= 2) || /^\d+[a-z]/.test(t.key) || (t.key.length >= 3 && !ENSTOP.has(t.key))) : (t.key.length >= 2 && !/^\d/.test(t.key)));
       // 단위별 무게: 파일 이름·문서 첫머리·짧은 제목 줄·입력란 문장은 더 무겁게
       const firstOf = {}, lenOf = {};
       U.forEach((u, k) => { if(firstOf[u.src] === undefined) firstOf[u.src] = k; lenOf[u.src] = (lenOf[u.src] || 0) + 1; });
@@ -1149,7 +1192,8 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       const cand = U.map((u, k) => ({u, k, t: u.t.replace(LABEL, '').trim()})).filter(({u, t}) => {
         if(u.src === 'name' || u === head || u === lab) return false;
         const hg = (t.match(/[가-힣]/g) || []).length, dg = (t.match(/[0-9]/g) || []).length;
-        return t.length >= 12 && t.length <= 260 && hg >= .45 * t.length && dg <= .2 * t.length && (t.match(/\s/g) || []).length >= 2 && !/[:：]$/.test(t) && !/(☎|@|https?:|내선|문의\s*:|\|.*\|)/.test(t) && jac(TS, tset(t)) < .6;
+        const lt = (t.match(/[A-Za-z]/g) || []).length;
+        return t.length >= 12 && t.length <= 260 && (hg >= .45 * t.length || hg + lt >= .6 * t.length) && dg <= .2 * t.length && (t.match(/\s/g) || []).length >= 2 && !/[:：]$/.test(t) && !/(☎|@|https?:|내선|문의\s*:|\|.*\|)/.test(t) && jac(TS, tset(t)) < .6;
       });
       const score = (c, cov) => {
         const ks = keysIn(c.t); let s = 0; ks.forEach(k => { s += (tw.get(k) || 0) * (cov && cov.has(k) ? .25 : 1); });
@@ -1559,7 +1603,12 @@ ${ax}
     const text0 = ta.value.trim(), text = DOCS.some(d => d.text) && text0 === EXAMPLE ? '' : text0;
     if(DOCS.some(d => d.busy)){ status('첨부 문서를 읽는 중입니다. 잠시 뒤 다시 눌러 주세요.', true); return; }
     const dt = docTxt(45000), docsMeta = DOCS.filter(d => d.text).map(d => ({name: d.name, kind: d.kind, chars: d.text.length}));
-    if(text.length < 15 && !dt){ status('아이디어를 한두 문장 이상 적거나 기획 문서를 붙여 주세요.', true); ta.focus(); return; }
+    if(text.length < 15 && !dt){
+      const bad = DOCS.filter(d => d.err);
+      if(bad.length) status(`붙인 문서에서 글자를 읽지 못했습니다(${bad.map(d => d.name + ': ' + d.err).join(' · ')}). 다른 형식(HWP·PPTX·DOCX)으로 올리거나 기획안을 한두 문장 적어 주세요.`, true);
+      else status('아이디어를 한두 문장 이상 적거나 기획 문서를 붙여 주세요.', true);
+      ta.focus(); return;
+    }
     if(text) store('ideaDraft', text);
     Object.assign(S, {text, docs: docsMeta, example: false, cm: null, docId: null, deep: null, at: null, byName: null, pending: false});
     const kwText = (text + '\n' + dt.slice(0, 12000)).trim();
