@@ -264,7 +264,7 @@ $('#kpis').innerHTML = [
 [['g2b', nPlanItems + nPreItems + nBidItems], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
-const TABS = ['overview','g2b','rnd','ways1','catalog','links','timeline','sources'];
+const TABS = ['overview','g2b','rnd','ways1','idea','catalog','links','timeline','sources'];
 let cur = 'overview';
 function show(t, opt={}){
   if(!TABS.includes(t)) t='overview';
@@ -672,6 +672,426 @@ function renderSources(){
 }
 
 renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
+
+/* ── 아이디어 검증 (2026-10-19) ─────────────────────────
+   기획안 → ① 레이더에서 실행할 사업 찾기 → ② 정책·기술·경제·실행 점수.
+   점수는 아래 scoreIdea()의 공식으로 이 페이지가 계산한다. AI(가능한 화면에서만)는 기술 요소 정리·사업 고르기·해석 문장만 맡는다.
+   AI를 쓸 수 없는 화면(회원 홈페이지, 허용 거절)에서는 겹치는 낱말로 고르는 키워드 분석으로 같은 공식을 돌린다. */
+(() => {
+  const root = document.getElementById('v-idea');
+  if(!root) return;
+  const RT = (typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function') ? window.claude : null;
+  const T = v => Array.isArray(v) ? v.join(' ') : String(v ?? '');
+  const IW0 = {policy:30, tech:30, econ:30, exec:10};
+  const AXES = [['policy','정책 타당성','상위계획·예산·시의성'],['tech','기술 타당성','보유 제품·성숙도·실적'],['econ','경제 타당성','시장 규모·반복성·경쟁·수익성'],['exec','실행 가능성','참가자격·지원사업·자체 수행']];
+  const EXAMPLE = '지자체 교통정보센터에 쌓이는 스마트교차로·DSRC 교통량 데이터를 정밀지도 위에서 자동으로 검증해 오류 구간을 찾아내고, 그 결과를 ITS 유지관리 용역의 데이터 정확성 검증 보고서로 내는 교통데이터 품질검증 서비스를 만들고 싶다. 대상은 ITS·교통정보센터를 운영하는 시·군과 교통 관련 공공기관이다.';
+  const OPPL = D.opportunities || [];
+  const OPPI = Object.fromEntries(OPPL.map(o => [o.id, o]));
+  const BMCL = (D.bmc && D.bmc.products) || [];
+  const BMCN = Object.fromEntries(BMCL.map(p => [p.name, p]));
+  const PRGI = Object.fromEntries(PRG.map(x => [x.id, x]));
+  const ITEMI = {}; OPPL.forEach(o => items(o).forEach(x => { if(x.no) ITEMI[x.no] = {o, x}; }));
+  const STG = x => isPlan(x) ? ['plan','발주계획'] : isPre(x) ? ['pre','사전규격'] : ['ok','입찰공고'];
+  const $i = id => document.getElementById(id);
+  const ta = $i('idea-text'), out = $i('idea-out'), stat = $i('idea-status'), runB = $i('idea-run'), stopB = $i('idea-stop'), hist = $i('idea-hist');
+
+  /* ── 키워드 분석: 아이디어 낱말과 레이더 데이터의 겹침(드문 낱말일수록 가중) ── */
+  const JOSA = /(으로써|으로서|에서는|에서도|으로는|이라는|하려는|하려고|하는데|으로|에서|에게|까지|부터|처럼|보다|하고|하는|하여|해서|한다|하기|하면|되는|된다|이며|이고|이다|에는|에도|와|과|은|는|을|를|에|의|해|할|한)$/;
+  const STOP = new Set(['그리고','또는','통해','위해','위한','대한','관련','기반','활용','같은','있는','없는','만들고','싶다','싶음','하고','방안','서비스','사업','결과','대상','대상은','내는','찾아내고','만들','있다','한다','해서','위에서','구간','자동','자동으로','오류','보고서','쌓이는','운영하는','공공기관','관련','시·군','시군','지자체와','등','및']);
+  let CORP = null;
+  function corpus(){
+    if(CORP) return CORP;
+    const all = [];
+    BMCL.forEach(p => all.push({k:'prod', id:p.name, t:[p.name, T(p.keywords), p.concept, p.customer, T(p.value)].join(' ')}));
+    P.forEach(p => all.push({k:'pol', id:p.id, t:[p.name, p.short, p.vision, T(p.keyTasks), T(p.spatialHooks), T(p.sectors), T(p.targets)].join(' ')}));
+    OPPL.filter(o => !isDiscarded(o)).forEach(o => all.push({k:'opp', id:o.id, t:[o.title, o.why, T(o.products), o.buyer, items(o).map(x => x.title).join(' ')].join(' ')}));
+    OPPL.forEach(o => items(o).forEach(x => { if(x.no && itemLive(x)) all.push({k:'item', id:x.no, t:[x.title, x.org, x.rfp && x.rfp.overview, T(x.rfp && x.rfp.scope)].join(' ')}); }));
+    PRG.forEach(x => all.push({k:'prg', id:x.id, t:[x.title, x.support, x.use, x.target, T(x.products)].join(' ')}));
+    all.forEach(d => { d.t = d.t.toLowerCase(); });
+    const lex = new Set();
+    const add = w => { w = String(w).trim().toLowerCase(); if(w.length >= 2 && !STOP.has(w)) lex.add(w); };
+    BMCL.forEach(p => { String(p.name).split(/[()·&/\s]+/).forEach(add); (p.keywords || []).forEach(k => String(k).split(/\s+/).forEach(add)); });
+    return CORP = {all, lex:[...lex]};
+  }
+  function kwSelect(text){
+    const C = corpus(), low = text.toLowerCase(), terms = new Set();
+    // 낱말마다 조사·어미를 떼어 보고, 레이더 데이터에 실제로 나오는 가장 짧은 형태를 쓴다(데이터를 → 데이터, 교통정보센터에 → 교통정보센터)
+    const inC = t => C.all.some(d => d.t.includes(t));
+    low.replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').forEach(w => {
+      const cands = [w]; let s = w;
+      for(let i = 0; i < 3; i++){ const n = s.replace(JOSA, ''); if(n === s || n.length < 2) break; s = n; cands.push(s); }
+      const base = cands[cands.length - 1]; if(STOP.has(base)) return;
+      const t = cands.slice().reverse().find(c => c.length >= 2 && !STOP.has(c) && inC(c)); if(t) terms.add(t);
+    });
+    C.lex.forEach(k => { if(low.includes(k)) terms.add(k); });
+    const N = C.all.length, idf = {};
+    terms.forEach(t => { const df = C.all.filter(d => d.t.includes(t)).length; if(df) idf[t] = Math.log(1 + N / df); });
+    // 드문 낱말(전체 문서의 10% 이하에 나오는 낱말)을 따로 센다: 흔한 낱말만 겹치면 고르지 않는다
+    const RARE = Math.log(1 + 10);
+    const hit = d => { let s = 0, r = 0; const h = []; for(const t in idf) if(d.t.includes(t)){ s += idf[t]; h.push(t); if(idf[t] >= RARE) r++; } return {s, h, r}; };
+    const pick = (k, n, rel) => { const r = C.all.filter(d => d.k === k).map(d => ({id:d.id, ...hit(d)})).filter(d => d.h.length >= 2 && d.r >= 1).sort((a, b) => b.s - a.s);
+      const top = r.length ? r[0].s : 0; return r.filter(d => d.s >= top * rel).slice(0, n); };
+    const why = d => '겹치는 낱말: ' + d.h.sort((a, b) => idf[b] - idf[a]).slice(0, 4).join(', ');
+    const pick3 = (k, n, rel) => pick(k, n, rel).filter(d => d.h.length >= 3 && d.r >= 2);
+    const prods = pick('prod', 4, .5), opps = pick('opp', 4, .55), its = pick('item', 6, .6), pols = pick3('pol', 6, .55), prgs = pick3('prg', 3, .6);
+    return {mode:'keyword', summary: text.replace(/\s+/g, ' ').slice(0, 70) + (text.length > 70 ? '…' : ''),
+      elements: prods.map(d => ({name:d.id, product:d.id})),
+      policies: pols.map(d => ({id:d.id, why:why(d)})),
+      opps: opps.map((d, i) => ({id:d.id, strength: i === 0 && d.h.length >= 3 ? 'strong' : 'partial', why:why(d)})),
+      items: its.map(d => ({no:d.id, why:why(d)})),
+      programs: prgs.map(d => ({id:d.id, why:why(d)})),
+      keywords: Object.keys(idf).sort((a, b) => idf[b] - idf[a]).slice(0, 4), buyers: [], risks: []};
+  }
+
+  /* ── AI 분석: 레이더 목록 안에서만 고르게 하고, 받은 값은 목록과 대조해 거른다 ── */
+  function selPrompt(text){
+    const prods = BMCL.map(p => `- ${p.name} [${p.tier}${p.star ? '·★' : ''}] ${T(p.keywords)}`).join('\n');
+    const pols = P.map(p => `- ${p.id} | ${p.short || p.name} | ${p.level} | ${(GC[p.group] || GC.base).name}`).join('\n');
+    const opps = OPPL.filter(o => !isDiscarded(o)).map(o => `- ${o.id} | ${o.title} | ${effEntry(o)}`).join('\n');
+    const its = OPPL.flatMap(o => items(o).filter(x => x.no && itemLive(x)).map(x => `- ${x.no} | ${o.id} | ${x.title} | ${STG(x)[1]} | ${x.org || ''}`)).join('\n');
+    const prgs = PRG.map(x => `- ${x.id} | ${x.title} | ${x.kind === 'rnd' ? '연구개발' : '기업지원'}`).join('\n');
+    return `너는 웨이즈원(정밀지도·공간정보 SW, ITS·C-ITS, 자율주행 관제, 공공 AI 행정 솔루션 기업)의 사업 검토 보조자다. 아래 아이디어를 읽고, 이 페이지가 준 목록 안에서만 골라 JSON 하나로만 답한다. 목록에 없는 id·번호·제품명은 쓰지 않는다. 관련이 약하면 억지로 고르지 말고 빈 배열로 둔다. 모든 문장은 한국어.
+
+[아이디어]
+${text.slice(0, 4000)}
+
+[웨이즈원 BMC 제품 (이름 [단계] 키워드)]
+${prods}
+
+[정책 (id | 이름 | 단계 | 분야)]
+${pols}
+
+[나라장터 사업 묶음 (id | 이름 | 진입 단계)]
+${opps}
+
+[지금 진행 중인 나라장터 공고 (번호 | 사업 묶음 id | 공고명 | 단계 | 기관)]
+${its}
+
+[연구개발·기업지원 공고 (id | 이름 | 구분)]
+${prgs || '(없음)'}
+
+답 형식(JSON 하나, 다른 글 없이):
+{"summary": "아이디어를 40자 안팎 한 문장으로",
+ "elements": [{"name": "필요한 기술·역량 요소(15자 안팎)", "product": "그 요소를 맡을 BMC 제품 이름 그대로, 없으면 null"}],
+ "policies": [{"id": "정책 id", "why": "연계 이유 한 문장"}],
+ "opps": [{"id": "사업 묶음 id", "strength": "strong 또는 partial", "why": "한 문장"}],
+ "items": [{"no": "공고 번호", "why": "이 공고 안에서 아이디어를 실행할 수 있는 이유 한 문장"}],
+ "programs": [{"id": "공고 id", "why": "한 문장"}],
+ "buyers": ["수요기관 유형 1~3개"],
+ "keywords": ["나라장터 계약 검색어 2~4개, 예: 교통정보센터 유지관리"],
+ "risks": ["주요 위험 1~3개, 각 30자 안팎"]}
+규칙: elements 3~7개(웨이즈원 제품이 맡을 수 없는 요소도 product null로 넣는다), policies 0~6개, opps 0~4개(strong은 그 사업 안에서 바로 실행할 수 있을 때만), items 0~6개(아이디어를 실제로 실행할 수단이 되는 공고만), programs 0~3개.`;
+  }
+  const arr = v => Array.isArray(v) ? v : [];
+  const str = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+  function prodName(n){
+    if(!n) return null; n = String(n).trim(); if(BMCN[n]) return n; const l = n.toLowerCase();
+    const f = BMCL.find(p => p.name.toLowerCase() === l) || BMCL.find(p => l.includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(l));
+    return f ? f.name : null;
+  }
+  const uniq = (a, k) => { const s = new Set(); return a.filter(x => !s.has(x[k]) && s.add(x[k])); };
+  function cleanSel(r, text){
+    const sel = {mode:'ai', summary: str(r && r.summary, 120) || str(text, 70),
+      elements: arr(r && r.elements).slice(0, 8).map(e => ({name: str(e && e.name, 40), product: prodName(e && e.product)})).filter(e => e.name),
+      policies: uniq(arr(r && r.policies).filter(x => x && byId[x.id]).map(x => ({id:x.id, why:str(x.why, 180)})), 'id').slice(0, 6),
+      opps: uniq(arr(r && r.opps).filter(x => x && OPPI[x.id]).map(x => ({id:x.id, strength: x.strength === 'strong' ? 'strong' : 'partial', why:str(x.why, 180)})), 'id').slice(0, 4),
+      items: uniq(arr(r && r.items).map(x => ({no:str(x && x.no, 24), why:str(x && x.why, 180)})).filter(x => ITEMI[x.no] && itemLive(ITEMI[x.no].x)), 'no').slice(0, 6),
+      programs: uniq(arr(r && r.programs).filter(x => x && PRGI[x.id]).map(x => ({id:x.id, why:str(x.why, 180)})), 'id').slice(0, 3),
+      buyers: arr(r && r.buyers).map(x => str(x, 30)).filter(Boolean).slice(0, 3),
+      keywords: arr(r && r.keywords).map(x => str(x, 30)).filter(Boolean).slice(0, 4),
+      risks: arr(r && r.risks).map(x => str(x, 90)).filter(Boolean).slice(0, 3)};
+    if(!sel.elements.length) sel.elements = kwSelect(text).elements;
+    return sel;
+  }
+  function cmPrompt(sel, R){
+    const ax = AXES.map(([k, n]) => `[${n} ${Math.round(R.axes[k].score)}점] ` + R.axes[k].parts.map(p => `${p[0]} ${Math.round(p[1])}/${p[2]}(${p[3]})`).join(' · ')).join('\n');
+    const direct = R.direct.map(x => `${x.title} (${STG(x)[1]}, ${x.org || ''})`).join('; ') || '없음';
+    return `아래는 웨이즈원 사내 아이디어 검증 결과다. 점수와 근거 숫자는 페이지가 정해진 공식으로 계산했다. 숫자를 바꾸거나 새 숫자·기관명·시장 규모를 지어내지 말고, 근거에 있는 내용으로만 해석한다. JSON 하나로만 답한다. 한국어, 존댓말 없이 보고서 문체.
+
+[아이디어] ${sel.summary}
+[종합] ${Math.round(R.total)}점 · ${R.verdict[1]}
+${ax}
+[필요 요소 중 협력이 필요한 것] ${R.axes.tech.gaps.join(', ') || '없음'}
+[바로 실행할 수 있는 공고] ${direct}
+[위험] ${sel.risks.join('; ') || '없음'}
+
+형식: {"policy": "정책 축 해석 2문장", "tech": "기술 축 해석 2문장", "econ": "경제 축 해석 2문장", "exec": "실행 축 해석 2문장", "overall": "종합 판단 1~2문장", "next": ["다음 할 일 1", "다음 할 일 2", "다음 할 일 3"]}`;
+  }
+  const cleanCm = r => r && typeof r === 'object' ? {policy:str(r.policy, 400), tech:str(r.tech, 400), econ:str(r.econ, 400), exec:str(r.exec, 400), overall:str(r.overall, 400), next: arr(r.next).map(x => str(x, 160)).filter(Boolean).slice(0, 4)} : null;
+
+  /* ── 점수: 같은 입력이면 늘 같은 값 ── */
+  function wonOf(s){
+    s = String(s || '').replace(/,/g, '');
+    let m = s.match(/(\d+(?:\.\d+)?)\s*억(?:\s*(\d+(?:\.\d+)?)\s*만)?/); if(m) return (+m[1]) * 1e8 + (m[2] ? (+m[2]) * 1e4 : 0);
+    m = s.match(/(\d+(?:\.\d+)?)\s*만\s*원/); if(m) return (+m[1]) * 1e4;
+    return 0;
+  }
+  function bcOf(e){
+    const I = +e.inv, R = +e.rev, C = +e.cost || 0, N = Math.max(1, Math.min(30, Math.round(+e.yrs || 5))), r = Math.max(0, +e.rate || 0) / 100;
+    if(!(I > 0) || !(R > 0)) return null;
+    let pvR = 0, pvC = I; for(let t = 1; t <= N; t++){ const f = Math.pow(1 + r, t); pvR += R / f; pvC += C / f; }
+    const net = R - C; return {bc: pvR / pvC, npv: pvR - pvC, payback: net > 0 ? I / net : null, N, rate: r * 100};
+  }
+  const TW = {'집중':1, '유지':.8, '신규':.75, '정비':.7, '별도':.5};
+  const refOk = p => !!p.ref && !/없음|아직|영업\s*(진행|중)|기입 필요/.test(p.ref);
+  function scoreIdea(sel, eIn, w, deep){
+    const A = {};
+    // 정책
+    const mp = sel.policies.map(r => byId[r.id]).filter(Boolean);
+    let hA = false, hB = false, hC = false;
+    mp.forEach(p => {
+      [p, ...[...lineage(p.id).up].map(id => byId[id]).filter(Boolean)].forEach(q => {
+        if(q.level === '최상위' || q.level === '부문기본계획') hA = true; else if(q.level === '법·제도' || q.level === '분야전략·로드맵') hB = true; });
+      if(p.level === '예산·사업') hC = true; });
+    const nb = mp.filter(p => /\d[\d,.]*\s*(조|억)/.test(p.budget || '')).length;
+    const latest = mp.map(p => (p.update && p.update.date) || p.announced).filter(Boolean).sort().pop();
+    const mon = latest ? (dayNum(CHK) - dayNum(latest)) / 30.4 : null;
+    const pD = 40 * [hA, hB, hC].filter(Boolean).length / 3, pB = 35 * Math.min(1, nb / 2), pN = latest ? (mon <= 12 ? 25 : mon <= 24 ? 15 : 6) : 0;
+    A.policy = {score: pD + pB + pN, thin: !mp.length, mp, parts: [
+      ['상위계획 연계 깊이', pD, 40, mp.length ? `연계 정책 ${mp.length}건 · 덮는 단계: ${[hA && '최상위·부문계획', hB && '전략·제도', hC && '예산·사업'].filter(Boolean).join(', ') || '없음'}` : '연계 정책을 찾지 못함'],
+      ['예산 근거', pB, 35, `예산이 적힌 연계 정책 ${nb}건`],
+      ['시의성', pN, 25, latest ? `가장 최근 발표·갱신 ${latest}` : '—']]};
+    // 기술
+    const els = sel.elements, cov = els.filter(e => BMCN[e.product]);
+    const prods = [...new Set(cov.map(e => e.product))].map(n => BMCN[n]);
+    const kw = sel.mode === 'keyword';
+    const covR = kw ? Math.min(1, prods.length / 2) : (els.length ? cov.length / els.length : 0);
+    const mat = prods.length ? prods.reduce((s, p) => s + Math.min(1, (TW[p.tier] ?? .6) + (p.star ? .15 : 0)), 0) / prods.length : 0;
+    const refR = prods.length ? prods.filter(refOk).length / prods.length : 0;
+    const gaps = els.filter(e => !BMCN[e.product]).map(e => e.name);
+    A.tech = {score: 60 * covR + 25 * mat + 15 * refR, prods, gaps, els, parts: [
+      ['보유 기술 커버리지', 60 * covR, 60, kw ? `겹치는 BMC 제품 ${prods.length}개(키워드 기준, 2개면 만점)` : `필요 요소 ${els.length}개 중 ${cov.length}개를 웨이즈원 제품으로 대응`],
+      ['제품 성숙도', 25 * mat, 25, prods.map(p => `${p.name}(${p.tier}${p.star ? '·★' : ''})`).join(', ') || '대응 제품 없음'],
+      ['수행 실적', 15 * refR, 15, prods.length ? `수행 실적이 적힌 제품 ${prods.filter(refOk).length}/${prods.length}개` : '—']]};
+    // 경제
+    const ev = new Map();
+    sel.opps.map(r => OPPI[r.id]).filter(Boolean).forEach(o => items(o).forEach(x => { if(x.no) ev.set(x.no, x); }));
+    sel.items.forEach(r => { const it = ITEMI[r.no]; if(it) ev.set(r.no, it.x); });
+    const XS = [...ev.values()], yr = +YR, seen = new Set();
+    let hist3 = 0;
+    XS.forEach(x => (x.prev && x.prev.hist || []).forEach(h => {
+      if(!h.amt || !(+h.y >= yr - 2)) return; const k = (x.prev.title || x.title) + '|' + h.y + '|' + h.w; if(seen.has(k)) return; seen.add(k); hist3 += +h.amt; }));
+    const liveSum = XS.filter(itemLive).reduce((s, x) => s + wonOf(x.budget), 0);
+    const deepT = deep && +deep.total3 > 0 ? +deep.total3 : 0;
+    const mkt = Math.max(hist3 + liveSum, deepT), mE = mkt / 1e8;
+    const eS = 40 * Math.min(1, Math.log10(1 + mE) / Math.log10(101));
+    const WP = XS.filter(x => x.prev && x.prev.winner);
+    const rec = Math.max(WP.length, deep ? +deep.buyers || 0 : 0), eR = 20 * Math.min(1, rec / 6);
+    let open, oN;
+    if(WP.length){ const s3 = WP.filter(x => (x.prev.streak || 0) >= 3).length, fl = WP.filter(x => /유찰/.test(x.prev.pattern || '')).length;
+      open = Math.max(0, 1 - .6 * s3 / WP.length - .4 * fl / WP.length); oN = `전차 수주사 ${WP.length}건 중 3년 이상 연속 ${s3}건 · 유찰 뒤 수의계약 ${fl}건`; }
+    else if(deep && deep.topShare != null){ open = Math.max(0, 1 - +deep.topShare); oN = `심층 분석: 1위 업체 점유 ${Math.round(+deep.topShare * 100)}%`; }
+    else { open = .5; oN = '전차 기록 없음 — 중간값'; }
+    const bc = bcOf(eIn), pv = bc ? (bc.bc >= 1.5 ? 1 : bc.bc >= 1.2 ? .8 : bc.bc >= 1 ? .6 : .2) : .5;
+    A.econ = {score: eS + eR + 25 * open + 15 * pv, thin: !XS.length && !deepT, bc, parts: [
+      ['유사 발주 규모', eS, 40, `최근 3년 계약 ${eokT(hist3) || '0원'} + 진행 중 공고 ${eokT(liveSum) || '0원'}${deepT ? ` · 심층 분석 ${eokT(deepT)}` : ''}`],
+      ['반복 발주', eR, 20, `해마다 다시 나오는 사업 ${rec}건`],
+      ['경쟁 개방성', 25 * open, 25, oN],
+      ['수익성(B/C)', 15 * pv, 15, bc ? `B/C ${bc.bc.toFixed(2)} · 순현재가치 ${bc.npv.toFixed(1)}억원${bc.payback ? ` · 단순 회수 ${bc.payback.toFixed(1)}년` : ' · 운영비가 매출보다 커 회수 불가'}` : '가정을 넣으면 계산 — 중간값']]};
+    // 실행
+    const direct = sel.items.map(r => ITEMI[r.no] && ITEMI[r.no].x).filter(x => x && itemLive(x));
+    const EW = {ok:1, gap:.6, unknown:.4, no:0};
+    const vs = direct.map(x => (x.elig && x.elig.verdict) || 'unknown');
+    const eg = direct.length ? vs.reduce((s, v) => s + (EW[v] ?? .4), 0) / direct.length : .5;
+    const np = sel.programs.length, own = els.length ? cov.length / els.length : covR;
+    A.exec = {score: 60 * eg + 25 * Math.min(1, np / 2) + 15 * own, parts: [
+      ['참가자격', 60 * eg, 60, direct.length ? `실행할 공고 ${direct.length}건: 참여 가능 ${vs.filter(v => v === 'ok').length} · 보완 필요 ${vs.filter(v => v === 'gap').length} · 확인 필요 ${vs.filter(v => v !== 'ok' && v !== 'gap').length}` : '실행할 공고가 없어 중간값'],
+      ['지원사업 활용', 25 * Math.min(1, np / 2), 25, `맞는 연구개발·기업지원 공고 ${np}건`],
+      ['자체 수행 비율', 15 * own, 15, gaps.length ? `협력이 필요한 요소 ${gaps.length}개` : '협력 없이 수행 가능']]};
+    const ws = AXES.reduce((s, [k]) => s + Math.max(0, +w[k] || 0), 0) || 100;
+    const total = AXES.reduce((s, [k]) => s + Math.max(0, +w[k] || 0) * A[k].score, 0) / ws;
+    const verdict = total >= 70 ? ['go', '추진'] : total >= 55 ? ['fix', '보완 후 추진'] : ['hold', '보류'];
+    return {axes: A, total, verdict, direct, XS};
+  }
+
+  /* ── 상태와 입력 ── */
+  const S = {sel: null, cm: null, text: '', example: true, docId: null, deep: null, at: null, by: null};
+  const num = id => { const v = $i(id).value; return v === '' ? '' : +v; };
+  const econIn = () => ({inv: num('ie-inv'), rev: num('ie-rev'), cost: num('ie-cost'), yrs: num('ie-yrs'), rate: num('ie-rate')});
+  const wIn = () => { const w = {}; AXES.forEach(([k]) => { const v = num('iw-' + k); w[k] = v === '' ? IW0[k] : Math.max(0, v); }); return w; };
+  const wLabel = w => { $i('iw-sum').textContent = AXES.map(([k, n]) => n.slice(0, 2) + ' ' + w[k]).join(' · '); };
+  function setW(w){ AXES.forEach(([k]) => { $i('iw-' + k).value = w[k]; }); wLabel(w); }
+  function setEcon(e){ ['inv', 'rev', 'cost', 'yrs', 'rate'].forEach(k => { if(e && e[k] !== undefined) $i('ie-' + k).value = e[k]; }); }
+  setW({...IW0, ...(load('ideaW', null) || {})});
+  ta.value = load('ideaDraft', '') || EXAMPLE;
+  ta.placeholder = '예: ' + EXAMPLE;
+  const status = (t, err) => { stat.textContent = t || ''; stat.classList.toggle('err', !!err); };
+
+  /* ── 그리기 ── */
+  const pt = v => Math.round(v);
+  const meter = (v, max, sm) => `<span class="meter${sm ? ' sm' : ''}" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, v / max * 100)).toFixed(1)}%"></i></span>`;
+  function itemRow(x, why){
+    const [c, l] = STG(x), o = ITEMI[x.no] && ITEMI[x.no].o;
+    const when = isPlan(x) ? `<span><b>${esc(ym(x.planMonth))}</b> 발주 예정</span>` : isPre(x) ? `<span>의견 마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>` : `<span>제출 마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline) <= 7 ? 'hot' : ''}">${ddTxt(x.deadline)}</span></span>`;
+    return `<li><div class="st"><span class="tag ${c}">${l}</span>${when}</div><div class="bd">
+      <a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
+      <span class="nmeta">${esc(x.org || '')}${x.budget ? ` · <b class="num">${esc(x.budget)}</b>` : ''}${o ? ` · <button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>` : ''}</span>
+      ${why ? `<p class="iwhy">${esc(why)}</p>` : ''}${eligLine(x)}${prevLine(x)}</div></li>`;
+  }
+  function deepBlock(){
+    const d = S.deep; if(!d) return '';
+    const rows = arr(d.byYear).map(r => `<tr><td>${esc(r.y)}</td><td class="n">${esc(r.n)}건</td><td class="n">${esc(eokT(+r.amt) || '0원')}</td></tr>`).join('');
+    const top = arr(d.top).slice(0, 5).map(t => `${esc(t.name)} ${esc(t.n)}건`).join(' · ');
+    const ex = arr(d.examples).slice(0, 5).map(e => `<li>${esc(e.title)} <span class="nmeta">· ${esc(e.buyer || '')} · ${esc(e.winner || '')} · <b class="num">${esc(eokT(+e.amt) || '')}</b> · ${esc(String(e.date || '').slice(0, 8))}</span></li>`).join('');
+    return `<div class="ideep"><b>나라장터 심층 분석 · ${esc(String(d.at || '').slice(0, 16))}</b>
+      <span>검색어 ${esc(arr(d.keywords).join(', '))} · 최근 3년 유사 계약 <b class="num">${esc(d.n3)}건</b> · 합계 <b class="num">${esc(eokT(+d.total3) || '0원')}</b> · 수요기관 ${esc(d.buyers)}곳${d.topShare != null ? ` · 1위 업체 점유 ${Math.round(+d.topShare * 100)}%` : ''}</span>
+      ${rows ? `<div class="tablebox"><table><thead><tr><th>연도</th><th>건수</th><th>계약액</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+      ${top ? `<span>주요 수주 업체: ${top}</span>` : ''}${ex ? `<ul class="ilist">${ex}</ul>` : ''}</div>`;
+  }
+  function render(){
+    if(!S.sel){ out.innerHTML = ''; return; }
+    const sel = S.sel, w = wIn(), R = scoreIdea(sel, econIn(), w, S.deep), cm = S.cm;
+    S.last = R;
+    const kw = sel.mode === 'keyword';
+    const opps = sel.opps.map(r => ({r, o: OPPI[r.id]})).filter(z => z.o);
+    const prg = sel.programs.map(r => ({r, x: PRGI[r.id]})).filter(z => z.x);
+    const whyOf = no => (sel.items.find(r => r.no === no) || {}).why;
+    const direct = R.direct.slice().sort((a, b) => ({ok:0, pre:1, plan:2}[STG(a)[0]] - {ok:0, pre:1, plan:2}[STG(b)[0]]));
+    const strong = opps.filter(z => z.r.strength === 'strong' && !isDiscarded(z.o));
+    const hasRun = direct.length > 0 || strong.length > 0;
+    const cmt = k => cm && cm[k] ? `<p class="acmt">${hl(cm[k])}</p>` : (S.pending ? '<p class="acmt wait">AI 해석을 쓰는 중…</p>' : '');
+    const extra = {
+      policy: () => R.axes.policy.mp.length ? `<ul class="ilist">${sel.policies.filter(r => byId[r.id]).map(r => `<li><span>${pref(r.id)} <span class="tag lv">${esc(byId[r.id].level)}</span></span>${r.why ? `<span class="nmeta">${esc(r.why)}</span>` : ''}</li>`).join('')}</ul>` : '',
+      tech: () => `<div class="pchips">${R.axes.tech.els.map(e => BMCN[e.product] ? `<span class="pc">${esc(e.name === e.product ? e.name : e.name + ' → ' + e.product)}</span>` : `<span class="tc">${esc(e.name)} · 협력 필요</span>`).join('')}</div>`,
+      econ: () => (R.axes.econ.thin ? `<p class="ithin">레이더에 비슷한 사업 기록이 없어 시장 규모·경쟁 근거가 비어 있습니다.${S.docId ? '' : ' 결과가 저장되면 나라장터 심층 분석을 요청할 수 있습니다.'}</p>` : '') + deepBlock() + deepCtl(),
+      exec: () => ''
+    };
+    const ex = S.example ? `<p class="iex"><b>예시 결과</b> · 입력란의 예시 아이디어를 키워드로 분석한 결과입니다. 내 아이디어로 바꾸고 「검증하기」를 누르세요.</p>` : '';
+    const who = S.at ? `<span class="nmeta">${esc(String(S.at).slice(0, 16).replace('T', ' '))}${S.byName ? ' · ' + esc(S.byName) : ''}</span>` : '';
+    out.innerHTML = `${ex}
+    <div class="panel isec">
+      <div class="ihead"><div class="it"><div class="top"><span class="tag ${kw ? '' : 'hi'}">${kw ? '키워드 분석' : 'AI 분석'}</span>${who}</div>
+        <h3>${esc(sel.summary)}</h3>${cm && cm.overall ? `<p class="muted">${hl(cm.overall)}</p>` : ''}</div>
+        <div class="itotal"><span class="big">${pt(R.total)}<small> / 100</small></span><span class="vd ${R.verdict[0]}">${R.verdict[1]}</span>
+          <span class="iwts">가중치 ${AXES.map(([k, n]) => n.slice(0, 2) + ' ' + w[k]).join(' · ')}</span></div></div>
+    </div>
+    <div class="panel isec">
+      <h3>① 바로 실행할 수 있는 사업 <span class="nmeta">${hasRun ? `열린 공고 ${direct.length}건 · 맞는 사업 묶음 ${opps.length}개` : '없음'}</span></h3>
+      ${direct.length ? `<ul class="prl">${direct.map(x => itemRow(x, whyOf(x.no))).join('')}</ul>` : `<p class="ione">지금 이 아이디어를 그대로 실행할 수 있는 열린 공고가 레이더에 없습니다. 아래 타당성 점수로 추진 여부를 판단하고, 필요하면 발주처에 먼저 제안하는 길을 검토하세요.</p>`}
+      ${opps.length ? `<div class="iopp"><span class="kl">관련 사업 묶음</span><ul class="ilist">${opps.map(({r, o}) => `<li><span class="row1"><span class="fit ${ENTRY_CLS[effEntry(o)] || 'new'}">${esc(effEntry(o))}</span><button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>${r.strength === 'strong' ? '<span class="tag ok">바로 실행</span>' : '<span class="tag">일부 겹침</span>'}</span>${r.why ? `<span class="nmeta">${esc(r.why)}</span>` : ''}</li>`).join('')}</ul></div>` : ''}
+      ${prg.length ? `<div class="iopp"><span class="kl">연구개발·기업지원</span><ul class="ilist">${prg.map(({r, x}) => `<li><span class="row1"><span class="tag ${x.kind === 'rnd' ? 'rnd' : 'bizs'}">${x.kind === 'rnd' ? '연구개발' : '기업지원'}</span><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>${x.close ? `<span class="nmeta">마감 ${esc(md(x.close))} <span class="dd soon">${ddTxt(x.close)}</span></span>` : ''}</span>${r.why ? `<span class="nmeta">${esc(r.why)}</span>` : ''}</li>`).join('')}</ul></div>` : ''}
+    </div>
+    <div class="panel isec">
+      <h3>② 타당성 점수 <span class="nmeta">${hasRun ? '실행할 사업이 있어도 참고로 봅니다' : '실행할 사업이 없을 때 추진 여부 판단의 근거'}</span></h3>
+      <div class="axes">${AXES.map(([k, n, sub]) => { const a = R.axes[k]; return `<div class="axis"><div class="an"><b>${n}</b><span>${sub}</span><span>가중치 ${w[k]}</span></div>
+        <div class="ab"><div class="mrow">${meter(a.score, 100)}<span class="sv">${pt(a.score)}<small> / 100</small></span></div>
+        <ul class="subs">${a.parts.map(p => `<li><span class="sl">${esc(p[0])}</span>${meter(p[1], p[2], true)}<span class="sp">${pt(p[1])} / ${p[2]}</span><span class="sn">${hl(p[3])}</span></li>`).join('')}</ul>
+        ${extra[k]()}${cmt(k)}</div></div>`; }).join('')}</div>
+    </div>
+    ${(cm && cm.next && cm.next.length) || sel.risks.length ? `<div class="panel isec">${cm && cm.next && cm.next.length ? `<h3>다음 할 일</h3><ol class="inext">${cm.next.map(x => `<li>${hl(x)}</li>`).join('')}</ol>` : ''}${sel.risks.length ? `<span class="kl">주요 위험</span><ul class="ilist">${sel.risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}`;
+  }
+
+  /* ── AI·저장(가능한 화면에서만) ── */
+  const SAMPLE = RT ? RT.use('sample').catch(() => null) : Promise.resolve(null);
+  const DBP = RT ? RT.use('db').catch(() => null) : Promise.resolve(null);
+  const USERP = RT ? RT.use('user').catch(() => null) : Promise.resolve(null);
+  let aiOff = !RT, canWrite = null, uid = null, ctl = null, DB = null, USER = null;
+  const OFF = new Set(['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed']);
+  const ERR = {rate_limited: 'AI 사용 한도에 걸려', session_expired: '로그인이 만료되어', prompt_too_large: 'AI에 보낼 내용이 너무 길어', invalid_json: 'AI 답을 읽지 못해', refused: 'AI가 이 입력을 처리하지 않아', empty_completion: 'AI 답이 비어'};
+  const errText = c => OFF.has(c) ? '이 화면에서 AI 사용이 허용되지 않아' : (ERR[c] || 'AI 연결이 잠시 끊겨');
+  if(!RT){
+    $i('idea-intro').textContent = '기획안이나 아이디어를 넣으면 먼저 레이더에서 바로 실행할 수 있는 나라장터 공고·사업·지원사업을 찾고, 이어서 정책·기술·경제·실행 네 축의 타당성을 점수로 보여 줍니다. 이 화면은 아이디어 문장과 레이더 데이터의 겹치는 낱말로 사업을 고르는 키워드 분석으로 계산합니다. 사내 1차 검토용이며 정식 예비타당성조사를 대신하지 않습니다.';
+  }
+  function busy(b){ runB.disabled = b; stopB.hidden = !b; ta.readOnly = b; }
+  stopB.addEventListener('click', () => { if(ctl) ctl.abort(); });
+  async function run(){
+    const text = ta.value.trim();
+    if(text.length < 15){ status('아이디어를 한두 문장 이상 적어 주세요.', true); ta.focus(); return; }
+    store('ideaDraft', text);
+    Object.assign(S, {text, example: false, cm: null, docId: null, deep: null, at: null, byName: null, pending: false});
+    const sample = aiOff ? null : await SAMPLE;
+    if(!sample){ S.sel = kwSelect(text); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
+    ctl = new AbortController(); const sig = ctl.signal; busy(true);
+    status('1/2 · 아이디어에서 기술 요소를 정리하고 맞는 사업을 고르는 중입니다. 보통 30초~1분 걸립니다.');
+    try { S.sel = cleanSel(await sample.json(selPrompt(text), {signal: sig, modelTier: 'default'}), text); }
+    catch(e){
+      busy(false);
+      if(e && e.code === 'cancelled'){ status('멈췄습니다.'); return; }
+      if(e && OFF.has(e.code)) aiOff = true;
+      S.sel = kwSelect(text); render(); status(errText(e && e.code) + ' 키워드 분석으로 계산했습니다.', true); return;
+    }
+    S.pending = true; render(); out.scrollIntoView({block:'start', behavior:'smooth'});
+    status('2/2 · 점수 해석을 쓰는 중입니다.');
+    try { S.cm = cleanCm(await sample.json(cmPrompt(S.sel, S.last), {signal: sig, modelTier: 'quick'})); }
+    catch(e){ if(!(e && e.code === 'cancelled')) status(errText(e && e.code) + ' 해석 문장 없이 점수만 보여 줍니다.', true); }
+    S.pending = false; render(); busy(false);
+    const saved = await save();
+    if(saved === true) status('저장했습니다. 아래 「최근 검증한 아이디어」에서 팀이 함께 봅니다.');
+    else if(saved === 'ro') status('읽기 전용 권한이라 결과는 저장하지 않았습니다.');
+    else if(!stat.classList.contains('err')) status('완료했습니다.');
+  }
+  $i('ideaform').addEventListener('submit', e => { e.preventDefault(); if(!runB.disabled) run(); });
+  let rt = null;
+  const rerender = () => { clearTimeout(rt); rt = setTimeout(() => { wLabel(wIn()); store('ideaW', wIn()); if(S.sel) render(); }, 200); };
+  ['ie-inv', 'ie-rev', 'ie-cost', 'ie-yrs', 'ie-rate', 'iw-policy', 'iw-tech', 'iw-econ', 'iw-exec'].forEach(id => $i(id).addEventListener('input', rerender));
+
+  async function save(){
+    if(!DB || S.sel.mode !== 'ai') return false;
+    if(canWrite === false) return 'ro';
+    const R = S.last, sc = {}; AXES.forEach(([k]) => { sc[k] = Math.round(R.axes[k].score); });
+    sc.total = Math.round(R.total);
+    const at = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+    const body = {text: S.text.slice(0, 4000), summary: S.sel.summary, mode: S.sel.mode, at, by: uid || null, sel: S.sel, econIn: econIn(), weights: wIn(), scores: sc, verdict: R.verdict[1], comments: S.cm || null, keywords: S.sel.keywords, buyers: S.sel.buyers, deepState: null};
+    try { const ref = await DB.collection('ideas').add(body); S.docId = ref.id; S.at = at; render(); return true; }
+    catch(e){ if(e && e.code === 'invalid_argument'){ canWrite = false; return 'ro'; } if(e && e.code === 'quota_exceeded') status('저장 공간이 가득 차 결과를 저장하지 못했습니다. 오래된 기록을 지워 주세요.', true); return false; }
+  }
+  function deepCtl(){
+    if(!DB || !S.docId) return '';
+    const st = S.deepState;
+    if(st === 'queued') return `<p class="nmeta">나라장터 심층 분석을 요청했습니다. 평일 08:50·14:50 나라장터 작업 때 같은 검색어로 최근 3년 계약 기록을 찾아 이 결과에 채웁니다.</p>`;
+    if(st === 'done') return '';
+    if(canWrite === false) return '';
+    return `<div><button class="btn" type="button" id="idea-deep">나라장터 심층 분석 요청</button> <span class="nmeta">검색어: ${esc((S.sel.keywords || []).join(', ') || '자동')}</span></div>`;
+  }
+  out.addEventListener('click', async e => {
+    const b = e.target.closest('#idea-deep'); if(!b || !DB || !S.docId) return;
+    b.disabled = true;
+    try { await DB.doc('ideas/' + S.docId).update({deepState: 'queued', deepReq: {at: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' '), by: uid || null}}); S.deepState = 'queued'; render(); }
+    catch(err){ b.disabled = false; status(err && err.code === 'invalid_argument' ? '읽기 전용 권한이라 요청할 수 없습니다.' : '요청을 저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.', true); }
+  });
+
+  /* 최근 검증한 아이디어 */
+  let HIST = [];
+  async function names(ids){ if(!USER || !ids.length) return {}; try { return await USER.profiles(ids); } catch(e){ return {}; } }
+  async function renderHist(){
+    if(!HIST.length){ hist.innerHTML = `<h3>최근 검증한 아이디어</h3><p class="nmeta">아직 저장된 검증이 없습니다. AI 분석으로 검증하면 결과가 여기에 쌓이고 팀이 함께 봅니다.</p>`; hist.hidden = false; return; }
+    const ps = await names([...new Set(HIST.map(d => d.by).filter(Boolean))]);
+    hist.innerHTML = `<h3>최근 검증한 아이디어</h3><ul>${HIST.map(d => `<li><div style="display:grid;gap:2px;min-width:0"><button type="button" class="linkish" data-idea="${esc(d.id)}">${esc(d.summary || '(요약 없음)')}</button>
+      <span class="nmeta">${esc(d.at || '')}${d.by ? ' · ' + esc((ps[d.by] && ps[d.by].name) || '팀원') : ''}${d.deepState === 'queued' ? ' · 심층 분석 대기' : d.deepState === 'done' ? ' · 심층 분석 완료' : ''}</span></div>
+      <span><span class="sc">${esc(d.scores && d.scores.total)}</span><span class="nmeta">점</span> <span class="vd ${d.verdict === '추진' ? 'go' : d.verdict === '보류' ? 'hold' : 'fix'}">${esc(d.verdict || '')}</span></span></li>`).join('')}</ul>`;
+    hist.hidden = false;
+  }
+  async function openSaved(d){
+    if(!d || !d.sel) return;
+    const ps = d.by ? await names([d.by]) : {};
+    Object.assign(S, {sel: d.sel, cm: d.comments || null, text: d.text || '', example: false, docId: d.id, deep: d.deep || null, deepState: d.deepState || null, at: d.at, byName: d.by ? ((ps[d.by] && ps[d.by].name) || '팀원') : null, pending: false});
+    ta.value = d.text || ''; if(d.econIn) setEcon(d.econIn); if(d.weights) setW(d.weights);
+    render(); status('저장된 검증을 열었습니다. 점수는 지금 레이더 데이터로 다시 계산했습니다.');
+    out.scrollIntoView({block:'start', behavior:'smooth'});
+  }
+  hist.addEventListener('click', e => { const b = e.target.closest('[data-idea]'); if(b) openSaved(HIST.find(d => d.id === b.dataset.idea)); });
+
+  (async () => {
+    const [db, user] = await Promise.all([DBP, USERP]);
+    USER = user;
+    if(user){ try { uid = await user.id(); } catch(e){} try { canWrite = await user.can('data.write'); } catch(e){} }
+    if(!db) return;
+    DB = db;
+    try {
+      db.collection('ideas').orderBy('at', 'desc').limit(20).onSnapshot(snap => {
+        HIST = snap.docs.map(d => ({id: d.id, ...d.data()}));
+        renderHist();
+        const curD = S.docId && HIST.find(d => d.id === S.docId);
+        if(curD && (curD.deepState !== S.deepState || JSON.stringify(curD.deep || null) !== JSON.stringify(S.deep || null))){ S.deepState = curD.deepState || null; S.deep = curD.deep || null; render(); }
+      }, () => { hist.hidden = true; });
+    } catch(e){ hist.hidden = true; }
+    if(S.sel) render();
+  })();
+
+  /* 처음 화면: 예시 아이디어를 키워드로 분석해 둔다(AI 호출 없음) */
+  S.sel = kwSelect(EXAMPLE); S.example = true; render();
+})();
+
 const h0 = location.hash.slice(1);
 show(TABS.includes(h0)?h0:load('tab','overview'),{keepScroll:true});
 

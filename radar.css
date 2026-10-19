@@ -659,3 +659,93 @@ details.mkt ul{margin-top:6px}
 .ins .k{display:inline-flex;align-items:center;gap:7px}
 .ins.mk .k{color:var(--ink2)}
 .ins.mk{background:color-mix(in srgb,var(--sunk) 45%,var(--surface))}
+
+/* 아이디어 검증 (2026-10-19): 입력 → ① 실행할 사업 → ② 네 축 점수. 막대는 강조색 하나, 판정은 상태색 알약 */
+.ideaform{display:grid;gap:14px}
+.ideaform textarea{width:100%;min-height:150px;resize:vertical;border:1px solid var(--line2);border-radius:12px;background:var(--surface);color:var(--ink);padding:12px 14px;font:inherit;font-size:.97rem;line-height:1.75}
+.ideaform textarea:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
+.iopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px 20px;align-items:start}
+.igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px 12px;margin-top:10px}
+.igrid label{display:grid;gap:4px;font-size:.8rem;font-weight:600;color:var(--ink3)}
+.igrid input{width:100%;min-width:0;border:1px solid var(--line2);border-radius:9px;background:var(--surface);color:var(--ink);padding:7px 10px;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.ihint{font-size:.8rem;color:var(--ink3);margin-top:6px}
+.iact{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn.pri{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn.pri:hover{background:var(--ink2);border-color:var(--ink2)}
+.btn:disabled{opacity:.5;cursor:default}
+.istat{font-size:.88rem;color:var(--ink2);min-width:0}
+.istat.err{color:var(--warn);font-weight:600}
+.iout{display:grid;gap:20px}
+.iout:empty{display:none}
+.iex{padding:10px 14px;border-radius:10px;background:var(--sunk);font-size:.88rem;color:var(--ink2)}
+.ihead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 24px;align-items:start}
+.ihead .it{display:grid;gap:8px;min-width:0}
+.ihead h3{font-size:1.22rem;line-height:1.4}
+.ihead .top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.itotal{display:grid;justify-items:end;gap:8px}
+.itotal .big{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:2.6rem;font-weight:600;line-height:1;color:var(--ink)}
+.itotal .big small{font-size:1rem;font-weight:500;color:var(--ink3)}
+.vd{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 12px;border-radius:999px;font-size:.84rem;font-weight:700;white-space:nowrap}
+.vd::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.vd.go{background:color-mix(in srgb,var(--ok) 14%,var(--surface));color:var(--ok)}
+.vd.fix{background:color-mix(in srgb,var(--warn) 15%,var(--surface));color:var(--warn)}
+.vd.hold{background:var(--sunk);color:var(--ink2)}
+.iwts{font-size:.8rem;color:var(--ink3);text-align:right}
+.isec{display:grid;gap:12px}
+.isec>h3{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;font-size:1.08rem}
+.isec>h3 .nmeta{font-family:var(--f-body);font-weight:500}
+.ione{color:var(--ink2);font-size:.92rem;padding:12px 14px;border-radius:10px;background:var(--tint);box-shadow:inset 0 0 0 1px var(--line)}
+.iwhy{font-size:.9rem;color:var(--ink);line-height:1.65}
+.iwhy::before{content:"이 아이디어와 맞는 이유 · ";color:var(--ink3);font-size:.8rem;font-weight:600}
+.iopp{display:grid;gap:8px}
+.iopp li{display:grid;gap:3px}
+.iopp .row1{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.iopp .linkish{font-weight:650;color:var(--ink);text-decoration:none}
+.iopp .linkish:hover{text-decoration:underline}
+.axes{display:grid}
+.axis{display:grid;grid-template-columns:132px minmax(0,1fr);gap:8px 22px;padding:18px 0;border-top:1px solid var(--line)}
+.axis:first-child{border-top:0;padding-top:4px}
+.axis .an{display:grid;gap:2px;align-content:start}
+.axis .an b{font-size:1rem}
+.axis .an span{font-size:.78rem;color:var(--ink3)}
+.axis .ab{display:grid;gap:8px;min-width:0}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) 64px;gap:14px;align-items:center}
+.meter{position:relative;height:10px;border-radius:999px;background:var(--sunk);overflow:hidden}
+.meter i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--mark)}
+.meter.sm{height:6px}
+.meter.sm i{background:color-mix(in srgb,var(--mark) 70%,var(--ink3))}
+.mrow .sv{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:600;font-size:1.05rem;text-align:right}
+.mrow .sv small{font-size:.74rem;color:var(--ink3);font-weight:500}
+.subs{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.subs li{display:grid;grid-template-columns:minmax(0,180px) minmax(0,1fr) 62px;gap:4px 12px;align-items:center;font-size:.86rem}
+.subs .sl{color:var(--ink);font-weight:600}
+.subs .sn{grid-column:1/-1;color:var(--ink2);font-size:.84rem;line-height:1.55;margin-top:-2px}
+.subs .sp{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.8rem;color:var(--ink2);text-align:right;white-space:nowrap}
+.acmt{padding:11px 14px;border-radius:10px;background:color-mix(in srgb,var(--mark) 6%,var(--surface));font-size:.93rem;line-height:1.72;color:var(--ink)}
+.acmt.wait{background:var(--tint);color:var(--ink3)}
+.ilist{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.88rem;color:var(--ink2)}
+.ilist li{display:grid;gap:1px}
+.ilist .linkish{color:var(--ink);font-weight:600}
+.ithin{color:var(--warn);font-weight:600;font-size:.88rem}
+.ideep{display:grid;gap:8px;padding:12px 14px;border-radius:10px;background:var(--tint);box-shadow:inset 0 0 0 1px var(--line);font-size:.88rem;color:var(--ink2)}
+.ideep table{border-collapse:collapse;font-size:.84rem;min-width:280px}
+.ideep th,.ideep td{padding:4px 10px 4px 0;text-align:left;border-bottom:1px solid var(--line)}
+.ideep td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+.inext{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
+.ihist ul{list-style:none;margin:0;padding:0;display:grid}
+.ihist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+.ihist li:first-child{border-top:0}
+.ihist .linkish{font-weight:650;color:var(--ink);text-decoration:none;text-align:left}
+.ihist .linkish:hover{text-decoration:underline}
+.ihist .sc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:600}
+.imethod ul{margin:8px 0 0;padding-left:18px;display:grid;gap:5px;font-size:.88rem;color:var(--ink2)}
+@media (max-width:620px){
+  .ihead{grid-template-columns:minmax(0,1fr)}
+  .itotal{justify-items:start}
+  .iwts{text-align:left}
+  .axis{grid-template-columns:minmax(0,1fr);gap:8px}
+  .subs li{grid-template-columns:minmax(0,1fr) 56px}
+  .subs li .meter{display:none}
+  .ihist li{grid-template-columns:minmax(0,1fr)}
+}
+#idea-out{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
