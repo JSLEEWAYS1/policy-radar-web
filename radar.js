@@ -2093,12 +2093,14 @@ ${ax}
     return {id, origin, manual: true, title: s('title', 160), buyer: s('buyer', 80), date: DAY(r.date), dateKind: DK.includes(r.dateKind) ? r.dateKind : '계약',
       start: DAY(r.start), end: DAY(r.end), amt: NUM(r.amt), est: NUM(r.est), role, share: role === '단독' || role === '하도급' ? 100 : (sh && sh <= 100 ? sh : null),
       lead: role === '구성' ? s('lead', 60) : '', reason: REASONS.includes(r.reason) ? r.reason : '기타', ref: /^[A-Z0-9-]{6,30}$/.test(s('ref', 30).toUpperCase()) ? s('ref', 30).toUpperCase() : '',
-      note: s('note', 200), addedAt: s('addedAt', 10), _doc: origin === 'db' ? String(id).replace(/^db-/, '') : null};
+      note: s('note', 200), addedAt: s('addedAt', 10), _doc: origin === 'db' || origin === 'web' ? String(id).replace(/^(db|web)-/, '') : null};
   };
   const SAVED = (T.manual || []).map(x => cleanM(x, x.id, x.origin || 'seed'));
-  let LIVE = null, ALL = [], DUP = [];
+  // 저장소: 레이더 화면은 공용 저장소(origin db), 회원 홈페이지는 회원 서버 표(origin web). 다른 쪽에서 등록한 줄은 데이터 사본으로만 보인다
+  let STORE = null, WHY = 'loading', LIVE = null, ALL = [], DUP = [];
+  const SRC = {db: '레이더 관리 화면', web: '회원 홈페이지', seed: '초기 등록'};
   function rebuild(){
-    const M = (LIVE ? SAVED.filter(x => x.origin !== 'db').concat(LIVE) : SAVED).filter(x => x.title && x.buyer);
+    const M = (LIVE && STORE ? SAVED.filter(x => x.origin !== STORE.origin).concat(LIVE) : SAVED).filter(x => x.title && x.buyer);
     DUP = M.filter(x => AUTOK.has(norm(x.title)));
     ALL = AUTO.concat(M.filter(x => !AUTOK.has(norm(x.title))).map(prep));
     const n = $('#t-track .n');
@@ -2127,7 +2129,9 @@ ${ax}
     if(x.manual){
       const amt = x.amt ? `계약 <b class="num">${won(x.amt)}</b>` : `<span class="need">계약금액 확인 필요</span>${x.est ? ` · 추정가격 <b class="num">${won(x.est)}</b>` : ''}`;
       const title = x.ref ? `<a href="${SRCH + encodeURIComponent(x.ref)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : `<span class="tt">${esc(x.title)}</span>`;
-      const act = DB && canWrite !== false && x.origin === 'db' && x._doc ? `<span class="tract"><button type="button" class="linkish" data-ed="${esc(x._doc)}">고치기</button><button type="button" class="linkish" data-del="${esc(x._doc)}">지우기</button></span>` : '';
+      const mine = STORE && STORE.canWrite !== false && x.origin === STORE.origin && x._doc;
+      const act = mine ? `<span class="tract"><button type="button" class="linkish" data-ed="${esc(x._doc)}">고치기</button><button type="button" class="linkish" data-del="${esc(x._doc)}">지우기</button></span>`
+        : (STORE && SRC[x.origin] && x.origin !== STORE.origin ? `<span class="tract nmeta">${esc(SRC[x.origin])}에서 등록 · 고치려면 그 화면에서</span>` : '');
       return `<li class="man"><div class="tw"><b>${esc(ym(x.date) || '-')}${x.dateKind && x.dateKind !== '계약' ? `<small> ${esc(x.dateKind)}</small>` : ''}</b>${rtag}<span class="tag man" title="나라장터에 결과가 공개되지 않아 팀이 직접 등록한 실적">직접 등록</span></div>
         <div class="tb">${title}
           <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer)} · ${amt}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${period}${x.ref ? ` · 공고 ${esc(x.ref)}` : ''}</span>
@@ -2167,9 +2171,18 @@ ${ax}
     document.getElementById('trnote').innerHTML = AUTO.length || mn ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다.${mn ? ` <b>직접 등록 ${mn}건</b>은 수주했지만 나라장터에 개찰결과·계약이 공개되지 않아 팀이 넣은 실적입니다. 계약금액을 모르는 건은 합계에서 뺍니다.` : ''}${DUP.length ? ` 직접 등록한 ${DUP.length}건은 같은 사업명의 나라장터 계약이 잡혀 자동 수집 쪽으로 보여 줍니다.` : ''} 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
   }
 
-  /* ── 직접 등록 양식(공용 저장소를 쓸 수 있는 화면에서만) ── */
-  const man = document.getElementById('trman'), form = document.getElementById('trform'), openB = document.getElementById('tradd'), st = document.getElementById('trstat');
-  let DB = null, canWrite = null, uid = null, editId = null, delArm = null;
+  /* ── 직접 등록 양식 ── */
+  const man = document.getElementById('trman'), form = document.getElementById('trform'), openB = document.getElementById('tradd'), st = document.getElementById('trstat'), hintE = document.getElementById('trhint');
+  const HINT0 = hintE.textContent;
+  const WHYT = {
+    loading: '등록 저장소를 여는 중입니다. 잠시 뒤 다시 눌러 주세요.',
+    none: '이 화면에서는 등록 저장소를 쓸 수 없습니다. 회원 홈페이지나 레이더 관리 화면(웹·데스크톱)에서 등록해 주세요.',
+    setup: '회원 서버에 등록 표가 아직 없습니다. 관리자가 회원 서버(Supabase) SQL Editor에서 track_manual.sql을 한 번 실행하면 바로 쓸 수 있습니다.',
+    error: '등록 저장소에 연결하지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.',
+    ro: '읽기 전용 권한이라 등록할 수 없습니다.'
+  };
+  const SAVEDT = {db: '레이더 공용 저장소에 저장되어 팀 모두에게 바로 보이고, 다음 자동 갱신 때 회원 홈페이지에도 반영됩니다.', web: '회원 서버에 저장되어 승인된 회원 모두에게 바로 보이고, 몇 시간 안에 레이더 데이터에도 반영됩니다.'};
+  let uid = null, editId = null, delArm = null;
   const say = (t, err) => { st.textContent = t; st.classList.toggle('err', !!err); };
   const kst = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
   function fill(x){
@@ -2185,58 +2198,74 @@ ${ax}
     editId = x ? x._doc : null; fill(x);
     form.querySelector('[type=submit]').textContent = x ? '고친 내용 저장' : '등록';
     document.getElementById('trman-t').textContent = x ? '직접 등록 실적 고치기' : '나라장터에 없는 실적 직접 등록';
+    document.getElementById('trman-s').textContent = '협상 결과가 게시되지 않았거나 기관 자체 계약이라 자동 수집에 잡히지 않은 수주를 넣습니다. ' + (SAVEDT[STORE.origin] || '') + ' 나중에 같은 사업명의 나라장터 계약이 잡히면 자동 수집 쪽을 보여 줍니다.';
     man.hidden = false; openB.setAttribute('aria-expanded', 'true'); say('');
     form.elements.title.focus(); man.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   }
   function closeForm(){ man.hidden = true; openB.setAttribute('aria-expanded', 'false'); editId = null; form.reset(); }
-  openB.addEventListener('click', () => man.hidden ? openForm(null) : closeForm());
+  openB.addEventListener('click', () => {
+    if(!man.hidden){ closeForm(); return; }
+    const why = !STORE ? WHY : STORE.canWrite === false ? 'ro' : null;
+    if(why){ hintE.textContent = WHYT[why] || WHYT.none; hintE.classList.add('err'); return; }
+    hintE.textContent = HINT0; hintE.classList.remove('err'); openForm(null);
+  });
   document.getElementById('trcancel').addEventListener('click', closeForm);
   form.addEventListener('input', e => { if(e.target.name === 'amt' || e.target.name === 'est') hint(); if(e.target.name === 'role') roleUi(); });
   form.addEventListener('submit', async e => {
-    e.preventDefault(); if(!DB) return;
+    e.preventDefault(); if(!STORE) return;
     const f = Object.fromEntries(new FormData(form).entries());
     const prev = editId && LIVE ? LIVE.find(x => x._doc === editId) : null;
-    const body = cleanM(f, '', 'db');
-    if(body.title.length < 4 || !body.buyer || !body.date){ say('사업명·발주기관·날짜를 넣어 주세요.', true); return; }
+    const body = cleanM(f, '', STORE.origin);
+    if(body.title.length < 4 || !body.buyer || !body.date){ say('사업명(4자 이상)·발주기관·날짜를 넣어 주세요.', true); return; }
     if(f.ref && !body.ref){ say('공고번호는 영문·숫자로 적어 주세요(예: R25BK01232658).', true); return; }
     ['id', 'origin', 'manual', '_doc'].forEach(k => delete body[k]);
     Object.keys(body).forEach(k => { if(body[k] === '' || body[k] == null) body[k] = null; });
-    body.addedAt = (prev && prev.addedAt) || kst().slice(0, 10); body.at = kst(); body.by = uid || null;
+    body.addedAt = (prev && prev.addedAt) || kst().slice(0, 10); body.at = kst();
+    if(STORE.origin === 'db') body.by = uid || null;
     const btn = form.querySelector('[type=submit]'); btn.disabled = true; say('저장하는 중입니다.');
+    const was = editId;
     try {
-      if(editId) await DB.doc('trackManual/' + editId).set(body); else await DB.collection('trackManual').add(body);
-      closeForm(); say(''); toast(editId ? '고쳤습니다.' : '등록했습니다. 팀 모두에게 보이고, 다음 자동 갱신 때 홈페이지에도 반영됩니다.');
+      if(was) await STORE.set(was, body); else await STORE.add(body);
+      closeForm(); say(''); toast(was ? '고쳤습니다.' : '등록했습니다. ' + (SAVEDT[STORE.origin] || ''));
     } catch(err){
-      if(err && err.code === 'invalid_argument'){ canWrite = false; say('읽기 전용 권한이라 저장할 수 없습니다.', true); openB.hidden = true; }
-      else if(err && err.code === 'quota_exceeded') say('저장 공간이 가득 찼습니다.', true);
+      const c = err && (err.code || '');
+      if(c === 'invalid_argument' || c === '42501' || /row-level security|permission/i.test(String(err && err.message))){ STORE.canWrite = false; say(WHYT.ro, true); }
+      else if(c === 'quota_exceeded') say('저장 공간이 가득 찼습니다.', true);
       else say('저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.', true);
     } finally { btn.disabled = false; }
   });
-  function toast(t){ const n = document.getElementById('trdone'); n.textContent = t; n.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { n.hidden = true; }, 6000); }
+  function toast(t){ const n = document.getElementById('trdone'); n.textContent = t; n.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { n.hidden = true; }, 7000); }
   document.getElementById('trgroups').addEventListener('click', async e => {
     const ed = e.target.closest('[data-ed]'), del = e.target.closest('[data-del]');
     if(ed){ const x = (LIVE || []).find(y => y._doc === ed.dataset.ed); if(x) openForm(x); return; }
-    if(!del || !DB) return;
+    if(!del || !STORE) return;
     const id = del.dataset.del;
     if(delArm !== id){ delArm = id; del.textContent = '한 번 더 누르면 지웁니다'; setTimeout(() => { if(delArm === id){ delArm = null; del.textContent = '지우기'; } }, 4000); return; }
     delArm = null; del.disabled = true;
-    try { await DB.doc('trackManual/' + id).delete(); toast('지웠습니다.'); }
-    catch(err){ del.disabled = false; del.textContent = '지우기'; toast(err && err.code === 'invalid_argument' ? '읽기 전용 권한이라 지울 수 없습니다.' : '지우지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); }
+    try { await STORE.del(id); toast('지웠습니다.'); }
+    catch(err){ del.disabled = false; del.textContent = '지우기'; toast(err && (err.code === 'invalid_argument' || err.code === '42501') ? '읽기 전용 권한이라 지울 수 없습니다.' : '지우지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); }
   });
 
   rebuild(); render();
-  if(RT) (async () => {
-    const [db, user] = await Promise.all([RT.use('db').catch(() => null), RT.use('user').catch(() => null)]);
-    if(!db) return;
-    DB = db;
-    if(user){ try { uid = await user.id(); } catch(e){} try { canWrite = await user.can('data.write'); } catch(e){} }
-    if(canWrite !== false) openB.hidden = false;
+  (async () => {
     try {
-      db.collection('trackManual').limit(200).onSnapshot(snap => {
-        LIVE = snap.docs.map(d => cleanM(d.data(), 'db-' + d.id, 'db'));
-        rebuild(); render();
-      }, () => {});
-    } catch(e){}
+      if(RT){  // 레이더 관리 화면: 공용 저장소 trackManual(실시간 구독)
+        const [db, user] = await Promise.all([RT.use('db').catch(() => null), RT.use('user').catch(() => null)]);
+        if(!db){ WHY = 'none'; return; }
+        let canWrite = null;
+        if(user){ try { uid = await user.id(); } catch(e){} try { canWrite = await user.can('data.write'); } catch(e){} }
+        STORE = {origin: 'db', canWrite, add: b => db.collection('trackManual').add(b), set: (id, b) => db.doc('trackManual/' + id).set(b), del: id => db.doc('trackManual/' + id).delete()};
+        db.collection('trackManual').limit(200).onSnapshot(snap => { LIVE = snap.docs.map(d => cleanM(d.data(), 'db-' + d.id, 'db')); rebuild(); render(); }, () => {});
+        return;
+      }
+      const W = typeof window !== 'undefined' && window.W1STORE;  // 회원 홈페이지: 회원 서버의 track_manual 표
+      if(!W || typeof W.trackManual !== 'function'){ WHY = 'none'; return; }
+      const s = await W.trackManual();
+      if(!s || !s.ok){ WHY = (s && s.why) || 'error'; return; }
+      const pull = async () => { const rows = await s.list(); LIVE = rows.map(r => cleanM(r.data || {}, 'web-' + r.id, 'web')); rebuild(); render(); };
+      STORE = {origin: 'web', canWrite: s.canWrite, add: async b => { await s.add(b); await pull(); }, set: async (id, b) => { await s.set(id, b); await pull(); }, del: async id => { await s.del(id); await pull(); }};
+      await pull();
+    } catch(e){ WHY = 'error'; }
   })();
 })();
 

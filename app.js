@@ -68,6 +68,26 @@ async function enter(user) {
   openApp(r.data);
 }
 
+// 수행 실적 「직접 등록」 저장소: 회원 서버의 track_manual 표(승인된 회원만 읽고 쓴다 — supabase/track_manual.sql).
+// 표가 아직 없으면(관리자가 SQL을 실행하기 전) {ok:false, why:'setup'}을 돌려 화면이 안내만 보여 준다.
+async function trackStore() {
+  const T = () => sb.from('track_manual');
+  const probe = await T().select('id').limit(1);
+  if (probe.error) {
+    const m = String(probe.error.code || '') + ' ' + String(probe.error.message || '');
+    return {ok: false, why: /42P01|PGRST205|PGRST106|does not exist|schema cache/i.test(m) ? 'setup' : 'error'};
+  }
+  const chk = r => { if (r.error) { const e = new Error(r.error.message); e.code = r.error.code; throw e; } return r.data; };
+  return {
+    ok: true, canWrite: me?.status === 'approved',
+    list: async () => chk(await T().select('id, data, updated_at').order('updated_at', {ascending: false}).limit(200)),
+    add: async data => chk(await T().insert({data})),
+    set: async (id, data) => chk(await T().update({data, updated_at: new Date().toISOString()}).eq('id', id)),
+    del: async id => chk(await T().delete().eq('id', id))
+  };
+}
+window.W1STORE = {trackManual: trackStore};
+
 function openApp(D) {
   $('#gate').hidden = true; $('#app').hidden = false;
   $('#who').textContent = `${me.name || me.email}${me.role === 'admin' ? ' · 관리자' : ''}`;
