@@ -953,7 +953,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       try { doc = await L.getDocument({data: u8(buf), isEvalSupported: false, disableFontFace: true, useSystemFonts: false, stopAtErrors: false, ...opt}).promise; }
       catch (e) { throw new Error(e && e.name === 'PasswordException' ? '암호가 걸린 PDF는 읽지 못합니다' : 'PDF를 열지 못했습니다(손상되었거나 지원하지 않는 형식)'); }
       // 줄을 모은 뒤, 오른쪽 끝까지 찬 줄은 다음 줄과 이어 한 문단으로 만든다(PDF는 문단이 눈에 보이는 줄마다 끊겨 있다)
-      const BUL = /^\s*(?:[□■○●◦◎◇◆▶▷►▸•·∙\-–—*※☞▪❍]|\(?\d{1,2}[.)]|\(?[가-하][.)]\s|[①-⑳]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ])/;
+      const BUL = /^\s*(?:[□■○●◦◎◇◆▶▷►▸•·∙\-–—*※☞▪❍ㅇ◾❶❷❸❹❺❻❼❽❾❿]|\(?\d{1,2}[.)]|\(?[가-하][.)]\s|[①-⑳]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ])/;
       let out = '';
       for (let i = 1; i <= Math.min(doc.numPages, 120); i++) {
         let tc; try { tc = await (await doc.getPage(i)).getTextContent(); } catch (e) { continue; }
@@ -1037,7 +1037,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     }
     const RUN = /[A-Za-z][A-Za-z0-9+&-]*[A-Za-z0-9]|[A-Za-z]|[0-9]+[A-Za-z]+[A-Za-z0-9]*|[0-9][0-9.,]*|[가-힣]+/g;
     // 문장 단위로 나누기: 줄 → 문장 끝(. ? !) → 앞의 기호·번호 떼기
-    const LEAD = /^\s*(?:[□■○●◦◎◇◆▶▷►▸•·∙\-–—*※☞▪▫❍❏✓✔>]+|\(?\d{1,2}[.)]|\(?[가-하][.)]|[①-⑳]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ]+[.)]?)\s*/;
+    const LEAD = /^\s*(?:[□■○●◦◎◇◆▶▷►▸•·∙\-–—*※☞▪▫❍❏✓✔>ㅇ◾❶❷❸❹❺❻❼❽❾❿]+|\(?\d{1,2}[.)]|\(?[가-하][.)]|[①-⑳]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ]+[.)]?)\s*/;
     const LABEL = /^(?:사업명|과제명|과업명|제안명|사업\s*개요|제안\s*개요|과업\s*개요|개\s*요|목\s*적|사업\s*목적|추진\s*목적|목\s*표|주요\s*내용|사업\s*내용|내\s*용|핵심\s*기능|해\s*결)\s*[:：\-–]\s*/;
     function units(text, src, base){
       const out = [];
@@ -1239,12 +1239,12 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
   const makeFit = ({products = [], track = [], stems}) => {
     const W = s => String(s || '').toLowerCase().split(/\s+/).filter(Boolean);
     // 사업군 핵심어(지도 SW·데이터, 공간데이터 서비스, LDM 인프라, 스마트 모빌리티)
-    const CORE = '정밀지도 정밀도로지도 고정밀지도 공간정보 지리정보 측량 수치지도 점군 도화 동적지도 교통 신호 교차로 횡단보도 보행신호 버스 자율주행 셔틀 도로 도로대장 포장관리 공원 수목 토지적성평가 토지적성 용도지역지구 용도지역 도시계획 재해취약성 인허가 행정 민원 입지분석 적지분석 입지 후보지 토지이용 개발제한구역 경사도 표고 주제도 연속지적도 지적 필지 위치정보 주소정보 내비게이션 실내지도 하수관로 상수관로 지하시설물 테마지도';
+    const CORE = '정밀지도 정밀도로지도 고정밀지도 공간정보 지리정보 측량 수치지도 점군 도화 동적지도 교통 신호 교차로 횡단보도 보행신호 버스 자율주행 셔틀 도로 도로대장 포장관리 공원 수목 토지적성평가 토지적성 용도지역지구 용도지역 도시계획 재해취약성 인허가 행정 민원 입지분석 적지분석 입지 후보지 토지이용 개발제한구역 경사도 표고 주제도 연속지적도 지적 필지 위치정보 주소정보 내비게이션 실내지도 하수관로 상수관로 지하시설물 테마지도 품질검증 신뢰도 정합성 이상치 결측 오류검지 맵매칭 링크 노드 차로 교통량 신호정보';
     const LAT = new Set(W('hd map hdmap ldm v2x c-its its dsrc bis bms mms gis lis cav opendrive xodr adasis indoorgml upis pms tls ipss'));
     // 인접 기술: 웨이즈원도 쓰지만 다른 분야에서도 흔한 기술. 절반 이하로만 센다
-    const ADJ = new Set(W('디지털트윈 트윈 3차원 시뮬레이션 관제 통합관제 영상분석 cctv 돌발상황 엣지 측위 지도 위치 좌표 hmi amr lidar 라이다 twin 3d edge 모빌리티'));
+    const ADJ = new Set(W('디지털트윈 트윈 3차원 시뮬레이션 관제 통합관제 영상분석 cctv 돌발상황 엣지 측위 지도 위치 좌표 hmi amr lidar 라이다 twin 3d edge 모빌리티 차량'));
     // 누구나 쓰는 말·계약 행정 말: 어느 쪽으로도 세지 않는다
-    const GEN = new Set(W(`ai 인공지능 데이터 빅데이터 플랫폼 시스템 솔루션 서비스 통합 실시간 스마트 디지털 digital 기술 기술개발 개발 구축 실증 모델 학습 분석 관리 운영 안전 센터 정보 시각화 모니터링 예측 자동 자율 고도화 연계 표준 클라우드 소프트웨어 sw 사업화 생태계 인력 양성 기업 지역 산업 현장 공간 환경 위험 국내 해외 글로벌 시장 정부 지원 확산 활용 기반 구현 적용 검증 테스트베드 테스트 체계 고도 피지컬 ax dx 전환 혁신 지능형 차세대 미래 핵심 공정 품질 장비 설비 모듈 단계 과제 연구 성과 효과 수요 수요처 참여 참여기업 기관 대학 지자체 공공기관 작업 구역 구간 기준 조건 타당성 시나리오 접수 분류 추천 공무원 상황 오류 결과 사업 용역 유지보수 유지관리 홈페이지 시행 총괄 차분 협상 계약 수의계약 하자보수 기능개선 응용소프트웨어 개선 관련 건립 현황 건설공사 공구 신설공사 정비 저감사업 조사 구매 신규 콘텐츠 제작 예비조사 강화 조성 조성사업 특화도시 세트 데이터세트 신규 갱신체계 효율적 수립 서버 모델 db 웹 앱 api iot 5g 클라우드 보안 사용자 고객 이용자 시민 주민 국민 플랫폼화 대시보드 리포트 보고서 알림 경보 검지 감지 인식 탐지 추적 자동화 최적화 효율화 무인 원격 실시간성`));
+    const GEN = new Set(W(`ai 인공지능 데이터 빅데이터 플랫폼 시스템 솔루션 서비스 통합 실시간 스마트 디지털 digital 기술 기술개발 개발 구축 실증 모델 학습 분석 관리 운영 안전 센터 정보 시각화 모니터링 예측 자동 자율 고도화 연계 표준 클라우드 소프트웨어 sw 사업화 생태계 인력 양성 기업 지역 산업 현장 공간 환경 위험 국내 해외 글로벌 시장 정부 지원 확산 활용 기반 구현 적용 검증 테스트베드 테스트 체계 고도 피지컬 ax dx 전환 혁신 지능형 차세대 미래 핵심 공정 품질 장비 설비 모듈 단계 과제 연구 성과 효과 수요 수요처 참여 참여기업 기관 대학 지자체 공공기관 작업 구역 구간 기준 조건 타당성 시나리오 접수 분류 추천 공무원 상황 오류 결과 사업 용역 유지보수 유지관리 홈페이지 시행 총괄 차분 협상 계약 수의계약 하자보수 기능개선 응용소프트웨어 개선 관련 건립 현황 건설공사 공구 신설공사 정비 저감사업 조사 구매 신규 콘텐츠 제작 예비조사 강화 조성 조성사업 특화도시 세트 데이터세트 신규 갱신체계 효율적 수립 서버 모델 db 웹 앱 api iot 5g 클라우드 보안 사용자 고객 이용자 시민 주민 국민 플랫폼화 대시보드 리포트 보고서 알림 경보 검지 감지 인식 탐지 추적 자동화 최적화 효율화 무인 원격 실시간성 정확도 오차 영상 융합 객체 탑재 처리 검토 생성 이미지 결과물 추출 변환 측정 운행 성능 속도 범위 정밀 고정밀 자료 문서 내용 화면 입력 출력 연동 전송 수신 저장 조회 등록 관리자 담당자 사용자용 담당자용`));
     const PLACE = /^[가-힣]{1,3}(시|군|구)$/;
     const OWN = new Set();
     const addAll = txt => stems(txt).forEach(k => { if (!GEN.has(k) && !ADJ.has(k) && !PLACE.test(k) && k.length >= 2) OWN.add(k); });
@@ -1255,7 +1255,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     const ownH = [...OWN].filter(o => /[가-힣]/.test(o) && o.length >= 2);
     const kind = k => {
       if (GEN.has(k) || PLACE.test(k)) return null;
-      if (ADJ.has(k) || [...ADJ].some(a => /[가-힣]/.test(a) && a.length >= 2 && k.includes(a) && k.length - a.length <= 2 && !OWN.has(k))) return 'adj';
+      if (ADJ.has(k) || [...ADJ].some(a => /[가-힣]/.test(a) && a.length >= 2 && k.includes(a) && k.length - a.length <= 5 && !OWN.has(k))) return 'adj';
       if (OWN.has(k)) return 'own';
       if (/^[a-z0-9+&-]+$/.test(k)) return 'out';
       return ownH.some(o => k.includes(o) && k.length - o.length <= 4) ? 'own' : 'out';
@@ -1282,6 +1282,128 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       return {fit, level, own, adj, out, keys, team};
     }
     return {judge, kind};
+  };
+  /* ── 과업별 검증: 기획안을 과업 단위로 나눠, 과업마다 웨이즈원이 맡을 수 있는지(직접·인접·불가),
+     근거가 되는 웨이즈원 제품·수행 실적, 기획안에서 이미 그 과업을 맡은 기관, 문서에 적힌 금액을 보여 준다. ── */
+  const makeTasks = ({stems, kind, products = [], track = []}) => {
+    const META = /^(추진\s*배경|사업\s*목적|목\s*적|목\s*표|사업\s*기간|사업\s*예산|사업기간\s*\/\s*예산|예\s*산|추진\s*체계|추진\s*방향|추진\s*전략|해외\s*현황|국내\s*현황|지역\s*현황|현\s*황|운용\s*범위|실증\s*범위|성능\s*지표|AI\s*모델\s*역할|수행\s*주체|작업\s*내용|폼팩터\s*요구사항|감지\s*대상|기대\s*효과|필요성|배\s*경|문제점|대\s*상|기\s*간|근\s*거|비\s*고|단\s*위|출\s*처|예\s*시|정\s*의|개\s*념|주\s*관|참\s*여|역\s*할|사업명|과제명|과업명|발주처|과업기간|추정금액|사업비|총\s*사업비|['’‘]?\d{2}\s*년.*|\d{4}.*|\d+\s*차.*|\d+\s*단계.*|\d+\s*년차.*)$/;
+    const DELIV = /(시스템|플랫폼|개발|구축|모델|데이터셋|데이터|모듈|기술|센서|실증|운영환경|서비스|솔루션|DB|SW|소프트웨어|장비|로봇|지도|맵|센터|앱|도구|툴|엔진|인프라|제작|설계|조사|분석|연계|화면|관리|어시스트|보고서|교육|유지보수|유지관리|고도화|검증|발굴|수집|관제|탐지|인식|검수|이송|시뮬레이션|디지털\s*트윈|Digital\s*Twin)/i;
+    const CONTENT = /(주요\s*(사업\s*)?내용|사업\s*내용|과업\s*내용|세부\s*(내용|과업|과제)|추진\s*내용|핵심\s*기능|주요\s*기능|제안\s*내용|사업\s*범위|과업\s*범위|결과물|성과물|가시적\s*성과|시스템\s*구성|구축\s*내용|개발\s*내용|해\s*결|주요\s*과업|과업\s*구성|핵심\s*기술)/;
+    const BGH = /(배경|필요성|현황|문제|동향|사례|기대\s*효과|파급|추진\s*체계|기관별\s*역할|일정|연차별|로드맵|예산|소요|수혜|요\s*약|개\s*요|목\s*적|목\s*표|평가|위험|리스크|고객|사업화|강점|확산|단계별|추진\s*계획|성과\s*지표|활용\s*계획)/;
+    const BGFIRST = /(연차별|로드맵|일정|예산|소요|추진\s*체계|기관별|단계별|추진\s*계획|성과\s*지표|현황|배경|필요성)/;
+    const HEAD = /^(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\s*[.\s]|\d{1,2}\s+(?=[가-힣])|\d{1,2}\.\s*(?=[가-힣])|□|■|▶|◆|【)/;
+    const BUL = /^(?:ㅇ|○|◦|•|·|▪|◾|-|\*|※)\s*/;
+    // 같은 기술을 가리키는 말 맞추기(영문·한글)
+    const SYN = {twin: '디지털트윈', digitaltwin: '디지털트윈', lidar: '라이다', 'ai': 'ai', amr: 'amr', gis: 'gis'};
+    const norm = k => SYN[k] || k;
+    const keysOf = t => [...new Set([...stems(t)].map(k => k.toLowerCase()).filter(k => k.length >= 2))];
+    const money = t => { const m = String(t).match(/(\d[\d,.]*)\s*(억|백만|천만)\s*원?/); return m ? m[1] + m[2] + '원' : ''; };
+    // 기획안의 기관별 역할 표 읽기
+    function orgTable(lines) {
+      const ORGL = /^(주관기관|참여기관|공동연구기관|위탁연구기관|참여기업|수요기관|수요처|주관|참여|공동수급|협력기관)\s*(.*)$/;
+      const SKIP = new Set(['지자체', '기관', '기관명', '구분', '세부 역할', '역할', '주관', '참여', '기업', '대학']);
+      const orgs = []; let cur = null;
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i]; const m = l.match(ORGL);
+        if (m && !/[▪•]/.test(l.slice(0, 2))) {
+          let name = m[2].replace(/[▪•].*$/, '').replace(/\(.*?\)/g, '').trim();
+          if (!name || SKIP.has(name)) { for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) { const n = lines[j].replace(/\(.*?\)/g, '').trim(); if (n && !BUL.test(lines[j]) && !/^[▪•]/.test(lines[j]) && !SKIP.has(n) && n.length <= 30) { name = n; break; } } }
+          if (name && name.length <= 30) { cur = {name, roles: []}; orgs.push(cur); }
+          const inl = l.split(/[▪•]/).slice(1).map(x => x.trim()).filter(Boolean); if (cur) cur.roles.push(...inl);
+          continue;
+        }
+        if (cur && /^[▪•]/.test(l)) cur.roles.push(l.replace(/^[▪•]\s*/, ''));
+        else if (cur && HEAD.test(l) && !ORGL.test(l)) cur = null;
+      }
+      return orgs.filter(o => o.roles.length).map(o => ({...o, keys: new Set(keysOf(o.roles.join(' ')).filter(k => kind(k) !== null).map(norm)), ways1: /웨이즈원|ways1/i.test(o.name)}));
+    }
+    function extract(text) {
+      const lines = String(text || '').split(/\n+/).map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l && !/^-\s*\d+\s*-$/.test(l));
+      const cands = []; let zone = 'n', gid = 0;
+      const push = (type, name, desc, i) => {
+        name = name.replace(/\s+/g, ' ').replace(/[,·\s]+$/, '').trim();
+        if (name.length < 3 || name.length > 80 || META.test(name)) return;
+        cands.push({type, name, desc: desc.trim(), i, g: gid});
+      };
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        const short = l.length <= 40;
+        // 제목 줄: 번호·기호가 붙은 짧은 줄, 또는 발표자료처럼 「핵심 기능」「해결」만 있는 아주 짧은 줄
+        const bare = l.length <= 16 && !/[.。:]$/.test(l) && !BUL.test(l) && (CONTENT.test(l) || BGH.test(l)) && !/\d/.test(l);
+        if ((short && HEAD.test(l)) || bare) {
+          const body = l.replace(HEAD, '').trim();
+          if (BGFIRST.test(body)) { zone = 'b'; gid++; continue; }
+          if (CONTENT.test(body)) { zone = 'c'; gid++; continue; }
+          if (BGH.test(body) && !DELIV.test(body.replace(/관리|분석/g, ''))) { zone = 'b'; gid++; continue; }
+        }
+        if (zone !== 'c') continue;
+        const next = (k = 2) => lines.slice(i + 1, i + 1 + k).filter(x => /^(-|\*|·)/.test(x)).map(x => x.replace(/^[-*·]\s*/, '')).join(' ');
+        let m;
+        if ((m = l.match(/^(?:ㅇ|○|◦|•|·|▪|◾|-)?\s*\(((?:[^()]|\([^()]*\))+)\)\s*(.*)$/))) { if (DELIV.test(m[1])) push('label', m[1], m[2] + ' ' + next(), i); continue; }
+        if ((m = l.match(/^(?:[❶-❿➊-➓]|[①-⑳]|\d{1,2}\)|\(\d{1,2}\)|[가-하]\.|[가-하]\))\s*(.{3,})$/))) { const nm = m[1].split(/\s+-\s+|[.。]\s/)[0].slice(0, 70); push('num', nm, m[1].slice(nm.length) + ' ' + next(3), i); continue; }
+        if ((m = l.match(/^□\s*(.{2,40})$/))) { const d = []; for (let j = i + 1; j < lines.length && d.length < 3; j++) { if (/^(□|■|▶|[ⅠⅡⅢⅣⅤ])/.test(lines[j])) break; d.push(lines[j].replace(BUL, '')); } push('box', m[1], d.join(' '), i); continue; }
+        // 「첫째, … 둘째, …」(한 문단에 여럿이 있어도 나눈다)
+        if (/(^|\s)(첫째|둘째|셋째|넷째|다섯째|여섯째)[,.]?\s/.test(l)) { l.split(/(?=첫째|둘째|셋째|넷째|다섯째|여섯째)/).forEach(p => { const mm = p.match(/^(첫째|둘째|셋째|넷째|다섯째|여섯째)[,.]?\s*(.+)$/); if (mm) { const nm = mm[2].split(/[.。]/)[0]; push('ord', nm.replace(/(한다|하다|합니다|함)$/, '').slice(0, 70), mm[2].slice(nm.length).replace(/^[.。\s]+/, ''), i); } }); continue; }
+        // 발표자료처럼 짧은 줄만 있는 경우
+        if (short && !/[.。]$/.test(l) && !BUL.test(l) && l.length >= 6 && DELIV.test(l)) push('line', l, '', i);
+      }
+      // 묶음(같은 제목 아래)마다 모아, 과업이 많은 묶음부터 10개까지
+      const RANK = {label: 0, num: 1, box: 1, ord: 2, line: 3};
+      const structured = cands.some(c => c.type !== 'line');
+      const groups = {}; cands.filter(c => !structured || c.type !== 'line').forEach(c => { (groups[c.g] = groups[c.g] || []).push(c); });
+      const order = Object.values(groups).map(g => {
+        const best = ['label', 'num', 'box', 'ord', 'line'].find(t => g.filter(c => c.type === t).length >= 2) || (g[0] && g[0].type);
+        return g.filter(c => c.type === best);
+      }).filter(g => g.length).sort((a, b) => (RANK[a[0].type] - RANK[b[0].type]) || (b.length - a.length) || (a[0].i - b[0].i));
+      const picked = [];
+      for (const g of order) { if (picked.length + g.length > 10 && picked.length >= 2) continue; picked.push(...g.slice(0, 10 - picked.length)); if (picked.length >= 10) break; }
+      const ks = c => new Set(keysOf(c.name));
+      const out = [];
+      picked.sort((a, b) => a.i - b.i).forEach(c => { const A = ks(c); if (out.some(o => { const B = ks(o); const inter = [...A].filter(x => B.has(x)).length; return o.name.includes(c.name) || c.name.includes(o.name) || inter / Math.max(1, Math.min(A.size, B.size)) >= .8; })) return; out.push(c); });
+      return {tasks: out, orgs: orgTable(lines), lines};
+    }
+    const prodKeys = products.map(p => ({p, keys: new Set(keysOf([p.name, Array.isArray(p.keywords) ? p.keywords.join(' ') : ''].join(' ')).map(norm))}));
+    const trackKeys = track.map(x => ({x, keys: new Set(keysOf(x.title).map(norm))}));
+    function judgeTask(c, orgs, sal) {
+      const salient = k => !sal || sal.has(k) || kind(k) === 'own' || kind(k) === 'adj';
+      const nameK = keysOf(c.name).filter(k => salient(k) || k.length >= 3), descK = keysOf(c.desc).filter(k => !nameK.includes(k) && salient(k));
+      // 과업 이름의 낱말을 60%, 설명의 낱말을 40%로 본다(설명에는 일반적인 말이 많이 섞인다)
+      const own = [], adj = [], outT = [];
+      const part = ks => { let so = 0, sa = 0, sx = 0; ks.forEach(k => { const t = kind(k); if (!t) return; if (t === 'own') { so++; own.push(k); } else if (t === 'adj') { sa++; adj.push(k); } else { sx++; outT.push(k); } }); const tot = so + sa + sx; return {so, tot, r: tot ? (so + .4 * sa) / tot : null}; };
+      const pn = part(nameK), pd = part(descK.slice(0, 25));
+      let r = pn.r == null && pd.r == null ? null : pn.r == null ? pd.r : pd.r == null ? pn.r : .6 * pn.r + .4 * pd.r;
+      const mine = new Set([...own, ...adj].map(norm));
+      const ev = [];
+      const ownN = new Set(own.map(norm));
+      prodKeys.forEach(({p, keys}) => { const hit = [...mine].filter(k => keys.has(k)), oh = hit.filter(k => ownN.has(k)); if (oh.length || (hit.length && !ownN.size)) ev.push({t: 'p', name: p.name, hit, adjOnly: !oh.length, n: hit.length + oh.length}); });
+      trackKeys.forEach(({x, keys}) => { const hit = [...mine].filter(k => keys.has(k) && kind(k) === 'own'); if (hit.length) ev.push({t: 't', name: x.title, role: x.role, hit, n: hit.length}); });
+      ev.sort((a, b) => b.n - a.n);
+      // 웨이즈원 제품이 이 과업의 웨이즈원 낱말을 2개 이상 담고 있으면 근거가 뚜렷하다고 본다
+      if (r != null && ev.some(e => e.t === 'p' && e.hit.filter(k => kind(k) === 'own').length >= 2)) r = Math.min(1, r + .15);
+      const v = r == null ? 'unk' : r >= .5 && (pn.so + pd.so) > 0 ? 'own' : r >= .2 ? 'adj' : 'out';
+      // 이미 맡은 기관: 과업 이름의 낱말이 역할에 들어 있는 기관을 먼저, 없으면 설명의 낱말로 찾는다
+      const nameSet = new Set(nameK.filter(k => kind(k) !== null).map(norm)), all = new Set([...own, ...adj, ...outT].map(norm));
+      const score = o => [...nameSet].filter(k => o.keys.has(k)).length * 3 + [...all].filter(k => o.keys.has(k)).length;
+      const byName = orgs.filter(o => [...nameSet].some(k => o.keys.has(k)));
+      const who = (byName.length ? byName : orgs.filter(o => [...all].filter(k => o.keys.has(k)).length >= 2)).map(o => ({o, n: score(o)})).sort((a, b) => b.n - a.n).slice(0, 4).map(z => z.o.name);
+      return {name: c.name, desc: c.desc, verdict: v, r: r == null ? 0 : r, own: [...new Set(own)], adj: [...new Set(adj)], out: [...new Set(outT)].slice(0, 6),
+        ev: [...ev.filter(e => e.t === 'p').slice(0, 2), ...ev.filter(e => e.t === 't').slice(0, 1)], who, amount: money(c.name + ' ' + c.desc)};
+    }
+    function judge(text, plan) {
+      const {tasks, orgs, lines} = extract(text);
+      const sal = plan && plan.terms ? new Set(plan.terms.slice(0, 150).map(x => x.key)) : null;
+      const DSP = {}; ((plan && plan.terms) || []).forEach(x => { if (!x.phrase && x.t && !DSP[x.key]) DSP[x.key] = x.t; });
+      const dsp = a => a.map(k => DSP[k] || k);
+      const rows = tasks.map(c => judgeTask(c, orgs, sal)).map(r => ({...r, own: dsp(r.own), adj: dsp(r.adj), out: dsp(r.out), ev: r.ev.map(e => ({...e, hit: dsp(e.hit)}))}));
+      const tl = lines.find(l => /(총\s*사업비|사업\s*예산|사업기간\s*\/\s*예산|총\s*예산|추정\s*금액|사업비)/.test(l));
+      const total = tl ? money(tl.replace(/^.*?(총\s*사업비|사업\s*예산|사업기간\s*\/\s*예산|총\s*예산|추정\s*금액|사업비)/, '').replace(/\d{2,4}\s*년|['’‘]\d{2}/g, '')) : '';
+      const n = {own: rows.filter(r => r.verdict === 'own').length, adj: rows.filter(r => r.verdict === 'adj').length, out: rows.filter(r => r.verdict === 'out').length, unk: rows.filter(r => r.verdict === 'unk').length};
+      const adjRows = rows.filter(r => r.verdict === 'adj'), ownRows = rows.filter(r => r.verdict === 'own');
+      let gate = null;
+      if (rows.length >= 2 && !n.own) gate = adjRows.length && adjRows.every(r => r.who.length) ? 'taken' : adjRows.length ? 'adjonly' : 'none';
+      return {rows, orgs: orgs.map(o => ({name: o.name, roles: o.roles.slice(0, 4), ways1: o.ways1})), total, n, gate, ownTaken: ownRows.filter(r => r.who.length).map(r => r.name)};
+    }
+    return {judge};
   };
   const RT = null; // 홈페이지: 키워드 분석 전용
   const T = v => Array.isArray(v) ? v.join(' ') : String(v ?? '');
@@ -1320,12 +1442,22 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
   let FITM = null;
   const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: (D.track && D.track.items) || [], stems: PLAN.stems}));
   const LV = {none: 0, part: 1, core: 2};
+  let TKM = null;
+  const tkM = () => TKM || (TKM = makeTasks({stems: PLAN.stems, kind: fitM().kind, products: BMCL, track: (D.track && D.track.items) || []}));
+  // 과업별 검증 결과로 적합도 판정을 다잡는다: 문서 전체로는 「일치」가 아닌데 직접 맡을 과업도 없으면 불일치로 내린다
+  function taskGate(fit, tasks){
+    if(!fit || !tasks || !tasks.gate || fit.level === 'core' || fit.level === 'unknown') return fit;
+    const f = {...fit};
+    if(tasks.gate === 'taken' || tasks.gate === 'none'){ if(f.level !== 'none'){ f.level = 'none'; f.fit = Math.min(f.fit, .25); } f.byTasks = tasks.gate; }
+    else if(tasks.gate === 'adjonly' && f.level === 'core'){ f.level = 'part'; f.byTasks = 'adjonly'; }
+    return f;
+  }
   // 기획안 학습: 입력란 글과 붙인 문서 전체(문서당 20만 자까지)를 읽어 키워드·요약·낱말 가중치를 만든다
   function learnPlan(text){
     const C = corpus();
     return PLAN.learn({text, docs: DOCS.filter(d => d.text).map(d => ({name: d.name, text: d.text})), known: L => C.words.has(L), lex: C.lex});
   }
-  function kwSelect(text, plan, fit){
+  function kwSelect(text, plan, fit, tasks){
     const C = corpus(), low = text.toLowerCase(), terms = new Set(), W = {};
     const longDoc = !!(plan && plan.chars > 1500);
     const coreK = new Set(fit && fit.keys ? fit.keys : []);
@@ -1357,7 +1489,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     const prods = pick('prod', 4, .5), opps = pick('opp', 4, .55), its = pick('item', 6, .6), pols = pick3('pol', 6, .55), prgs = pick3('prg', 3, .6);
     const kw5 = plan ? plan.kw.map(k => k.t) : [];
     return {mode:'keyword', summary: (plan && plan.title) || text.replace(/\s+/g, ' ').slice(0, 70) + (text.length > 70 ? '…' : ''),
-      brief: plan ? plan.brief : [], kw5, fit: fit || null,
+      brief: plan ? plan.brief : [], kw5, fit: fit || null, tasks: tasks || null,
       elements: prods.map(d => ({name:d.id, product:d.id})),
       policies: pols.map(d => ({id:d.id, why:why(d)})),
       opps: opps.map((d, i) => ({id:d.id, strength: i === 0 && d.h.length >= 3 ? 'strong' : 'partial', why:why(d)})),
@@ -1435,7 +1567,7 @@ ${prgs || '(없음)'}
     }
     return f;
   }
-  function cleanSel(r, text, plan, fit){
+  function cleanSel(r, text, plan, fit, tasks){
     const kwA = [...new Set(arr(r && r.planKeywords).map(x => str(x, 24)).filter(Boolean))];
     (plan ? plan.kw.map(k => k.t) : []).forEach(t => { if(kwA.length < 5 && !kwA.some(k => k.replace(/\s+/g, '') === t.replace(/\s+/g, ''))) kwA.push(t); });
     const brA = arr(r && r.brief).map(x => str(x, 140)).filter(Boolean).slice(0, 2);
@@ -1448,8 +1580,9 @@ ${prgs || '(없음)'}
       buyers: arr(r && r.buyers).map(x => str(x, 30)).filter(Boolean).slice(0, 3),
       keywords: arr(r && r.keywords).map(x => str(x, 30)).filter(Boolean).slice(0, 4),
       risks: arr(r && r.risks).map(x => str(x, 90)).filter(Boolean).slice(0, 3)};
-    sel.fit = mergeFit(fit, r && r.coreFit);
-    if(!sel.elements.length) sel.elements = kwSelect(text, plan, fit).elements;
+    sel.fit = taskGate(mergeFit(fit, r && r.coreFit), tasks);
+    sel.tasks = tasks || null;
+    if(!sel.elements.length) sel.elements = kwSelect(text, plan, fit, tasks).elements;
     return sel;
   }
   function cmPrompt(sel, R){
@@ -1458,7 +1591,7 @@ ${prgs || '(없음)'}
     return `아래는 웨이즈원 사내 아이디어 검증 결과다. 점수와 근거 숫자는 페이지가 정해진 공식으로 계산했다. 숫자를 바꾸거나 새 숫자·기관명·시장 규모를 지어내지 말고, 근거에 있는 내용으로만 해석한다. JSON 하나로만 답한다. 한국어, 존댓말 없이 보고서 문체.
 
 [아이디어] ${sel.summary}${(sel.brief || []).length ? '\n[기획안 요약] ' + sel.brief.join(' ') : sel.docSummary ? '\n[첨부 문서 요지] ' + sel.docSummary : ''}${(sel.kw5 || []).length ? '\n[핵심 키워드] ' + sel.kw5.join(', ') : ''}
-[종합] ${Math.round(R.total)}점 · ${R.verdict[1]}${sel.fit ? `\n[웨이즈원 핵심기술 적합도] ${Math.round(sel.fit.fit * 100)}% · 맞는 말 ${sel.fit.own.join(', ') || '없음'} · 인접 ${sel.fit.adj.join(', ') || '없음'} · 웨이즈원에 없는 핵심 요소 ${sel.fit.out.join(', ') || '없음'}${sel.fit.team ? ' · 기획안 참여기관에 웨이즈원 없음' : ''}${sel.fit.ai ? ' · AI 판정: ' + sel.fit.ai.why : ''}` : ''}
+[종합] ${Math.round(R.total)}점 · ${R.verdict[1]}${sel.fit ? `\n[웨이즈원 핵심기술 적합도] ${Math.round(sel.fit.fit * 100)}% · 맞는 말 ${sel.fit.own.join(', ') || '없음'} · 인접 ${sel.fit.adj.join(', ') || '없음'} · 웨이즈원에 없는 핵심 요소 ${sel.fit.out.join(', ') || '없음'}${sel.fit.team ? ' · 기획안 참여기관에 웨이즈원 없음' : ''}${sel.fit.ai ? ' · AI 판정: ' + sel.fit.ai.why : ''}` : ''}${sel.tasks && sel.tasks.rows.length ? `\n[과업별 검증] ` + sel.tasks.rows.map(t => `${t.name}(${({own: '직접 수행', adj: '인접', out: '불가', unk: '근거 부족'})[t.verdict]}${t.who.length ? ', 기획안상 담당 ' + t.who.join('·') : ''})`).join('; ') : ''}
 ${ax}
 [필요 요소 중 협력이 필요한 것] ${R.axes.tech.gaps.join(', ') || '없음'}
 [바로 실행할 수 있는 공고] ${direct}
@@ -1598,7 +1731,9 @@ ${ax}
   function setW(w){ AXES.forEach(([k]) => { $i('iw-' + k).value = w[k]; }); wLabel(w); }
   function setEcon(e){ ['inv', 'rev', 'cost', 'yrs', 'rate'].forEach(k => { if(e && e[k] !== undefined) $i('ie-' + k).value = e[k]; }); }
   setW({...IW0, ...(load('ideaW', null) || {})});
-  ta.value = load('ideaDraft', '') || EXAMPLE;
+  // 새로고침하면 전에 쓴 내용은 지운다(입력란은 비우고 예시는 흐린 안내 글로만 보여 준다)
+  try { localStorage.removeItem('w1radar.ideaDraft'); } catch(e) {}
+  ta.value = '';
   ta.placeholder = '예: ' + EXAMPLE;
   const status = (t, err) => { stat.textContent = t || ''; stat.classList.toggle('err', !!err); };
 
@@ -1639,8 +1774,40 @@ ${ax}
       <div class="ifrow"><span class="kl">웨이즈원 기술과 맞는 말</span><div class="pchips">${chips(f.own, 'pc') + chips(f.adj, 'tc', '인접') || '<span class="nmeta">없음</span>'}</div></div>
       <div class="ifrow"><span class="kl">웨이즈원에 없는 핵심 요소</span><div class="pchips">${chips(f.out.slice(0, 8), 'tc') || '<span class="nmeta">없음</span>'}</div></div>
       ${f.team ? `<p class="ithin">기획안의 추진체계·참여기관 명단에 웨이즈원이 없습니다. 이미 짜인 컨소시엄이면 들어갈 역할이 있는지 주관기관에 먼저 확인하세요.</p>` : ''}
+      ${f.byTasks ? `<p class="ithin">${f.byTasks === 'adjonly' ? '과업별로 보면 웨이즈원이 직접 맡을 과업이 없어 「일부 일치」로 낮췄습니다.' : '과업별로 보면 웨이즈원이 직접 맡을 과업이 없고 인접 과업도 이미 다른 기관이 맡고 있어 「핵심기술 불일치」로 판정했습니다.'}</p>` : ''}
       ${f.ai ? `<p class="nmeta">AI 판정 · ${esc(f.ai.why)}</p>` : ''}
       <p class="nmeta">기획안에서 점수가 높은 낱말 15개(AI·플랫폼·데이터처럼 누구나 쓰는 말 제외)를 웨이즈원 BMC 제품·나라장터 수행 실적·사업군 핵심어와 맞춰 본 비중입니다. 인접 기술(디지털트윈·관제·3D 등)은 40%만 셉니다. 50% 이상 일치, 30~50% 일부 일치, 30% 미만 불일치.</p>
+    </div>`;
+  }
+  // 과업별 검증 상자
+  const TV = {own: ['go', '직접 수행 가능'], adj: ['fix', '인접 기술만'], out: ['hold', '수행 불가'], unk: ['hold', '판단 근거 부족']};
+  function taskBlock(T){
+    if(!T) return '';
+    const rows = T.rows || [];
+    if(rows.length < 2) return `<div class="panel isec itasks"><h3>과업별 검증</h3><p class="nmeta">기획안에서 과업 구조(①·❶·1)·□ 제목, 「(과업명) 설명」 형식, 「첫째·둘째」)를 찾지 못해 과업별 검증을 하지 않았습니다. 위 핵심기술 적합도로 판단하세요.</p></div>`;
+    const q = a => a.map(x => `「${esc(x)}」`).join(', ');
+    const adjR = rows.filter(r => r.verdict === 'adj'), ownR = rows.filter(r => r.verdict === 'own');
+    const whoOf = rs => [...new Set(rs.flatMap(r => r.who))].slice(0, 5).join('·');
+    const msg = T.gate === 'taken' ? `기획안 과업 ${rows.length}개 가운데 웨이즈원이 직접 맡을 수 있는 과업이 없습니다. 인접 기술로 걸치는 ${q(adjR.map(r => r.name))}도 기획안에서 이미 <b>${esc(whoOf(adjR))}</b>가 맡고 있어 웨이즈원이 들어갈 자리가 없습니다.`
+      : T.gate === 'adjonly' ? `직접 맡을 과업은 없고, ${q(adjR.map(r => r.name))}만 인접 기술로 일부 참여를 검토할 수 있습니다. 주관은 다른 기업이 맡고 웨이즈원은 보조 역할이 됩니다.`
+      : T.gate === 'none' ? `기획안 과업 ${rows.length}개 모두 웨이즈원 보유 기술 밖입니다.`
+      : `웨이즈원이 직접 맡을 수 있는 과업: ${q(ownR.map(r => r.name))}.${T.ownTaken && T.ownTaken.length ? ` 다만 ${q(T.ownTaken)}는 기획안에서 이미 다른 기관이 맡고 있어 역할 조정이 필요합니다.` : ''}`;
+    const chips = (a, cls, tag) => a.map(k => `<span class="${cls}">${esc(k)}${tag ? ' · ' + tag : ''}</span>`).join('');
+    const ev = r => r.ev.length ? r.ev.map(e => e.t === 'p' ? `<span><b>${esc(e.name)}</b>${e.adjOnly ? ' <span class="nmeta">(인접)</span>' : ''} <span class="nmeta">· ${esc(e.hit.join('·'))}</span></span>` : `<span>수행 실적 「${esc(e.name)}」${e.role ? ` <span class="nmeta">(${esc(e.role)})</span>` : ''}</span>`).join('') : r.own.length ? '<span class="nmeta">이름이 같은 BMC 제품·실적은 없고 사업군 핵심어로 판정</span>' : '<span class="nmeta">없음</span>';
+    const orgs = T.orgs || [];
+    return `<div class="panel isec itasks">
+      <h3>과업별 검증 <span class="nmeta">과업 ${rows.length}개 · 직접 수행 <b class="num">${T.n.own}</b> · 인접 <b class="num">${T.n.adj}</b> · 수행 불가 <b class="num">${T.n.out}</b>${T.n.unk ? ` · 근거 부족 ${T.n.unk}` : ''}${T.total ? ` · 기획안 총 사업비 <b class="num">${esc(T.total)}</b>` : ''}</span></h3>
+      <p class="ifmsg">${msg}</p>
+      <ol class="itl">${rows.map(r => { const [c, l] = TV[r.verdict] || TV.unk; return `<li class="v-${r.verdict}">
+        <div class="tv"><span class="vd ${c}">${l}</span><span class="nmeta">웨이즈원 비중 ${Math.round(r.r * 100)}%</span>${r.amount ? `<span class="nmeta">금액 <b class="num">${esc(r.amount)}</b></span>` : ''}</div>
+        <div class="tb"><b class="tn">${esc(r.name)}</b>${r.desc ? `<p class="td">${esc(r.desc.length > 170 ? r.desc.slice(0, 168) + '…' : r.desc)}</p>` : ''}
+          <div class="trow"><span class="kl">웨이즈원 근거</span><div class="tev">${ev(r)}</div></div>
+          <div class="trow"><span class="kl">맞는 기술</span><div class="pchips">${chips(r.own, 'pc') + chips(r.adj, 'tc', '인접') || '<span class="nmeta">없음</span>'}</div></div>
+          <div class="trow"><span class="kl">없는 기술</span><div class="pchips">${chips(r.out, 'tc ox') || '<span class="nmeta">없음</span>'}</div></div>
+          <div class="trow"><span class="kl">이미 맡은 기관</span><span>${r.who.length ? esc(r.who.join(' · ')) : '<span class="nmeta">기획안에 적힌 기관 없음</span>'}</span></div>
+        </div></li>`; }).join('')}</ol>
+      ${orgs.length ? `<p class="nmeta">기획안 참여기관 ${orgs.length}곳: ${esc(orgs.map(o => o.name).join(' · '))}${orgs.some(o => o.ways1) ? '' : ' — 웨이즈원 없음'}</p>` : ''}
+      <p class="nmeta">과업은 기획안의 번호·□ 제목·「(과업명) 설명」 형식에서 뽑습니다(배경·현황·일정·예산 절 제외, 최대 10개). 과업 이름의 낱말을 60%, 설명의 낱말을 40%로 보고 웨이즈원 기술 비중이 50% 이상이면 직접 수행, 20~50%면 인접, 20% 미만이면 불가입니다. 이미 맡은 기관은 기획안의 기관별 역할과 과업 낱말을 맞춰 찾습니다.</p>
     </div>`;
   }
   function render(){
@@ -1661,7 +1828,7 @@ ${ax}
       econ: () => (R.axes.econ.thin ? `<p class="ithin">레이더에 비슷한 사업 기록이 없어 시장 규모·경쟁 근거가 비어 있습니다.${S.docId ? '' : ' 결과가 저장되면 나라장터 심층 분석을 요청할 수 있습니다.'}</p>` : '') + deepBlock() + deepCtl(),
       exec: () => ''
     };
-    const ex = S.example ? `<p class="iex"><b>예시 결과</b> · 입력란의 예시 아이디어를 키워드로 분석한 결과입니다. 내 아이디어로 바꾸고 「검증하기」를 누르세요.</p>` : '';
+    const ex = S.example ? `<p class="iex"><b>예시 결과</b> · 입력란에 흐리게 보이는 예시 아이디어를 분석한 결과입니다. 기획안을 적거나 기획 문서를 붙이고 「검증하기」를 누르세요.</p>` : '';
     const who = S.at ? `<span class="nmeta">${esc(String(S.at).slice(0, 16).replace('T', ' '))}${S.byName ? ' · ' + esc(S.byName) : ''}</span>` : '';
     out.innerHTML = `${ex}
     <div class="panel isec">
@@ -1674,6 +1841,7 @@ ${ax}
           <span class="iwts">가중치 ${AXES.map(([k, n]) => n.slice(0, 2) + ' ' + w[k]).join(' · ')}</span></div></div>
     </div>
     ${fitBlock(sel.fit)}
+    ${taskBlock(sel.tasks)}
     <div class="panel isec">
       ${R.gate === 'none' ? `<p class="ithin">아래 사업은 기획안과 낱말이 겹쳐 찾은 것입니다. 기획안의 핵심 과업이 웨이즈원 기술과 달라, 이 사업들을 이 기획안의 실행 수단으로 보지 않습니다.</p>` : ''}
       <h3>① 바로 실행할 수 있는 사업 <span class="nmeta">${hasRun ? `열린 공고 ${direct.length}건 · 맞는 사업 묶음 ${opps.length}개` : '없음'}</span></h3>
@@ -1714,20 +1882,20 @@ ${ax}
       else status('아이디어를 한두 문장 이상 적거나 기획 문서를 붙여 주세요.', true);
       ta.focus(); return;
     }
-    if(text) store('ideaDraft', text);
     Object.assign(S, {text, docs: docsMeta, example: false, cm: null, docId: null, deep: null, at: null, byName: null, pending: false});
     const kwText = (text + '\n' + dt.slice(0, 12000)).trim();
-    const plan = learnPlan(text), fit = fitM().judge(plan, (text + '\n' + dt).slice(0, 120000));
+    const plan = learnPlan(text), full = [text, ...DOCS.filter(d => d.text).map(d => d.text)].join('\n');
+    const tasks = tkM().judge(full.slice(0, 400000), plan), fit0 = fitM().judge(plan, full.slice(0, 120000)), fit = taskGate(fit0, tasks);
     const sample = aiOff ? null : await SAMPLE;
-    if(!sample){ S.sel = kwSelect(kwText, plan, fit); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
+    if(!sample){ S.sel = kwSelect(kwText, plan, fit, tasks); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
     ctl = new AbortController(); const sig = ctl.signal; busy(true);
     status(dt ? `1/2 · 첨부 문서 ${docsMeta.length}건과 아이디어를 읽고 맞는 사업을 고르는 중입니다. 보통 1~2분 걸립니다.` : '1/2 · 아이디어에서 기술 요소를 정리하고 맞는 사업을 고르는 중입니다. 보통 30초~1분 걸립니다.');
-    try { S.sel = cleanSel(await sample.json(selPrompt(text, dt), {signal: sig, modelTier: 'default'}), kwText, plan, fit); }
+    try { S.sel = cleanSel(await sample.json(selPrompt(text, dt), {signal: sig, modelTier: 'default'}), kwText, plan, fit0, tasks); }
     catch(e){
       busy(false);
       if(e && e.code === 'cancelled'){ status('멈췄습니다.'); return; }
       if(e && OFF.has(e.code)) aiOff = true;
-      S.sel = kwSelect(kwText, plan, fit); render(); status(errText(e && e.code) + ' 키워드 분석으로 계산했습니다.', true); return;
+      S.sel = kwSelect(kwText, plan, fit, tasks); render(); status(errText(e && e.code) + ' 키워드 분석으로 계산했습니다.', true); return;
     }
     S.pending = true; render(); out.scrollIntoView({block:'start', behavior:'smooth'});
     status('2/2 · 점수 해석을 쓰는 중입니다.');

@@ -775,6 +775,20 @@ details.mkt ul{margin-top:6px}
 .ifrow .kl{padding-top:3px}
 .igate{color:var(--warn);font-weight:600}
 @media (max-width:620px){.ifrow{grid-template-columns:minmax(0,1fr)}}
+/* 과업별 검증 — 2026-10-19 */
+.itl{list-style:none;margin:0;padding:0;display:grid}
+.itl>li{display:grid;grid-template-columns:140px minmax(0,1fr);gap:6px 20px;padding:16px 0;border-top:1px solid var(--line)}
+.itl>li:first-child{border-top:0;padding-top:4px}
+.itl .tv{display:grid;gap:5px;align-content:start;justify-items:start}
+.itl .tb{display:grid;gap:7px;min-width:0}
+.itl .tn{font-size:1rem;font-weight:650;line-height:1.45}
+.itl .td{font-size:.88rem;line-height:1.65;color:var(--ink2)}
+.itl .trow{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 12px;align-items:start;font-size:.86rem}
+.itl .trow .kl{padding-top:2px}
+.itl .tev{display:grid;gap:3px}
+.itl .ox{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink2)}
+.itl>li.v-out .tn,.itl>li.v-unk .tn{color:var(--ink2)}
+@media (max-width:620px){.itl>li{grid-template-columns:minmax(0,1fr);gap:8px}.itl .tv{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}.itl .trow{grid-template-columns:minmax(0,1fr);gap:2px}}
 
 /* 인사이트 실행 계획 (2026-10-19): 판단 한 줄 → 핵심 숫자 → 실행 액션·목표·리스크. 실행 보드는 기한 순 */
 .ins .verdict{font-size:1.02rem;line-height:1.72;color:var(--ink);font-weight:600;padding-left:14px;border-left:3px solid var(--mark)}

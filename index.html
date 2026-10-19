@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=9223c505">
-<link rel="stylesheet" href="app.css?v=9223c505">
+<link rel="stylesheet" href="radar.css?v=9d1f9614">
+<link rel="stylesheet" href="app.css?v=9d1f9614">
 </head>
 <body>
 
@@ -260,9 +260,9 @@
 <section class="view" id="v-idea" data-view="idea" hidden>
   <div class="sec-head"><h2>아이디어 검증</h2>
     <p class="muted" id="idea-intro">기획안 문장이나 기획 문서를 넣으면 먼저 기획안 전체를 읽고 익혀 핵심 키워드 5개와 두 줄 요약을 보여 주고, 레이더에서 바로 실행할 수 있는 나라장터 공고·사업·지원사업을 찾은 뒤 정책·기술·경제·실행 네 축의 타당성을 점수로 보여 줍니다. 점수는 레이더 데이터로 정해진 공식에 따라 계산하고, AI는 필요한 기술 요소 정리와 사업 고르기, 해석 문장만 맡습니다. 사내 1차 검토용이며 정식 예비타당성조사를 대신하지 않습니다.</p></div>
-  <form class="panel ideaform" id="ideaform" novalidate>
+  <form class="panel ideaform" id="ideaform" novalidate autocomplete="off">
     <label class="kl" for="idea-text">기획안·아이디어 (한두 문단: 무엇을, 누구에게, 어떤 기술로 · 기획 문서만 붙여도 됩니다)</label>
-    <textarea id="idea-text" rows="6"></textarea>
+    <textarea id="idea-text" rows="6" autocomplete="off"></textarea>
     <div class="idocs">
       <div class="iact"><button class="btn" type="button" id="idea-addfile">기획 문서 붙이기</button><input id="idea-files" type="file" multiple accept=".hwp,.hwpx,.pptx,.docx,.pdf,.txt,.md" hidden>
         <span class="nmeta">한글(HWP·HWPX)·PPT(PPTX)·워드(DOCX)·PDF·텍스트, 6개까지. 이 칸에 끌어다 놓아도 됩니다. 문서는 이 브라우저 안에서만 읽고 원문은 저장하지 않습니다(파일 이름과 요지만 남음).</span></div>
@@ -300,6 +300,7 @@
       <li><b>경제(100)</b>: 유사 발주 규모 40(관련 사업의 최근 3년 계약액과 진행 중 공고 예산의 합, 100억원이면 만점인 로그 척도) + 반복 발주 20(해마다 다시 나오는 사업 6건이면 만점) + 경쟁 개방성 25(같은 업체 3년 이상 연속 수주·유찰 뒤 수의계약 비율이 높을수록 감점) + 수익성 15(B/C 1.5 이상 만점, 1.2 이상 0.8, 1.0 이상 0.6, 미만 0.2, 가정 없으면 0.5).</li>
       <li><b>실행(100)</b>: 참가자격 60(실행할 공고의 판정 평균: 참여 가능 1·보완 필요 0.6·확인 필요 0.4) + 지원사업 활용 25(맞는 연구개발·기업지원 2건이면 만점) + 자체 수행 비율 15(협력 없이 맡을 수 있는 기술 요소 비율).</li>
       <li><b>종합</b>: 가중 평균. 70점 이상 추진, 55~69점 보완 후 추진, 55점 미만 보류. 근거 데이터가 없는 항목은 0점 또는 중간값으로 두고 그렇게 표시합니다.</li>
+      <li><b>과업별 검증</b>: 기획안의 번호(①·❶·1))·□ 제목·「(과업명) 설명」·「첫째·둘째」 형식에서 과업을 최대 10개 뽑고(배경·현황·일정·예산·추진체계 절 제외), 과업마다 웨이즈원 기술 비중(과업 이름 60%·설명 40%)으로 직접 수행(50% 이상)·인접(20~50%)·불가(20% 미만)를 나눕니다. 근거가 되는 BMC 제품·수행 실적과, 기획안의 기관별 역할 표에서 그 과업을 이미 맡은 기관을 함께 보여 줍니다. 문서 전체로 「일치」가 아닌데 직접 맡을 과업이 없고 인접 과업도 이미 다른 기관이 맡았으면 「핵심기술 불일치」로 판정합니다.</li>
       <li><b>웨이즈원 핵심기술 적합도(관문)</b>: 기획안에서 점수가 높은 낱말 15개(AI·플랫폼·데이터·실증처럼 누구나 쓰는 말 제외)가 웨이즈원 BMC 제품·나라장터 수행 실적·사업군 핵심어(정밀지도·LDM·ITS·공간정보·자율주행 관제·도로대장·토지적성 등)와 얼마나 맞는지 봅니다. 디지털트윈·관제·3D 같은 인접 기술은 40%만 셉니다. 30% 미만이면 「핵심기술 불일치」로 다른 점수와 관계없이 보류(상한 45점), 30~50%면 「일부 일치」로 최대 보완 후 추진(상한 69점)입니다. 기술 축의 보유 기술 커버리지도 이 비중으로 계산합니다(70%면 만점). AI 분석에서는 AI가 기획안의 핵심 과업을 읽고 따로 판정하며, 더 엄한 쪽을 따르되 AI가 올릴 때는 한 단계까지만 올립니다.</li>
       <li><b>기획안 학습</b>: 입력란 글과 붙인 문서 전체(문서당 20만 자까지)를 이 브라우저 안에서 읽습니다. 조사·어미를 떼어 낱말마다 나온 횟수와 위치(제목·첫머리·파일 이름은 더 무겁게)를 세고, 자주 붙어 다니는 낱말은 한 구(예: 공간정보 플랫폼)로 묶습니다. 점수가 높은 낱말 5개가 <b>핵심 키워드</b>, 그 낱말을 가장 많이 담은 문장 둘이 <b>두 줄 요약</b>입니다. 요약은 기획안 문장을 그대로 고르며 새로 지어 쓰지 않습니다.</li>
       <li>키워드 분석(AI 없이 실행될 때)은 기획안에서 익힌 낱말 가중치(핵심 키워드일수록 무겁게)와 레이더 데이터의 겹침으로 사업·제품·정책을 고릅니다. 이때 기술 커버리지는 겹치는 제품 2개면 만점으로 봅니다.</li>
@@ -320,8 +321,8 @@
   </div>
 </div>
 
-<script src="config.js?v=9223c505"></script>
-<script src="radar.js?v=9223c505"></script>
-<script type="module" src="app.js?v=9223c505"></script>
+<script src="config.js?v=9d1f9614"></script>
+<script src="radar.js?v=9d1f9614"></script>
+<script type="module" src="app.js?v=9d1f9614"></script>
 </body>
 </html>
