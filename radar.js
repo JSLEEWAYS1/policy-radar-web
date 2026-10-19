@@ -1469,7 +1469,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     }
     return {judge};
   };
-  const RT = null; // 홈페이지: 키워드 분석 전용
+  const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
   const T = v => Array.isArray(v) ? v.join(' ') : String(v ?? '');
   const IW0 = {policy:30, tech:30, econ:30, exec:10};
   const AXES = [['policy','정책 타당성','상위계획·예산·시의성'],['tech','기술 타당성','보유 제품·성숙도·실적'],['econ','경제 타당성','시장 규모·반복성·경쟁·수익성'],['exec','실행 가능성','참가자격·지원사업·자체 수행']];
@@ -1504,10 +1504,12 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     return CORP = {all, lex:[...lex], get words(){ return words || (words = PLAN.stems(all.map(d => d.t).join('\n'))); }};
   }
   let FITM = null;
-  const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: (D.track && D.track.items) || [], stems: PLAN.stems}));
+  // 수행 실적 근거: 나라장터 계약 + 나라장터에 결과가 공개되지 않아 팀이 직접 등록한 수주
+  const TRK = [...((D.track && D.track.items) || []), ...((D.track && D.track.manual) || []).filter(x => x && x.title)];
+  const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: TRK, stems: PLAN.stems}));
   const LV = {none: 0, part: 1, core: 2};
   let TKM = null;
-  const tkM = () => TKM || (TKM = makeTasks({stems: PLAN.stems, kind: fitM().kind, products: BMCL, track: (D.track && D.track.items) || [], clean: PLAN.clean}));
+  const tkM = () => TKM || (TKM = makeTasks({stems: PLAN.stems, kind: fitM().kind, products: BMCL, track: TRK, clean: PLAN.clean}));
   // 과업별 검증 결과로 적합도 판정을 다잡는다: 문서 전체로는 「일치」가 아닌데 직접 맡을 과업도 없으면 불일치로 내린다
   function taskGate(fit, tasks){
     if(!fit || !tasks || !tasks.gate || fit.level === 'core' || fit.level === 'unknown') return fit;
@@ -2043,10 +2045,12 @@ ${ax}
   { const p0 = PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L) || fitM().has(L), lex: corpus().lex}); S.sel = kwSelect(EXAMPLE, p0, fitM().judge(p0, EXAMPLE)); S.example = true; render(); }
 })();
 
-/* 웨이즈원 수행 실적(2026-10-19): 나라장터 계약에서 웨이즈원이 대표·단독·공동수급 구성원·하도급으로 들어간 사업을 사업 키워드별로 묶는다 */
+/* 웨이즈원 수행 실적(2026-10-19): 나라장터 계약에서 웨이즈원이 대표·단독·공동수급 구성원·하도급으로 들어간 사업을 사업 키워드별로 묶는다.
+   나라장터에 개찰결과·계약이 공개되지 않은 수주(협상 결과 미게시, 기관 자체 계약, 하도급 미통보 등)는 팀이 「직접 등록」으로 넣는다(공용 저장소 trackManual). */
 (function(){
   const root = document.getElementById('v-track'); if(!root) return;
-  const T = D.track || {}, ALL = (T.items || []).map(x => ({...x}));
+  const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
+  const T = D.track || {}, AUTO = (T.items || []).map(x => ({...x}));
   // 사업 키워드(위에서부터 먼저 맞는 것이 대표 키워드). 웨이즈원 사업군 단위로 같은 깊이를 맞춘다
   const KW = [
     ['defense', '국방·해외 공간정보', /전술|국방|군사|몽골|해외|ODA|주소정보\s*현대화/],
@@ -2060,27 +2064,51 @@ ${ax}
     ['platform', '공간정보 플랫폼·AI', /플랫폼|AI|인공지능|디지털\s*트윈|클라우드/]
   ];
   const NAME = Object.fromEntries(KW.map(k => [k[0], k[1]])); NAME.etc = '기타';
-  ALL.forEach(x => {
+  const prep = x => {
     const k = KW.filter(r => r[2].test(x.title || '')).map(r => r[0]);
     x._kw = k.length ? k : ['etc'];
-    x._mine = x.share != null && x.share !== '' ? Math.round((x.amt || 0) * (+x.share) / 100) : null;
-  });
+    x._mine = x.amt && x.share != null && x.share !== '' ? Math.round((x.amt || 0) * (+x.share) / 100) : null;
+    return x;
+  };
+  AUTO.forEach(prep);
   const ROLE = {lead: ['대표', '단독'], mem: ['구성'], sub: ['하도급']};
   const RTAG = {'대표': 'lead', '단독': 'solo', '구성': 'mem', '하도급': 'sub'};
   const RNAME = {'대표': '대표사', '단독': '단독', '구성': '구성원', '하도급': '하도급'};
+  const REASONS = ['개찰결과 미공지·나라장터 계약 미등록', '기관 자체 계약(나라장터 외)', '민간·연구기관 계약', '하도급 미통보', '기타'];
+  const DK = ['계약', '개찰', '선정', '착수'];
   // 나라장터 계약방법 문구를 짧게
   const mth = m => { m = String(m || ''); return /협상/.test(m) ? '협상에 의한 계약' : /2천만원 이하|소액/.test(m) ? '소액 수의계약' : /수의|1인뿐|특수한 기술/.test(m) ? '수의계약' : /제한/.test(m) ? '제한경쟁' : /일반경쟁/.test(m) ? '일반경쟁' : /중소벤처기업부장관|중기간/.test(m) ? '중소기업 간 경쟁' : m; };
   const SRCH = 'https://www.g2b.go.kr/link/FIUA009_01/single/?searchKeyword=';
   const won = v => v ? eokT(v) : '-';
+  // 같은 사업이 나중에 나라장터 계약으로 잡히면 자동 수집 쪽을 보여 준다(사업명에서 괄호 속 계약방법·띄어쓰기를 빼고 비교)
+  const norm = t => String(t || '').replace(/\((?:협상[^)]*|수의[^)]*|긴급)\)|\[(?:협상[^\]]*|수의[^\]]*)\]/g, '').replace(/[\s·,.\-_]/g, '');
+  const AUTOK = new Set(AUTO.map(x => norm(x.title)));
+
+  /* 직접 등록 실적: 페이지 데이터(자동 갱신 때 저장소 목록을 옮겨 둔 사본) + 이 화면에서 공용 저장소를 읽은 최신 목록 */
+  const DAY = s => (String(s || '').match(/^\d{4}-\d{2}(-\d{2})?$/) || [null])[0];
+  const NUM = v => { const n = parseInt(String(v ?? '').replace(/[^\d]/g, ''), 10); return n > 0 ? n : null; };
+  const cleanM = (r, id, origin) => {
+    const s = (k, n) => String(r[k] ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+    const role = RTAG[s('role', 4)] ? s('role', 4) : null, sh = NUM(r.share);
+    return {id, origin, manual: true, title: s('title', 160), buyer: s('buyer', 80), date: DAY(r.date), dateKind: DK.includes(r.dateKind) ? r.dateKind : '계약',
+      start: DAY(r.start), end: DAY(r.end), amt: NUM(r.amt), est: NUM(r.est), role, share: role === '단독' || role === '하도급' ? 100 : (sh && sh <= 100 ? sh : null),
+      lead: role === '구성' ? s('lead', 60) : '', reason: REASONS.includes(r.reason) ? r.reason : '기타', ref: /^[A-Z0-9-]{6,30}$/.test(s('ref', 30).toUpperCase()) ? s('ref', 30).toUpperCase() : '',
+      note: s('note', 200), addedAt: s('addedAt', 10), _doc: origin === 'db' ? String(id).replace(/^db-/, '') : null};
+  };
+  const SAVED = (T.manual || []).map(x => cleanM(x, x.id, x.origin || 'seed'));
+  let LIVE = null, ALL = [], DUP = [];
+  function rebuild(){
+    const M = (LIVE ? SAVED.filter(x => x.origin !== 'db').concat(LIVE) : SAVED).filter(x => x.title && x.buyer);
+    DUP = M.filter(x => AUTOK.has(norm(x.title)));
+    ALL = AUTO.concat(M.filter(x => !AUTOK.has(norm(x.title))).map(prep));
+    const n = $('#t-track .n');
+    if(n) n.textContent = ALL.length; else if(tb && ALL.length) tb.insertAdjacentHTML('beforeend', `<span class="n">${ALL.length}</span>`);
+  }
+
   let role = 'all', kw = null;
   try { const r = JSON.parse(localStorage.getItem('w1radar.trrole') || '""'); if(r && (r === 'all' || ROLE[r])) role = r; } catch(e) {}
-
   const tb = document.getElementById('t-track');
-  if(tb && ALL.length) tb.insertAdjacentHTML('beforeend', `<span class="n">${ALL.length}</span>`);
-
   const seg = document.getElementById('trrole');
-  const segs = [['all', '전체'], ['lead', '대표·단독'], ['mem', '공동수급 구성원'], ['sub', '하도급']].filter(([k]) => k === 'all' || ALL.some(x => ROLE[k].includes(x.role)));
-  seg.innerHTML = segs.map(([k, l]) => `<button type="button" data-r="${k}" aria-pressed="${k === role}">${l} <span class="nmeta">${k === 'all' ? ALL.length : ALL.filter(x => ROLE[k].includes(x.role)).length}</span></button>`).join('');
   seg.addEventListener('click', e => { const b = e.target.closest('button[data-r]'); if(!b) return; role = b.dataset.r; store('trrole', role); render(); });
 
   const tbl = document.getElementById('trtable');
@@ -2095,19 +2123,31 @@ ${ax}
     const share = x.role === '대표' || x.role === '구성' ? (x.share != null ? ` <b class="num">${x.share}%</b>` : ' 지분 미상') : '';
     const period = x.start || x.end ? ` · <span class="nw">기간 ${esc(x.start || '')}~${esc(x.end || '')}</span>` : '';
     const extra = x._kw.slice(1).map(k => `<span class="tag kw">${esc(NAME[k])}</span>`).join('');
-    return `<li><div class="tw"><b>${esc(ym(x.date) || '-')}</b><span class="tag ${RTAG[x.role]}">${RNAME[x.role]}${share}</span></div>
+    const rtag = x.role ? `<span class="tag ${RTAG[x.role]}">${RNAME[x.role]}${share}</span>` : '<span class="tag unk">역할 확인 필요</span>';
+    if(x.manual){
+      const amt = x.amt ? `계약 <b class="num">${won(x.amt)}</b>` : `<span class="need">계약금액 확인 필요</span>${x.est ? ` · 추정가격 <b class="num">${won(x.est)}</b>` : ''}`;
+      const title = x.ref ? `<a href="${SRCH + encodeURIComponent(x.ref)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : `<span class="tt">${esc(x.title)}</span>`;
+      const act = DB && canWrite !== false && x.origin === 'db' && x._doc ? `<span class="tract"><button type="button" class="linkish" data-ed="${esc(x._doc)}">고치기</button><button type="button" class="linkish" data-del="${esc(x._doc)}">지우기</button></span>` : '';
+      return `<li class="man"><div class="tw"><b>${esc(ym(x.date) || '-')}${x.dateKind && x.dateKind !== '계약' ? `<small> ${esc(x.dateKind)}</small>` : ''}</b>${rtag}<span class="tag man" title="나라장터에 결과가 공개되지 않아 팀이 직접 등록한 실적">직접 등록</span></div>
+        <div class="tb">${title}
+          <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer)} · ${amt}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${period}${x.ref ? ` · 공고 ${esc(x.ref)}` : ''}</span>
+          ${mem}<span class="mem why">나라장터에 없는 이유: ${esc(x.reason)}${x.note ? ' · ' + esc(x.note) : ''}</span>${extra ? `<span class="kws">${extra}</span>` : ''}${act}</div></li>`;
+    }
+    return `<li><div class="tw"><b>${esc(ym(x.date) || '-')}</b>${rtag}</div>
       <div class="tb"><a href="${SRCH + encodeURIComponent(x.title)}" target="_blank" rel="noopener">${esc(x.title)}</a>
         <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer || x.org || '')} · 계약 <b class="num">${won(x.amt)}</b>${x.total ? ` (장기계속 총 ${won(x.total)})` : ''}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${x.method ? ' · ' + esc(mth(x.method)) : ''}${x.chg ? ' · 변경 ' + esc(x.chg) + '회' : ''}${period}</span>
         ${mem}${extra ? `<span class="kws">${extra}</span>` : ''}</div></li>`;
   }
 
   function render(){
-    $$('button[data-r]', seg).forEach(b => b.setAttribute('aria-pressed', b.dataset.r === role ? 'true' : 'false'));
+    const segs = [['all', '전체'], ['lead', '대표·단독'], ['mem', '공동수급 구성원'], ['sub', '하도급']].filter(([k]) => k === 'all' || ALL.some(x => ROLE[k].includes(x.role)));
+    if(role !== 'all' && !segs.some(([k]) => k === role)) role = 'all';
+    seg.innerHTML = segs.map(([k, l]) => `<button type="button" data-r="${k}" aria-pressed="${k === role}">${l} <span class="nmeta">${k === 'all' ? ALL.length : ALL.filter(x => ROLE[k].includes(x.role)).length}</span></button>`).join('');
     const L = ALL.filter(x => role === 'all' || ROLE[role].includes(x.role));
     const sum = a => a.reduce((s, x) => s + (x.amt || 0), 0), mine = a => a.reduce((s, x) => s + (x._mine || 0), 0);
-    const buyers = new Set(L.map(x => x.buyer || x.org)).size;
+    const buyers = new Set(L.map(x => x.buyer || x.org)).size, unk = L.filter(x => !x.amt).length, man = L.filter(x => x.manual).length;
     document.getElementById('trkpi').innerHTML = [
-      [L.length + '건', '사업 수'], [won(sum(L)), '계약 총액'], [won(mine(L)), '웨이즈원 몫(지분 반영)'], [buyers + '곳', '발주·수요기관']
+      [L.length + '건', '사업 수' + (man ? ` (직접 등록 ${man}건 포함)` : '')], [won(sum(L)), '계약 총액' + (unk ? ` (금액 미확인 ${unk}건 제외)` : '')], [won(mine(L)), '웨이즈원 몫(지분 반영)'], [buyers + '곳', '발주·수요기관']
     ].map(([v, l]) => `<div class="k"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
     // 키워드별 표(대표 키워드 기준이라 합계가 맞는다)
     const G = {}; L.forEach(x => (G[x._kw[0]] ||= []).push(x));
@@ -2123,10 +2163,81 @@ ${ax}
     document.getElementById('trgroups').innerHTML = !L.length ? `<p class="trempty">${ALL.length ? '이 조건에 맞는 사업이 없습니다.' : '아직 수집된 실적이 없습니다. 나라장터 자동 수집이 다음에 돌 때 채워집니다.'}</p>`
       : show.map(k => { const a = G[k].slice().sort((p, q) => (q.date || '').localeCompare(p.date || ''));
         return `<section class="panel trg"><h3>${esc(NAME[k])} <span class="nmeta">${a.length}건 · 계약 총액 <b class="num">${won(sum(a))}</b> · 웨이즈원 몫 <b class="num">${won(mine(a))}</b></span></h3><ul class="trlist">${a.map(row).join('')}</ul></section>`; }).join('');
+    const yr = String(T.from || '').slice(0, 4), mn = ALL.filter(x => x.manual).length;
+    document.getElementById('trnote').innerHTML = AUTO.length || mn ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다.${mn ? ` <b>직접 등록 ${mn}건</b>은 수주했지만 나라장터에 개찰결과·계약이 공개되지 않아 팀이 넣은 실적입니다. 계약금액을 모르는 건은 합계에서 뺍니다.` : ''}${DUP.length ? ` 직접 등록한 ${DUP.length}건은 같은 사업명의 나라장터 계약이 잡혀 자동 수집 쪽으로 보여 줍니다.` : ''} 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
   }
-  const yr = String(T.from || '').slice(0, 4);
-  document.getElementById('trnote').innerHTML = ALL.length ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다. 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
-  render();
+
+  /* ── 직접 등록 양식(공용 저장소를 쓸 수 있는 화면에서만) ── */
+  const man = document.getElementById('trman'), form = document.getElementById('trform'), openB = document.getElementById('tradd'), st = document.getElementById('trstat');
+  let DB = null, canWrite = null, uid = null, editId = null, delArm = null;
+  const say = (t, err) => { st.textContent = t; st.classList.toggle('err', !!err); };
+  const kst = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+  function fill(x){
+    form.reset();
+    if(x) ['title', 'buyer', 'ref', 'date', 'dateKind', 'start', 'end', 'amt', 'est', 'role', 'share', 'lead', 'reason', 'note'].forEach(k => { if(form.elements[k] && x[k] != null) form.elements[k].value = x[k]; });
+    hint(); roleUi();
+  }
+  function hint(){
+    ['amt', 'est'].forEach(k => { const v = NUM(form.elements[k].value), h = document.getElementById('trh-' + k); if(h) h.textContent = v ? '= ' + eokT(v) : ''; });
+  }
+  function roleUi(){ const r = form.elements.role.value; form.elements.share.disabled = !(r === '대표' || r === '구성'); form.elements.lead.disabled = r !== '구성'; }
+  function openForm(x){
+    editId = x ? x._doc : null; fill(x);
+    form.querySelector('[type=submit]').textContent = x ? '고친 내용 저장' : '등록';
+    document.getElementById('trman-t').textContent = x ? '직접 등록 실적 고치기' : '나라장터에 없는 실적 직접 등록';
+    man.hidden = false; openB.setAttribute('aria-expanded', 'true'); say('');
+    form.elements.title.focus(); man.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+  function closeForm(){ man.hidden = true; openB.setAttribute('aria-expanded', 'false'); editId = null; form.reset(); }
+  openB.addEventListener('click', () => man.hidden ? openForm(null) : closeForm());
+  document.getElementById('trcancel').addEventListener('click', closeForm);
+  form.addEventListener('input', e => { if(e.target.name === 'amt' || e.target.name === 'est') hint(); if(e.target.name === 'role') roleUi(); });
+  form.addEventListener('submit', async e => {
+    e.preventDefault(); if(!DB) return;
+    const f = Object.fromEntries(new FormData(form).entries());
+    const prev = editId && LIVE ? LIVE.find(x => x._doc === editId) : null;
+    const body = cleanM(f, '', 'db');
+    if(body.title.length < 4 || !body.buyer || !body.date){ say('사업명·발주기관·날짜를 넣어 주세요.', true); return; }
+    if(f.ref && !body.ref){ say('공고번호는 영문·숫자로 적어 주세요(예: R25BK01232658).', true); return; }
+    ['id', 'origin', 'manual', '_doc'].forEach(k => delete body[k]);
+    Object.keys(body).forEach(k => { if(body[k] === '' || body[k] == null) body[k] = null; });
+    body.addedAt = (prev && prev.addedAt) || kst().slice(0, 10); body.at = kst(); body.by = uid || null;
+    const btn = form.querySelector('[type=submit]'); btn.disabled = true; say('저장하는 중입니다.');
+    try {
+      if(editId) await DB.doc('trackManual/' + editId).set(body); else await DB.collection('trackManual').add(body);
+      closeForm(); say(''); toast(editId ? '고쳤습니다.' : '등록했습니다. 팀 모두에게 보이고, 다음 자동 갱신 때 홈페이지에도 반영됩니다.');
+    } catch(err){
+      if(err && err.code === 'invalid_argument'){ canWrite = false; say('읽기 전용 권한이라 저장할 수 없습니다.', true); openB.hidden = true; }
+      else if(err && err.code === 'quota_exceeded') say('저장 공간이 가득 찼습니다.', true);
+      else say('저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.', true);
+    } finally { btn.disabled = false; }
+  });
+  function toast(t){ const n = document.getElementById('trdone'); n.textContent = t; n.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { n.hidden = true; }, 6000); }
+  document.getElementById('trgroups').addEventListener('click', async e => {
+    const ed = e.target.closest('[data-ed]'), del = e.target.closest('[data-del]');
+    if(ed){ const x = (LIVE || []).find(y => y._doc === ed.dataset.ed); if(x) openForm(x); return; }
+    if(!del || !DB) return;
+    const id = del.dataset.del;
+    if(delArm !== id){ delArm = id; del.textContent = '한 번 더 누르면 지웁니다'; setTimeout(() => { if(delArm === id){ delArm = null; del.textContent = '지우기'; } }, 4000); return; }
+    delArm = null; del.disabled = true;
+    try { await DB.doc('trackManual/' + id).delete(); toast('지웠습니다.'); }
+    catch(err){ del.disabled = false; del.textContent = '지우기'; toast(err && err.code === 'invalid_argument' ? '읽기 전용 권한이라 지울 수 없습니다.' : '지우지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); }
+  });
+
+  rebuild(); render();
+  if(RT) (async () => {
+    const [db, user] = await Promise.all([RT.use('db').catch(() => null), RT.use('user').catch(() => null)]);
+    if(!db) return;
+    DB = db;
+    if(user){ try { uid = await user.id(); } catch(e){} try { canWrite = await user.can('data.write'); } catch(e){} }
+    if(canWrite !== false) openB.hidden = false;
+    try {
+      db.collection('trackManual').limit(200).onSnapshot(snap => {
+        LIVE = snap.docs.map(d => cleanM(d.data(), 'db-' + d.id, 'db'));
+        rebuild(); render();
+      }, () => {});
+    } catch(e){}
+  })();
 })();
 
 const h0 = location.hash.slice(1);

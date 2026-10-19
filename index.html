@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=e65fc72f">
-<link rel="stylesheet" href="app.css?v=e65fc72f">
+<link rel="stylesheet" href="radar.css?v=0c92cb5f">
+<link rel="stylesheet" href="app.css?v=0c92cb5f">
 </head>
 <body>
 
@@ -246,13 +246,34 @@
 
 <section class="view" id="v-track" data-view="track" hidden>
   <div class="sec-head"><h2>웨이즈원 수행 실적</h2>
-    <p class="muted">나라장터 계약 기록에서 웨이즈원이 <b>대표사(단독 포함)</b>이거나 <b>공동수급 구성원</b>으로 들어간 사업을 모아 사업 키워드별로 묶었습니다. 하도급으로 수행한 사업도 따로 표시합니다. 금액은 계약 총액이고, 「웨이즈원 몫」은 계약 총액에 웨이즈원 지분율을 곱한 값입니다.</p></div>
+    <p class="muted">나라장터 계약 기록에서 웨이즈원이 <b>대표사(단독 포함)</b>이거나 <b>공동수급 구성원</b>으로 들어간 사업을 모아 사업 키워드별로 묶었습니다. 하도급으로 수행한 사업도 따로 표시합니다. 금액은 계약 총액이고, 「웨이즈원 몫」은 계약 총액에 웨이즈원 지분율을 곱한 값입니다. 수주했지만 나라장터에 개찰결과·계약이 공개되지 않은 사업은 <b>직접 등록</b>으로 함께 보여 줍니다.</p></div>
   <div class="trkpi" id="trkpi"></div>
   <div class="panel trkw">
     <div class="trkwh"><h3>키워드별 정리</h3><span class="nmeta">줄을 누르면 그 키워드 사업만 봅니다</span></div>
     <div class="tablebox"><table class="trtable" id="trtable"></table></div>
   </div>
-  <div class="frow trbar"><div class="seg" id="trrole" role="group" aria-label="참여 형태"></div><span class="count" id="trcount"></span></div>
+  <div class="frow trbar"><div class="seg" id="trrole" role="group" aria-label="참여 형태"></div><span class="count" id="trcount"></span><button class="btn" type="button" id="tradd" aria-expanded="false" aria-controls="trman" hidden>나라장터에 없는 실적 등록</button></div>
+  <p class="trdone" id="trdone" role="status" hidden></p>
+  <div class="panel trman" id="trman" hidden>
+    <div class="trmanh"><h3 id="trman-t">나라장터에 없는 실적 직접 등록</h3><span class="nmeta">협상 결과가 게시되지 않았거나 기관 자체 계약이라 자동 수집에 잡히지 않은 수주를 넣습니다. 팀 모두에게 바로 보이고, 다음 자동 갱신 때 홈페이지에도 반영됩니다. 나중에 같은 사업명의 나라장터 계약이 잡히면 자동 수집 쪽을 보여 줍니다.</span></div>
+    <form id="trform" class="trform" autocomplete="off" novalidate>
+      <label class="w2">사업명<input name="title" required maxlength="160"></label>
+      <label>발주·수요기관<input name="buyer" required maxlength="80"></label>
+      <label>공고번호<input name="ref" maxlength="30" placeholder="예: R25BK01232658" spellcheck="false"></label>
+      <label>날짜<input name="date" type="date" required></label>
+      <label>날짜 기준<select name="dateKind"><option value="계약">계약일</option><option value="개찰">개찰일(계약일 모름)</option><option value="선정">선정 통보일</option><option value="착수">착수일</option></select></label>
+      <label>계약기간 시작<input name="start" type="date"></label>
+      <label>계약기간 끝<input name="end" type="date"></label>
+      <label>계약금액(원, 부가세 포함)<input name="amt" inputmode="numeric" placeholder="모르면 비워 둡니다"><small id="trh-amt"></small></label>
+      <label>추정가격(원, 공고 기준)<input name="est" inputmode="numeric" placeholder="선택"><small id="trh-est"></small></label>
+      <label>웨이즈원 역할<select name="role"><option value="">확인 필요</option><option value="단독">단독</option><option value="대표">공동수급 대표사</option><option value="구성">공동수급 구성원</option><option value="하도급">하도급</option></select></label>
+      <label>웨이즈원 지분(%)<input name="share" inputmode="numeric" maxlength="3" placeholder="대표사·구성원일 때"></label>
+      <label>대표사 업체명<input name="lead" maxlength="60" placeholder="구성원일 때"></label>
+      <label class="w2">나라장터에 없는 이유<select name="reason"><option>개찰결과 미공지·나라장터 계약 미등록</option><option>기관 자체 계약(나라장터 외)</option><option>민간·연구기관 계약</option><option>하도급 미통보</option><option>기타</option></select></label>
+      <label class="w3">메모<input name="note" maxlength="200" placeholder="예: 계약서 확인함, 2차년도 별도 계약 예정 (담당자 이름·연락처는 적지 않습니다)"></label>
+      <div class="trfact w3"><button class="btn pri" type="submit">등록</button><button class="btn" type="button" id="trcancel">닫기</button><span class="nmeta" id="trstat" role="status"></span></div>
+    </form>
+  </div>
   <div class="trgroups" id="trgroups"></div>
   <p class="small muted trnote" id="trnote"></p>
 </section>
@@ -321,8 +342,8 @@
   </div>
 </div>
 
-<script src="config.js?v=e65fc72f"></script>
-<script src="radar.js?v=e65fc72f"></script>
-<script type="module" src="app.js?v=e65fc72f"></script>
+<script src="config.js?v=0c92cb5f"></script>
+<script src="radar.js?v=0c92cb5f"></script>
+<script type="module" src="app.js?v=0c92cb5f"></script>
 </body>
 </html>
