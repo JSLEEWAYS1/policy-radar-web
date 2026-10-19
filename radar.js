@@ -1162,6 +1162,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
       const lcs = (a, b) => { let m = 0; for(let i = 0; i < a.length; i++) for(let j = 0; j < b.length; j++){ let n = 0; while(a[i + n] && a[i + n] === b[j + n]) n++; if(n > m) m = n; } return m; };
       const kw = [];
       for(const c of L.slice(0, 80)){
+        if(WEAK.has(c.key)) continue;
         if(kw.some(k => k.key.includes(c.key))) continue;
         // 겹치는 구(교통데이터 품질검증 · 품질검증 서비스)는 하나만
         if(kw.some(k => !c.key.includes(k.key) && lcs(k.key, c.key) >= Math.max(3, .5 * Math.min(k.key.length, c.key.length)))) continue;
@@ -1228,10 +1229,60 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
         brief = [s1, s2].filter(Boolean).sort((a, b) => a.c.k - b.c.k).map(x => clip(x.c.t.replace(/\s*\|\s*/g, ' · '), 100));
       }
       if(!title) title = brief.length ? clip(brief[0], 60) : '';
-      return {kw: kw.map(k => ({t: k.t, key: k.key, parts: k.parts, s: +k.s.toFixed(2)})), brief, title: title.slice(0, 80), terms: L.slice(0, 400).map(x => ({key: x.key, s: x.s, phrase: x.phrase})), units: U.length, chars: total};
+      return {kw: kw.map(k => ({t: k.t, key: k.key, parts: k.parts, s: +k.s.toFixed(2)})), brief, title: title.slice(0, 80), terms: L.slice(0, 400).map(x => ({key: x.key, t: x.t, s: x.s, phrase: x.phrase})), units: U.length, chars: total};
     }
     return {learn, stems, weak: t => WEAK.has(t)};
   })();
+  /* ── 웨이즈원 핵심기술 적합도: 기획안의 핵심 낱말이 웨이즈원이 실제로 가진 기술인지 따진다.
+     근거는 BMC 제품 이름·키워드, 나라장터 수행 실적 계약명, 사업군 핵심어다.
+     「AI·플랫폼·데이터·실증」처럼 누구나 쓰는 말은 빼고 센다. 이런 말이 겹치는 것만으로는 웨이즈원이 할 일이 있다고 보지 않는다. ── */
+  const makeFit = ({products = [], track = [], stems}) => {
+    const W = s => String(s || '').toLowerCase().split(/\s+/).filter(Boolean);
+    // 사업군 핵심어(지도 SW·데이터, 공간데이터 서비스, LDM 인프라, 스마트 모빌리티)
+    const CORE = '정밀지도 정밀도로지도 고정밀지도 공간정보 지리정보 측량 수치지도 점군 도화 동적지도 교통 신호 교차로 횡단보도 보행신호 버스 자율주행 셔틀 도로 도로대장 포장관리 공원 수목 토지적성평가 토지적성 용도지역지구 용도지역 도시계획 재해취약성 인허가 행정 민원 입지분석 적지분석 입지 후보지 토지이용 개발제한구역 경사도 표고 주제도 연속지적도 지적 필지 위치정보 주소정보 내비게이션 실내지도 하수관로 상수관로 지하시설물 테마지도';
+    const LAT = new Set(W('hd map hdmap ldm v2x c-its its dsrc bis bms mms gis lis cav opendrive xodr adasis indoorgml upis pms tls ipss'));
+    // 인접 기술: 웨이즈원도 쓰지만 다른 분야에서도 흔한 기술. 절반 이하로만 센다
+    const ADJ = new Set(W('디지털트윈 트윈 3차원 시뮬레이션 관제 통합관제 영상분석 cctv 돌발상황 엣지 측위 지도 위치 좌표 hmi amr lidar 라이다 twin 3d edge 모빌리티'));
+    // 누구나 쓰는 말·계약 행정 말: 어느 쪽으로도 세지 않는다
+    const GEN = new Set(W(`ai 인공지능 데이터 빅데이터 플랫폼 시스템 솔루션 서비스 통합 실시간 스마트 디지털 digital 기술 기술개발 개발 구축 실증 모델 학습 분석 관리 운영 안전 센터 정보 시각화 모니터링 예측 자동 자율 고도화 연계 표준 클라우드 소프트웨어 sw 사업화 생태계 인력 양성 기업 지역 산업 현장 공간 환경 위험 국내 해외 글로벌 시장 정부 지원 확산 활용 기반 구현 적용 검증 테스트베드 테스트 체계 고도 피지컬 ax dx 전환 혁신 지능형 차세대 미래 핵심 공정 품질 장비 설비 모듈 단계 과제 연구 성과 효과 수요 수요처 참여 참여기업 기관 대학 지자체 공공기관 작업 구역 구간 기준 조건 타당성 시나리오 접수 분류 추천 공무원 상황 오류 결과 사업 용역 유지보수 유지관리 홈페이지 시행 총괄 차분 협상 계약 수의계약 하자보수 기능개선 응용소프트웨어 개선 관련 건립 현황 건설공사 공구 신설공사 정비 저감사업 조사 구매 신규 콘텐츠 제작 예비조사 강화 조성 조성사업 특화도시 세트 데이터세트 신규 갱신체계 효율적 수립 서버 모델 db 웹 앱 api iot 5g 클라우드 보안 사용자 고객 이용자 시민 주민 국민 플랫폼화 대시보드 리포트 보고서 알림 경보 검지 감지 인식 탐지 추적 자동화 최적화 효율화 무인 원격 실시간성`));
+    const PLACE = /^[가-힣]{1,3}(시|군|구)$/;
+    const OWN = new Set();
+    const addAll = txt => stems(txt).forEach(k => { if (!GEN.has(k) && !ADJ.has(k) && !PLACE.test(k) && k.length >= 2) OWN.add(k); });
+    addAll(products.map(p => [p.name, Array.isArray(p.keywords) ? p.keywords.join(' ') : ''].join('\n')).join('\n'));
+    addAll(track.map(x => x.title).join('\n'));
+    addAll(CORE);
+    LAT.forEach(k => OWN.add(k));
+    const ownH = [...OWN].filter(o => /[가-힣]/.test(o) && o.length >= 2);
+    const kind = k => {
+      if (GEN.has(k) || PLACE.test(k)) return null;
+      if (ADJ.has(k) || [...ADJ].some(a => /[가-힣]/.test(a) && a.length >= 2 && k.includes(a) && k.length - a.length <= 2 && !OWN.has(k))) return 'adj';
+      if (OWN.has(k)) return 'own';
+      if (/^[a-z0-9+&-]+$/.test(k)) return 'out';
+      return ownH.some(o => k.includes(o) && k.length - o.length <= 4) ? 'own' : 'out';
+    };
+    // 기획안에서 점수가 높은 낱말 15개(누구나 쓰는 말 제외)로 판단한다
+    function judge(plan, docText) {
+      const own = [], adj = [], out = [], keys = []; let so = 0, sa = 0, sx = 0;
+      // 구(Digital Twin·4D Perception)의 한 조각이면 구 전체로 보여 준다
+      const ph = {}; ((plan && plan.terms) || []).forEach(x => { if (x.phrase && x.t) String(x.t).toLowerCase().split(/\s+/).forEach(p => { if (!ph[p]) ph[p] = {t: x.t, s: x.s}; }); });
+      for (const x of (plan && plan.terms) || []) {
+        if (own.length + adj.length + out.length >= 15) break;
+        if (x.phrase) continue;
+        const c = kind(x.key); if (!c) continue;
+        const show = ph[x.key] && ph[x.key].s >= .6 * x.s ? ph[x.key].t : (x.t || x.key); keys.push(x.key);
+        const put = (arr, v) => { if (!arr.includes(v)) arr.push(v); };
+        if (c === 'own') { put(own, show); so += x.s; } else if (c === 'adj') { put(adj, show); sa += x.s; } else { put(out, show); sx += x.s; }
+      }
+      const tot = so + sa + sx;
+      const fit = tot ? (so + .4 * sa) / tot : .5;
+      const level = !tot ? 'unknown' : fit >= .5 ? 'core' : fit >= .3 ? 'part' : 'none';
+      // 기획안의 추진체계·참여기관에 웨이즈원이 없으면(이미 짜인 컨소시엄) 따로 알린다
+      const t = String(docText || '');
+      const team = /(참여기관|참여기업|참여 기업|추진체계|컨소시엄|기관명|주관기관|공동연구기관|수행기관)/.test(t) && !/(웨이즈원|ways1|WAYS1|Ways1)/.test(t);
+      return {fit, level, own, adj, out, keys, team};
+    }
+    return {judge, kind};
+  };
   const RT = null; // 홈페이지: 키워드 분석 전용
   const T = v => Array.isArray(v) ? v.join(' ') : String(v ?? '');
   const IW0 = {policy:30, tech:30, econ:30, exec:10};
@@ -1266,26 +1317,31 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     let words = null;
     return CORP = {all, lex:[...lex], get words(){ return words || (words = PLAN.stems(all.map(d => d.t).join('\n'))); }};
   }
+  let FITM = null;
+  const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: (D.track && D.track.items) || [], stems: PLAN.stems}));
+  const LV = {none: 0, part: 1, core: 2};
   // 기획안 학습: 입력란 글과 붙인 문서 전체(문서당 20만 자까지)를 읽어 키워드·요약·낱말 가중치를 만든다
   function learnPlan(text){
     const C = corpus();
     return PLAN.learn({text, docs: DOCS.filter(d => d.text).map(d => ({name: d.name, text: d.text})), known: L => C.words.has(L), lex: C.lex});
   }
-  function kwSelect(text, plan){
+  function kwSelect(text, plan, fit){
     const C = corpus(), low = text.toLowerCase(), terms = new Set(), W = {};
+    const longDoc = !!(plan && plan.chars > 1500);
+    const coreK = new Set(fit && fit.keys ? fit.keys : []);
     // 낱말마다 조사·어미를 떼어 보고, 레이더 데이터에 실제로 나오는 가장 짧은 형태를 쓴다(데이터를 → 데이터, 교통정보센터에 → 교통정보센터)
     const inC = t => C.all.some(d => d.t.includes(t));
-    low.replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').forEach(w => {
+    if(!longDoc) low.replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').forEach(w => {
       const cands = [w]; let s = w;
       for(let i = 0; i < 3; i++){ const n = s.replace(JOSA, ''); if(n === s || n.length < 2) break; s = n; cands.push(s); }
       const base = cands[cands.length - 1]; if(STOP.has(base)) return;
       const t = cands.slice().reverse().find(c => c.length >= 2 && !STOP.has(c) && inC(c)); if(t) terms.add(t);
     });
-    C.lex.forEach(k => { if(low.includes(k)) terms.add(k); });
+    if(!longDoc) C.lex.forEach(k => { if(low.includes(k)) terms.add(k); });
     // 기획안에서 익힌 낱말: 기획안에서 점수가 높을수록, 핵심 키워드일수록 사업 고르기에서 무겁게 센다
     if(plan && plan.terms.length){
       const mx = plan.terms[0].s || 1;
-      plan.terms.slice(0, 300).forEach(x => { const t = x.key; if(x.phrase || t.length < 2 || STOP.has(t) || !(terms.has(t) || inC(t))) return; terms.add(t); W[t] = Math.max(W[t] || 0, .8 + .7 * Math.sqrt(x.s / mx)); });
+      plan.terms.slice(0, longDoc ? 150 : 300).forEach(x => { const t = x.key; if(x.phrase || t.length < 2 || STOP.has(t) || !(terms.has(t) || inC(t))) return; terms.add(t); W[t] = Math.max(W[t] || 0, .8 + .7 * Math.sqrt(x.s / mx)); });
       plan.kw.forEach(k => (k.parts || [k.key]).forEach(t => { if(t.length < 2 || STOP.has(t) || !(terms.has(t) || inC(t))) return; terms.add(t); W[t] = Math.max(W[t] || 0, PLAN.weak(t) ? 1.1 : 1.8); }));
     }
     const wt = t => W[t] || (plan ? .9 : 1);
@@ -1294,14 +1350,14 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
     // 드문 낱말(전체 문서의 10% 이하에 나오는 낱말)을 따로 센다: 흔한 낱말만 겹치면 고르지 않는다
     const RARE = Math.log(1 + 10);
     const hit = d => { let s = 0, r = 0; const h = []; for(const t in idf) if(d.t.includes(t)){ s += idf[t] * wt(t); h.push(t); if(idf[t] >= RARE) r++; } return {s, h, r}; };
-    const pick = (k, n, rel) => { const r = C.all.filter(d => d.k === k).map(d => ({id:d.id, ...hit(d)})).filter(d => d.h.length >= 2 && d.r >= 1).sort((a, b) => b.s - a.s);
+    const pick = (k, n, rel) => { const r = C.all.filter(d => d.k === k).map(d => ({id:d.id, ...hit(d)})).filter(d => d.h.length >= 2 && d.r >= 1 && (!coreK.size || d.h.some(t => coreK.has(t)))).sort((a, b) => b.s - a.s);
       const top = r.length ? r[0].s : 0; return r.filter(d => d.s >= top * rel).slice(0, n); };
     const why = d => '겹치는 낱말: ' + d.h.sort((a, b) => idf[b] * wt(b) - idf[a] * wt(a)).slice(0, 4).join(', ');
     const pick3 = (k, n, rel) => pick(k, n, rel).filter(d => d.h.length >= 3 && d.r >= 2);
     const prods = pick('prod', 4, .5), opps = pick('opp', 4, .55), its = pick('item', 6, .6), pols = pick3('pol', 6, .55), prgs = pick3('prg', 3, .6);
     const kw5 = plan ? plan.kw.map(k => k.t) : [];
     return {mode:'keyword', summary: (plan && plan.title) || text.replace(/\s+/g, ' ').slice(0, 70) + (text.length > 70 ? '…' : ''),
-      brief: plan ? plan.brief : [], kw5,
+      brief: plan ? plan.brief : [], kw5, fit: fit || null,
       elements: prods.map(d => ({name:d.id, product:d.id})),
       policies: pols.map(d => ({id:d.id, why:why(d)})),
       opps: opps.map((d, i) => ({id:d.id, strength: i === 0 && d.h.length >= 3 ? 'strong' : 'partial', why:why(d)})),
@@ -1351,8 +1407,10 @@ ${prgs || '(없음)'}
  "programs": [{"id": "공고 id", "why": "한 문장"}],
  "buyers": ["수요기관 유형 1~3개"],
  "keywords": ["나라장터 계약 검색어 2~4개, 예: 교통정보센터 유지관리"],
- "risks": ["주요 위험 1~3개, 각 30자 안팎"]}
-규칙: elements 3~7개(웨이즈원 제품이 맡을 수 없는 요소도 product null로 넣는다), policies 0~6개, opps 0~4개(strong은 그 사업 안에서 바로 실행할 수 있을 때만), items 0~6개(아이디어를 실제로 실행할 수단이 되는 공고만), programs 0~3개.`;
+ "risks": ["주요 위험 1~3개, 각 30자 안팎"],
+ "coreFit": {"level": "core 또는 part 또는 none", "why": "판단 근거 한 문장(기획안의 핵심 과업과 웨이즈원 기술을 나란히 적는다)"}}
+핵심기술 판정(coreFit)은 냉정하게 한다. 웨이즈원의 핵심기술은 정밀지도·정밀도로지도 구축, 공간정보·GIS·측량, LDM·C-ITS·ITS 교통 소프트웨어, 자율주행 운영·관제, 도로대장·토지적성평가·인허가 같은 공공 공간정보 사업이다. 기획안의 핵심 과업(예산과 인력이 가장 많이 가는 일)을 웨이즈원이 직접 수행할 수 있으면 core, 지도 표출·관제 화면 같은 주변 기능만 맡을 수 있으면 part, 그마저 아니면 none이다. AI·플랫폼·데이터·디지털트윈·실증 같은 일반적인 말이 겹치는 것은 근거가 아니다. 기획안의 참여기관 명단에 웨이즈원이 없으면 why에 그 사실을 적는다.
+규칙: elements 3~7개는 기획안의 핵심 과업 기준으로 뽑는다. product는 그 제품이 그 과업의 핵심을 직접 수행할 때만 넣고, 화면·DB·지도 표출처럼 곁가지만 맡으면 null로 둔다(웨이즈원 제품이 맡을 수 없는 요소도 product null로 넣는다), policies 0~6개, opps 0~4개(strong은 그 사업 안에서 바로 실행할 수 있을 때만), items 0~6개(아이디어를 실제로 실행할 수단이 되는 공고만), programs 0~3개.`;
   }
   const arr = v => Array.isArray(v) ? v : [];
   const str = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -1362,7 +1420,22 @@ ${prgs || '(없음)'}
     return f ? f.name : null;
   }
   const uniq = (a, k) => { const s = new Set(); return a.filter(x => !s.has(x[k]) && s.add(x[k])); };
-  function cleanSel(r, text, plan){
+  // AI 판정은 로컬 판정보다 한 단계까지만 올릴 수 있고, 내리는 것은 그대로 따른다
+  function mergeFit(local, ai){
+    if(!local) return null;
+    const f = {...local};
+    const lv = ai && LV[ai.level] !== undefined ? ai.level : null;
+    if(lv){
+      const lo = LV[local.level] ?? 1, a = LV[lv];
+      const fin = Math.min(a, lo + 1);
+      f.level = Object.keys(LV).find(k => LV[k] === fin);
+      if(fin < lo) f.fit = Math.min(f.fit, fin === 0 ? .2 : .45);
+      if(fin > lo) f.fit = Math.max(f.fit, fin === 1 ? .3 : .5);
+      f.ai = {level: lv, why: str(ai.why, 240)};
+    }
+    return f;
+  }
+  function cleanSel(r, text, plan, fit){
     const kwA = [...new Set(arr(r && r.planKeywords).map(x => str(x, 24)).filter(Boolean))];
     (plan ? plan.kw.map(k => k.t) : []).forEach(t => { if(kwA.length < 5 && !kwA.some(k => k.replace(/\s+/g, '') === t.replace(/\s+/g, ''))) kwA.push(t); });
     const brA = arr(r && r.brief).map(x => str(x, 140)).filter(Boolean).slice(0, 2);
@@ -1375,7 +1448,8 @@ ${prgs || '(없음)'}
       buyers: arr(r && r.buyers).map(x => str(x, 30)).filter(Boolean).slice(0, 3),
       keywords: arr(r && r.keywords).map(x => str(x, 30)).filter(Boolean).slice(0, 4),
       risks: arr(r && r.risks).map(x => str(x, 90)).filter(Boolean).slice(0, 3)};
-    if(!sel.elements.length) sel.elements = kwSelect(text, plan).elements;
+    sel.fit = mergeFit(fit, r && r.coreFit);
+    if(!sel.elements.length) sel.elements = kwSelect(text, plan, fit).elements;
     return sel;
   }
   function cmPrompt(sel, R){
@@ -1384,7 +1458,7 @@ ${prgs || '(없음)'}
     return `아래는 웨이즈원 사내 아이디어 검증 결과다. 점수와 근거 숫자는 페이지가 정해진 공식으로 계산했다. 숫자를 바꾸거나 새 숫자·기관명·시장 규모를 지어내지 말고, 근거에 있는 내용으로만 해석한다. JSON 하나로만 답한다. 한국어, 존댓말 없이 보고서 문체.
 
 [아이디어] ${sel.summary}${(sel.brief || []).length ? '\n[기획안 요약] ' + sel.brief.join(' ') : sel.docSummary ? '\n[첨부 문서 요지] ' + sel.docSummary : ''}${(sel.kw5 || []).length ? '\n[핵심 키워드] ' + sel.kw5.join(', ') : ''}
-[종합] ${Math.round(R.total)}점 · ${R.verdict[1]}
+[종합] ${Math.round(R.total)}점 · ${R.verdict[1]}${sel.fit ? `\n[웨이즈원 핵심기술 적합도] ${Math.round(sel.fit.fit * 100)}% · 맞는 말 ${sel.fit.own.join(', ') || '없음'} · 인접 ${sel.fit.adj.join(', ') || '없음'} · 웨이즈원에 없는 핵심 요소 ${sel.fit.out.join(', ') || '없음'}${sel.fit.team ? ' · 기획안 참여기관에 웨이즈원 없음' : ''}${sel.fit.ai ? ' · AI 판정: ' + sel.fit.ai.why : ''}` : ''}
 ${ax}
 [필요 요소 중 협력이 필요한 것] ${R.axes.tech.gaps.join(', ') || '없음'}
 [바로 실행할 수 있는 공고] ${direct}
@@ -1430,12 +1504,14 @@ ${ax}
     const els = sel.elements, cov = els.filter(e => BMCN[e.product]);
     const prods = [...new Set(cov.map(e => e.product))].map(n => BMCN[n]);
     const kw = sel.mode === 'keyword';
-    const covR = kw ? Math.min(1, prods.length / 2) : (els.length ? cov.length / els.length : 0);
+    const F = sel.fit && sel.fit.level !== 'unknown' ? sel.fit : null, fitR = F ? Math.min(1, F.fit / .7) : null;
+    let covR = kw ? (fitR != null ? fitR : Math.min(1, prods.length / 2)) : (els.length ? cov.length / els.length : 0);
+    if(!kw && fitR != null) covR = Math.min(covR, Math.min(1, F.fit / .6));
     const mat = prods.length ? prods.reduce((s, p) => s + Math.min(1, (TW[p.tier] ?? .6) + (p.star ? .15 : 0)), 0) / prods.length : 0;
     const refR = prods.length ? prods.filter(refOk).length / prods.length : 0;
-    const gaps = els.filter(e => !BMCN[e.product]).map(e => e.name);
+    const gaps = kw && F ? F.out.slice(0, 6) : els.filter(e => !BMCN[e.product]).map(e => e.name);
     A.tech = {score: 60 * covR + 25 * mat + 15 * refR, prods, gaps, els, parts: [
-      ['보유 기술 커버리지', 60 * covR, 60, kw ? `겹치는 BMC 제품 ${prods.length}개(키워드 기준, 2개면 만점)` : `필요 요소 ${els.length}개 중 ${cov.length}개를 웨이즈원 제품으로 대응`],
+      ['보유 기술 커버리지', 60 * covR, 60, F ? `기획안 핵심 낱말 중 웨이즈원 기술 비중 ${Math.round(F.fit * 100)}%(70%면 만점)${kw ? '' : ` · AI가 본 필요 요소 ${els.length}개 중 ${cov.length}개 대응`}` : kw ? `겹치는 BMC 제품 ${prods.length}개(키워드 기준, 2개면 만점)` : `필요 요소 ${els.length}개 중 ${cov.length}개를 웨이즈원 제품으로 대응`],
       ['제품 성숙도', 25 * mat, 25, prods.map(p => `${p.name}(${p.tier}${p.star ? '·★' : ''})`).join(', ') || '대응 제품 없음'],
       ['수행 실적', 15 * refR, 15, prods.length ? `수행 실적이 적힌 제품 ${prods.filter(refOk).length}/${prods.length}개` : '—']]};
     // 경제
@@ -1468,15 +1544,21 @@ ${ax}
     const EW = {ok:1, gap:.6, unknown:.4, no:0};
     const vs = direct.map(x => (x.elig && x.elig.verdict) || 'unknown');
     const eg = direct.length ? vs.reduce((s, v) => s + (EW[v] ?? .4), 0) / direct.length : .5;
-    const np = sel.programs.length, own = els.length ? cov.length / els.length : covR;
+    const np = sel.programs.length, own = kw && fitR != null ? fitR : els.length ? Math.min(cov.length / els.length, fitR != null ? fitR : 1) : covR;
     A.exec = {score: 60 * eg + 25 * Math.min(1, np / 2) + 15 * own, parts: [
       ['참가자격', 60 * eg, 60, direct.length ? `실행할 공고 ${direct.length}건: 참여 가능 ${vs.filter(v => v === 'ok').length} · 보완 필요 ${vs.filter(v => v === 'gap').length} · 확인 필요 ${vs.filter(v => v !== 'ok' && v !== 'gap').length}` : '실행할 공고가 없어 중간값'],
       ['지원사업 활용', 25 * Math.min(1, np / 2), 25, `맞는 연구개발·기업지원 공고 ${np}건`],
       ['자체 수행 비율', 15 * own, 15, gaps.length ? `협력이 필요한 요소 ${gaps.length}개` : '협력 없이 수행 가능']]};
     const ws = AXES.reduce((s, [k]) => s + Math.max(0, +w[k] || 0), 0) || 100;
-    const total = AXES.reduce((s, [k]) => s + Math.max(0, +w[k] || 0) * A[k].score, 0) / ws;
-    const verdict = total >= 70 ? ['go', '추진'] : total >= 55 ? ['fix', '보완 후 추진'] : ['hold', '보류'];
-    return {axes: A, total, verdict, direct, XS};
+    let total = AXES.reduce((s, [k]) => s + Math.max(0, +w[k] || 0) * A[k].score, 0) / ws;
+    // 핵심기술 관문: 웨이즈원이 할 수 있는 일이 없는 기획안은 다른 점수가 높아도 추진으로 두지 않는다
+    const raw = total; let gate = null;
+    if(F && F.level === 'none'){ gate = 'none'; total = Math.min(total, 45); }
+    else if(F && F.level === 'part' && total > 69){ gate = 'part'; total = 69; }
+    let verdict = total >= 70 ? ['go', '추진'] : total >= 55 ? ['fix', '보완 후 추진'] : ['hold', '보류'];
+    if(gate === 'none') verdict = ['hold', '보류 · 핵심기술 불일치'];
+    else if(gate === 'part') verdict = ['fix', '보완 후 추진 · 협력 필요'];
+    return {axes: A, total, raw, gate, verdict, direct, XS};
   }
 
   /* ── 첨부 문서 ── */
@@ -1541,6 +1623,26 @@ ${ax}
       ${rows ? `<div class="tablebox"><table><thead><tr><th>연도</th><th>건수</th><th>계약액</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
       ${top ? `<span>주요 수주 업체: ${top}</span>` : ''}${ex ? `<ul class="ilist">${ex}</ul>` : ''}</div>`;
   }
+  // 웨이즈원 핵심기술 적합도 상자
+  const FITL = {core: ['go', '핵심기술 일치'], part: ['fix', '일부 일치 · 협력 필요'], none: ['hold', '핵심기술 불일치']};
+  function fitBlock(f){
+    if(!f || f.level === 'unknown' || !FITL[f.level]) return '';
+    const [c, l] = FITL[f.level], pct = Math.round(f.fit * 100);
+    const top = f.out.slice(0, 3).join('·');
+    const msg = f.level === 'none' ? `이 기획안의 중심은 <b>${esc(top || '다른 분야 기술')}</b>입니다. 웨이즈원 보유 기술(정밀지도·LDM·ITS·공간정보·자율주행 관제 등)과 겹치는 것은 ${f.adj.length ? esc(f.adj.slice(0, 4).join('·')) + ' 같은 주변 기술뿐' : '거의 없습니다'}${f.adj.length ? '입니다' : ''}. 레이더 사업과 낱말이 겹쳐도 추진 근거로 보지 않고 종합 판정을 보류로 둡니다.`
+      : f.level === 'part' ? `핵심 요소 가운데 일부만 웨이즈원 기술로 맡을 수 있습니다. 웨이즈원에 없는 <b>${esc(top)}</b>는 협력사가 맡아야 하므로 주관보다 참여·협력 형태로 검토하세요.`
+      : `기획안의 핵심 요소 대부분이 웨이즈원 보유 기술(BMC 제품·수행 실적)과 맞습니다.`;
+    const chips = (a, cls, tag) => a.map(k => `<span class="${cls}">${esc(k)}${tag ? ` · ${tag}` : ''}</span>`).join('');
+    return `<div class="panel isec ifit ${f.level}">
+      <h3>웨이즈원 핵심기술 적합도 <span class="fitv">${pct}%</span><span class="vd ${c}">${l}</span></h3>
+      <p class="ifmsg">${msg}</p>
+      <div class="ifrow"><span class="kl">웨이즈원 기술과 맞는 말</span><div class="pchips">${chips(f.own, 'pc') + chips(f.adj, 'tc', '인접') || '<span class="nmeta">없음</span>'}</div></div>
+      <div class="ifrow"><span class="kl">웨이즈원에 없는 핵심 요소</span><div class="pchips">${chips(f.out.slice(0, 8), 'tc') || '<span class="nmeta">없음</span>'}</div></div>
+      ${f.team ? `<p class="ithin">기획안의 추진체계·참여기관 명단에 웨이즈원이 없습니다. 이미 짜인 컨소시엄이면 들어갈 역할이 있는지 주관기관에 먼저 확인하세요.</p>` : ''}
+      ${f.ai ? `<p class="nmeta">AI 판정 · ${esc(f.ai.why)}</p>` : ''}
+      <p class="nmeta">기획안에서 점수가 높은 낱말 15개(AI·플랫폼·데이터처럼 누구나 쓰는 말 제외)를 웨이즈원 BMC 제품·나라장터 수행 실적·사업군 핵심어와 맞춰 본 비중입니다. 인접 기술(디지털트윈·관제·3D 등)은 40%만 셉니다. 50% 이상 일치, 30~50% 일부 일치, 30% 미만 불일치.</p>
+    </div>`;
+  }
   function render(){
     if(!S.sel){ out.innerHTML = ''; return; }
     const sel = S.sel, w = wIn(), R = scoreIdea(sel, econIn(), w, S.deep), cm = S.cm;
@@ -1555,7 +1657,7 @@ ${ax}
     const cmt = k => cm && cm[k] ? `<p class="acmt">${hl(cm[k])}</p>` : (S.pending ? '<p class="acmt wait">AI 해석을 쓰는 중…</p>' : '');
     const extra = {
       policy: () => R.axes.policy.mp.length ? `<ul class="ilist">${sel.policies.filter(r => byId[r.id]).map(r => `<li><span>${pref(r.id)} <span class="tag lv">${esc(byId[r.id].level)}</span></span>${r.why ? `<span class="nmeta">${esc(r.why)}</span>` : ''}</li>`).join('')}</ul>` : '',
-      tech: () => `<div class="pchips">${R.axes.tech.els.map(e => BMCN[e.product] ? `<span class="pc">${esc(e.name === e.product ? e.name : e.name + ' → ' + e.product)}</span>` : `<span class="tc">${esc(e.name)} · 협력 필요</span>`).join('')}</div>`,
+      tech: () => `<div class="pchips">${R.axes.tech.els.map(e => BMCN[e.product] ? `<span class="pc">${esc(e.name === e.product ? e.name : e.name + ' → ' + e.product)}</span>` : `<span class="tc">${esc(e.name)} · 협력 필요</span>`).join('')}${kw ? R.axes.tech.gaps.map(g => `<span class="tc">${esc(g)} · 웨이즈원에 없음</span>`).join('') : ''}</div>`,
       econ: () => (R.axes.econ.thin ? `<p class="ithin">레이더에 비슷한 사업 기록이 없어 시장 규모·경쟁 근거가 비어 있습니다.${S.docId ? '' : ' 결과가 저장되면 나라장터 심층 분석을 요청할 수 있습니다.'}</p>` : '') + deepBlock() + deepCtl(),
       exec: () => ''
     };
@@ -1568,9 +1670,12 @@ ${ax}
         ${(sel.kw5 || []).length ? `<div class="ikw"><span class="kl">핵심 키워드</span>${sel.kw5.map(k => `<span class="kwc">${esc(k)}</span>`).join('')}</div>` : ''}
         ${(S.docs || []).length ? `<p class="nmeta">학습한 문서 ${S.docs.map(d => `${esc(d.name)}${d.chars ? ` <b class="num">${(+d.chars).toLocaleString()}자</b>` : ''}`).join(' · ')}</p>` : ''}${!(sel.brief || []).length && sel.docSummary ? `<p class="idsum">${hl(sel.docSummary)}</p>` : ''}${cm && cm.overall ? `<p class="muted">${hl(cm.overall)}</p>` : ''}</div>
         <div class="itotal"><span class="big">${pt(R.total)}<small> / 100</small></span><span class="vd ${R.verdict[0]}">${R.verdict[1]}</span>
+          ${R.gate ? `<span class="iwts igate">${R.gate === 'none' ? '핵심기술 불일치로 상한 45점' : '핵심기술 일부 일치로 상한 69점'} · 점수 합계 ${pt(R.raw)}점</span>` : ''}
           <span class="iwts">가중치 ${AXES.map(([k, n]) => n.slice(0, 2) + ' ' + w[k]).join(' · ')}</span></div></div>
     </div>
+    ${fitBlock(sel.fit)}
     <div class="panel isec">
+      ${R.gate === 'none' ? `<p class="ithin">아래 사업은 기획안과 낱말이 겹쳐 찾은 것입니다. 기획안의 핵심 과업이 웨이즈원 기술과 달라, 이 사업들을 이 기획안의 실행 수단으로 보지 않습니다.</p>` : ''}
       <h3>① 바로 실행할 수 있는 사업 <span class="nmeta">${hasRun ? `열린 공고 ${direct.length}건 · 맞는 사업 묶음 ${opps.length}개` : '없음'}</span></h3>
       ${direct.length ? `<ul class="prl">${direct.map(x => itemRow(x, whyOf(x.no))).join('')}</ul>` : `<p class="ione">지금 이 아이디어를 그대로 실행할 수 있는 열린 공고가 레이더에 없습니다. 아래 타당성 점수로 추진 여부를 판단하고, 필요하면 발주처에 먼저 제안하는 길을 검토하세요.</p>`}
       ${opps.length ? `<div class="iopp"><span class="kl">관련 사업 묶음</span><ul class="ilist">${opps.map(({r, o}) => `<li><span class="row1"><span class="fit ${ENTRY_CLS[effEntry(o)] || 'new'}">${esc(effEntry(o))}</span><button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>${r.strength === 'strong' ? '<span class="tag ok">바로 실행</span>' : '<span class="tag">일부 겹침</span>'}</span>${r.why ? `<span class="nmeta">${esc(r.why)}</span>` : ''}</li>`).join('')}</ul></div>` : ''}
@@ -1612,17 +1717,17 @@ ${ax}
     if(text) store('ideaDraft', text);
     Object.assign(S, {text, docs: docsMeta, example: false, cm: null, docId: null, deep: null, at: null, byName: null, pending: false});
     const kwText = (text + '\n' + dt.slice(0, 12000)).trim();
-    const plan = learnPlan(text);
+    const plan = learnPlan(text), fit = fitM().judge(plan, (text + '\n' + dt).slice(0, 120000));
     const sample = aiOff ? null : await SAMPLE;
-    if(!sample){ S.sel = kwSelect(kwText, plan); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
+    if(!sample){ S.sel = kwSelect(kwText, plan, fit); render(); status(RT ? 'AI를 쓸 수 없어 키워드 분석으로 계산했습니다.' : '키워드 분석으로 계산했습니다.'); out.scrollIntoView({block:'start', behavior:'smooth'}); return; }
     ctl = new AbortController(); const sig = ctl.signal; busy(true);
     status(dt ? `1/2 · 첨부 문서 ${docsMeta.length}건과 아이디어를 읽고 맞는 사업을 고르는 중입니다. 보통 1~2분 걸립니다.` : '1/2 · 아이디어에서 기술 요소를 정리하고 맞는 사업을 고르는 중입니다. 보통 30초~1분 걸립니다.');
-    try { S.sel = cleanSel(await sample.json(selPrompt(text, dt), {signal: sig, modelTier: 'default'}), kwText, plan); }
+    try { S.sel = cleanSel(await sample.json(selPrompt(text, dt), {signal: sig, modelTier: 'default'}), kwText, plan, fit); }
     catch(e){
       busy(false);
       if(e && e.code === 'cancelled'){ status('멈췄습니다.'); return; }
       if(e && OFF.has(e.code)) aiOff = true;
-      S.sel = kwSelect(kwText, plan); render(); status(errText(e && e.code) + ' 키워드 분석으로 계산했습니다.', true); return;
+      S.sel = kwSelect(kwText, plan, fit); render(); status(errText(e && e.code) + ' 키워드 분석으로 계산했습니다.', true); return;
     }
     S.pending = true; render(); out.scrollIntoView({block:'start', behavior:'smooth'});
     status('2/2 · 점수 해석을 쓰는 중입니다.');
@@ -1703,7 +1808,7 @@ ${ax}
   })();
 
   /* 처음 화면: 예시 아이디어를 키워드로 분석해 둔다(AI 호출 없음) */
-  S.sel = kwSelect(EXAMPLE, PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L), lex: corpus().lex})); S.example = true; render();
+  { const p0 = PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L), lex: corpus().lex}); S.sel = kwSelect(EXAMPLE, p0, fitM().judge(p0, EXAMPLE)); S.example = true; render(); }
 })();
 
 /* 웨이즈원 수행 실적(2026-10-19): 나라장터 계약에서 웨이즈원이 대표·단독·공동수급 구성원·하도급으로 들어간 사업을 사업 키워드별로 묶는다 */
