@@ -240,12 +240,47 @@ function renderPipe(){
       + (wt.length?`<details class="prl"><summary>의견 마감 후 본공고를 기다리는 사전규격 ${wt.length}건</summary><ul class="prl">${wt.map(li.pre).join('')}</ul></details>`:'');
   } else body = list.length ? `<ul class="prl">${list.map(li[pipeTab]).join('')}</ul>` : '<p class="muted small">해당 단계의 사업이 없습니다.</p>';
   $('#prepanel').innerHTML = `<div class="sec-head"><h2>나라장터에서 잡을 사업 <em>${rows.plan.length + rows.pre.length + rows.bid.length}</em>건</h2>
-    <p class="muted">웨이즈원 제품과 맞는 나라장터 사업을 발주계획 → 사전규격 → 입찰공고 단계별로 모았습니다. 사전규격·입찰공고는 제안요청서를 직접 읽어 사업내용과 참가자격을 정리하고, 보유 자격으로 참여 가능 여부를 판정했습니다.</p></div>
+    <p class="muted">웨이즈원 제품과 맞는 나라장터 사업을 발주계획 → 사전규격 → 입찰공고 단계별로 모았습니다. 사전규격·입찰공고는 제안요청서를 직접 읽어 사업내용과 참가자격을 정리하고, 보유 자격으로 참여 가능 여부를 판정했습니다.${exLive().length ? ` <button type="button" class="linkish" data-scrollto="expanel">주요 고객 한국도로공사 공고 ${exLive().length}건은 아래에 따로 모았습니다 ↓</button>` : ''}</p></div>
     <div class="pipe" role="tablist">${TAB.map(([k,l])=>`<button type="button" role="tab" data-pipe="${k}" aria-selected="${String(k===pipeTab)}" class="${k}"><span>${l}</span><b>${rows[k].length}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     <p class="small muted">${esc(cur[2])}</p>${body}${qualBox()}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-tabgo]'); if(b){e.preventDefault(); if(b.dataset.pipego){ pipeTab = b.dataset.pipego; store('pipe', pipeTab); renderPipe(); } show(b.dataset.tabgo);}});
+/* 한국도로공사(주요 고객): 자체 전자조달 공고가 나라장터에 연계된 것을 공고기관으로 모아 사업 단위(발주계획→사전규격→입찰공고)로 보여 준다 */
+let exTab = load('extab', 'bid');
+document.addEventListener('click', e => { const b = e.target.closest('[data-scrollto]'); if(b){ const el = document.getElementById(b.dataset.scrollto); if(el) el.scrollIntoView({behavior: 'smooth', block: 'start'}); } });
+const EXS = {plan: '발주계획', pre: '사전규격', bid: '입찰공고'};
+const exLive = () => ((D.ex && D.ex.items) || []).filter(g => g.stage !== 'bid' || !(g.bid && g.bid.deadline) || dlk(g.bid.deadline) >= NOWK);
+function renderEx(){
+  const el = $('#expanel'); if(!el) return;
+  const E = D.ex, live = exLive();
+  if(!E || !live.length){ el.hidden = true; return; }
+  el.hidden = false;
+  const cnt = {plan: 0, pre: 0, bid: 0}; live.forEach(g => cnt[g.stage]++);
+  if(!cnt[exTab]) exTab = ['bid', 'pre', 'plan'].find(s => cnt[s]) || 'bid';
+  const SR = 'https://www.g2b.go.kr/link/FIUA009_01/single/?searchKeyword=';
+  const link = g => g.stage === 'bid' ? SR + encodeURIComponent(g.title.replace(/\[[^\]]*\]/g, '').trim()) : SR + encodeURIComponent(g[g.stage].no);
+  const when = g => {
+    if(g.stage === 'bid') return `<span class="tag ok">입찰공고</span><span>마감 <b>${esc(md(g.bid.deadline))}</b> <span class="dd ${ddN(g.bid.deadline) <= 7 ? 'hot' : ''}">${ddTxt(g.bid.deadline)}</span></span>`;
+    if(g.stage === 'pre') return g.pre.opinionDeadline && dlk(g.pre.opinionDeadline) >= NOWK
+      ? `<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(g.pre.opinionDeadline))}</b> <span class="dd pre">${ddTxt(g.pre.opinionDeadline)}</span></span>`
+      : `<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(g.pre.opinionDeadline))}</span>`;
+    return `<span class="tag plan">발주계획</span><span><b>${esc(ym(g.plan.planMonth))}</b> 발주 예정</span>`; };
+  const money = g => { const v = (g.pre && g.pre.budget) || (g.plan && g.plan.budget) || (g.bid && g.bid.price); return v ? ` · <b class="num">${eokT(v)}</b>${g.pre && g.pre.budget ? ' 배정예산' : g.plan && g.plan.budget ? ' 예산' : ''}` : ''; };
+  const isNew = g => g.firstSeen && ddN(g.firstSeen) >= -7;
+  const steps = g => ['plan', 'pre', 'bid'].map(s => `<span class="exs${g[s] ? ' on ' + s : ''}"${g[s] ? ` title="${esc(g[s].no)}"` : ''}>${EXS[s]}${g[s] ? '' : ' 없음'}</span>`).join('<i aria-hidden="true">›</i>');
+  const L = live.filter(g => g.stage === exTab);
+  const li = g => `<li><div class="st">${when(g)}${isNew(g) ? '<span class="tag new">NEW</span>' : ''}</div>
+    <div class="bd"><a href="${esc(link(g))}" target="_blank" rel="noopener">${esc(g.title)}</a>
+    <span class="nmeta">${esc([g.dept || g.dmst, g.area, g.method].filter(Boolean).join(' · '))}${money(g)} · 공고번호 ${esc(g[g.stage].no)}</span>
+    <div class="exsteps">${steps(g)}</div></div></li>`;
+  el.innerHTML = `<div class="sec-head"><h2><span>한국도로공사 <em>${live.length}</em>건</span><span class="cust">주요 고객</span></h2>
+    <p class="muted">한국도로공사는 자체 전자조달로 발주하지만 발주계획·사전규격·입찰공고가 나라장터에도 연계됩니다. 그 연계 공고를 공고기관 「한국도로공사」로 모두 읽어 웨이즈원 사업(공간정보·지도·ITS·교통데이터·AI·시스템 구축)과 관련된 용역만 골랐습니다. 감리·전기·제설·시설관리·드론 용역과 입찰 마감이 지난 사업, 이미 계약한 사업은 뺐습니다.</p></div>
+    <div class="pipe" role="tablist">${['plan', 'pre', 'bid'].map(k => `<button type="button" role="tab" data-ex="${k}" aria-selected="${String(k === exTab)}" class="${k}"><span>${EXS[k]}</span><b>${cnt[k]}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
+    ${L.length ? `<ul class="prl">${L.map(li).join('')}</ul>` : '<p class="muted small">해당 단계의 사업이 없습니다.</p>'}
+    <p class="small muted">마지막 확인 ${esc(E.checkedAt || '')} KST · 나라장터 공고기관 한국도로공사 전체 ${['plan', 'pre', 'bid'].map(s => `${EXS[s]} <b class="num">${(E.counts || {})[s] || 0}건</b>`).join(' · ')} 중 관련 용역. 사업명을 누르면 나라장터에서 공고를 찾고, 입찰 참가·제안서 제출은 한국도로공사 전자조달에서 합니다.</p>`;
+  $$('#expanel [data-ex]').forEach(b => b.addEventListener('click', () => { exTab = b.dataset.ex; store('extab', exTab); renderEx(); }));
+}
 $('#asof').textContent = '마지막 확인 ' + CHK + ' KST';
 const n26 = P.filter(p=>recentDate(p).startsWith(YR)).length;
 const LIVE_OPPS = (D.opportunities||[]).filter(o=>!isDiscarded(o));
@@ -263,7 +298,7 @@ $('#kpis').innerHTML = [
   [PRG.length,'R&D·기업지원', 'rnd', 'rnd'],
   [P.length,'정책·계획', '', 'catalog']
 ].map(([v,l,c,t,pp])=>`<button type="button" class="kpi ${c||''}" data-tabgo="${t}"${pp?` data-pipego="${pp}"`:''}><b>${v}</b><span><i class="dot" style="--c:${({hot:'var(--ok)',pre:'var(--pre)',plan:'var(--plan)',rnd:'var(--rnd)'})[c]||'var(--ink3)'}"></i>${l}</span></button>`).join('');
-[['g2b', nPlanItems + nPreItems + nBidItems], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
+[['g2b', nPlanItems + nPreItems + nBidItems + exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
 const TABS = ['overview','g2b','rnd','ways1','track','idea','catalog','links','timeline','sources'];
@@ -323,12 +358,18 @@ function renderInsights(){
     const h = horizonTxt(o) || (isUpcoming(o) ? '공고 예정' : '');
     return [h, n].filter(Boolean).join(' — '); };
   // 실행 계획이 있는 카드: 판단 → 핵심 숫자 → 근거(접힘) → 웨이즈원 실행 계획
+  /* 핵심 숫자의 출처: gov 정부 정책·예산·제도 / market 나라장터 공고·시장 / w1 웨이즈원 실적. k가 없으면 문구로 추정 */
+  const NK = {gov: '정부 정책', market: '나라장터', w1: '웨이즈원 실적'};
+  const nkind = n => n.k && NK[n.k] ? n.k : /웨이즈원|\((대표|구성|단독|하도급)[^)]*\)/.test(n.l || '') ? 'w1' : /마감|사전규격|입찰|발주|경쟁|유찰|수의계약|연속 수행|공고/.test(n.l || '') ? 'market' : 'gov';
   const actBlock = i => { const a = i.act;
+    const NUMS = (a.nums || []).map(n => ({...n, k: nkind(n)}));
+    const pubNums = [...NUMS.filter(n => n.k === 'gov'), ...NUMS.filter(n => n.k === 'market')], ownNums = NUMS.filter(n => n.k === 'w1');
     return `<p class="verdict">${hl(a.verdict)}</p>
-    ${(a.nums||[]).length ? `<div class="inums">${a.nums.map(n => `<div><b>${esc(n.v)}</b><span>${esc(n.l)}</span></div>`).join('')}</div>` : ''}
+    ${pubNums.length ? `<div class="inums" aria-label="정부 정책·나라장터 숫자">${pubNums.map(n => `<div class="nk-${n.k}"><em class="nk">${NK[n.k]}</em><b>${esc(n.v)}</b><span>${esc(n.l)}</span></div>`).join('')}</div>` : ''}
     <details class="insev"><summary>${i.sec === 'market' ? '시장 근거' : '정책 근거'} 읽기</summary><p>${hl(i.body)}</p></details>
     <div class="w1box act"><span class="w1h">웨이즈원 시사점·실행 액션</span>
       ${a.edge ? `<p class="edge"><span class="kl">우리 강점</span>${hl(a.edge)}</p>` : ''}
+      ${ownNums.length ? `<div class="ownh"><span class="kl">근거가 되는 웨이즈원 실적</span><button type="button" class="linkish" data-tabgo="track">수행 실적에서 보기 →</button></div><div class="inums own" aria-label="웨이즈원 실적">${ownNums.map(n => `<div><b>${esc(n.v)}</b><span>${esc(n.l)}</span></div>`).join('')}</div>` : ''}
       <ol class="acts">${[...(a.actions||[])].sort((p, q) => actKey(p.due).localeCompare(actKey(q.due))).map(x => { const d = actDue(x.due);
         return `<li><span class="ad${x.done ? ' done' : d.past ? ' past' : ''}">${esc(d.txt)}${x.done ? '<span class="tag ok">완료</span>' : d.dd}</span><div class="ab"><b>${hl(x.do)}</b><span class="nmeta">${esc(x.who || '')}${x.out ? ' · ' + esc(x.out) : ''}</span></div></li>`; }).join('')}</ol>
       <dl class="agr">${a.goal ? `<dt>목표</dt><dd>${hl(a.goal)}</dd>` : ''}${a.risk ? `<dt>리스크</dt><dd class="r">${hl(a.risk)}</dd>` : ''}${a.watch ? `<dt>판단 시점</dt><dd class="r">${esc(a.watch)}</dd>` : ''}</dl>
@@ -788,7 +829,7 @@ function renderSources(){
   $('#foot').innerHTML = `${esc(D.meta.footer)}`;
 }
 
-renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
+renderPipe(); renderEx(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
 
 /* ── 아이디어 검증 (2026-10-19) ─────────────────────────
    기획안 → ① 레이더에서 실행할 사업 찾기 → ② 정책·기술·경제·실행 점수.

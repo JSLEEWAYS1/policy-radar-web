@@ -807,6 +807,27 @@ details.mkt ul{margin-top:6px}
 .inums>div{display:grid;gap:3px;align-content:start;padding:10px 12px;background:var(--surface)}
 .inums b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.12rem;font-weight:650;line-height:1.2;color:var(--ink)}
 .inums span{font-size:.76rem;line-height:1.45;color:var(--ink2)}
+/* 한국도로공사(주요 고객) 공고 — 나라장터 연계 공고(2026-10-20) */
+.expanel{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
+.expanel .sec-head h2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.expanel .cust{font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--mark-soft);color:var(--mark-ink);letter-spacing:.01em}
+.exsteps{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.72rem;color:var(--ink3)}
+.exsteps i{font-style:normal;color:var(--line2)}
+.exs{padding:1px 8px;border-radius:999px;border:1px dashed var(--line2);color:var(--ink3);white-space:nowrap}
+.exs.on{border:0;font-weight:700}
+.exs.on.plan{background:var(--plan-soft);color:var(--plan)}
+.exs.on.pre{background:var(--pre-soft);color:var(--pre)}
+.exs.on.bid{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
+/* 숫자 출처 구분(2026-10-20): 정부 정책·나라장터는 위 띠, 웨이즈원 실적은 시사점 상자 안 */
+.inums em.nk{font-style:normal;font-size:.68rem;font-weight:700;letter-spacing:.02em;color:var(--ink3);display:inline-flex;align-items:center;gap:5px}
+.inums em.nk::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ink3)}
+.inums .nk-market em.nk{color:var(--ok)}
+.inums .nk-market em.nk::before{background:var(--ok)}
+.ownh{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+.ownh .kl{color:var(--mark-ink)}
+.ownh .linkish{font-size:.82rem;color:var(--ink2)}
+.inums.own{background:color-mix(in srgb,var(--mark) 22%,var(--line));border-color:color-mix(in srgb,var(--mark) 22%,var(--line))}
+.inums.own b{color:var(--mark-ink)}
 details.insev>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:.86rem;font-weight:600;color:var(--ink2)}
 details.insev>summary::-webkit-details-marker{display:none}
 details.insev>summary::before{content:"+";flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);font-family:var(--f-mono);font-size:.85rem;color:var(--ink2);background:var(--surface)}
