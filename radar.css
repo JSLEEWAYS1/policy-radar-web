@@ -1122,4 +1122,7 @@ details.tdtable tr.fcr td{color:var(--ink2)}
   .tdct td.t{grid-column:1/-1;order:1;color:var(--ink2);font-size:.84rem}
   .tdct td[data-l]{order:2;display:grid;gap:0;text-align:left;font-size:.84rem;white-space:normal}
   .tdct td[data-l]::before{content:attr(data-l);font-family:var(--f-body);font-size:.72rem;color:var(--ink3)}
+  .tdct td.nil{display:none}
+  .tdcyc .seg{display:flex;flex-wrap:wrap;gap:6px;border:0;background:transparent;overflow:visible}
+  .tdcyc .seg button,.tdcyc .seg button+button{border:1px solid var(--line2);border-radius:999px;padding:6px 12px}
 }

@@ -2708,7 +2708,7 @@ ${ax}
       const t = norm(x.title), org = norm(x.org || '');
       if(!(t.includes(full) || org.includes(full))) continue;  // 같은 시·군·구 이름(시·군·구까지)
       if(prov && org && !(PL[prov] || [prov]).some(p => org.includes(p))) continue;  // 같은 이름 다른 도(예: 강원 고성군·경남 고성군)
-      if(ks.some(ws => ws.every(w => t.includes(w)))) return x;
+      if(c.inc ? new RegExp(c.inc, 'i').test(x.title) : ks.some(ws => ws.every(w => t.includes(w)))) return x;
     }
     return null; };
   function renderCyc(){
@@ -2716,20 +2716,40 @@ ${ax}
     if(!CYC.length){ el.hidden = true; return; }
     el.hidden = false;
     const C = CYC.find(c => c.id === cyc) || CYC[0]; cyc = C.id;
-    const R = (C.rows || []).map(r => { const ly = +r.last.slice(0, 4), due = ly + (C.years || 5), live = liveFor(C, r.g); return {...r, ly, due, st: live ? ['live', '발주 진행 중'] : ST(due), live}; });
-    const cnt = {due: R.filter(r => r.due <= CY && r.st[0] !== 'live').length, next: R.filter(r => r.due === CY + 1).length, n2: R.filter(r => r.due === CY + 2).length, live: R.filter(r => r.st[0] === 'live').length, all: R.length};
-    const F = {due: r => r.due <= CY && r.st[0] !== 'live', next: r => r.due === CY + 1, n2: r => r.due === CY + 2, live: r => r.st[0] === 'live', all: () => true};
-    if(!F[cf]) cf = 'due';
+    const LK = C.kind === 'linked';
+    const R0 = (C.rows || []).map(r => { const ly = +r.last.slice(0, 4), due = ly + (C.years || 5), live = liveFor(C, r.g); return {...r, ly, due, st: live ? ['live', '발주 진행 중'] : ST(due), live}; });
+    let R = R0;
+    if(LK){
+      // 재정비 연동: 연결된 주기 사업(관리계획 재정비·토지적성평가)이 작년~2년 뒤에 도래하는데 최근 5년 큰 정비 이력이 없는 지자체
+      const own = new Map(R0.map(r => [r.g, r])), cand = new Map();
+      for(const lid of (C.link || [])){
+        const LC = (TR.cycles || []).find(c => c.id === lid); if(!LC) continue;
+        for(const r of (LC.rows || [])){
+          const due = +r.last.slice(0, 4) + (LC.years || 5); if(due < CY - 1 || due > CY + 2) continue;
+          const o = own.get(r.g); if(o && o.ly >= CY - 4) continue;
+          const x = cand.get(r.g) || {due, via: []}; x.due = Math.min(x.due, due); x.via.push(`${LC.name} ${due}년 도래`); cand.set(r.g, x);
+        }
+      }
+      const cands = [...cand.entries()].map(([g, x]) => { const o = own.get(g), live = liveFor(C, g);
+        return {g, last: o ? o.last : '', t: o ? o.t : '큰 정비 이력 없음', a: o ? o.a : 0, w: o ? o.w : '', us: o ? o.us : false, ys: o ? o.ys : [], ly: o ? o.ly : 0, due: x.due, st: live ? ['live', '발주 진행 중'] : ST(x.due), live, via: x.via.join(' · '), cand: true}; });
+      R = [...R0.filter(r => !cand.has(r.g)), ...cands];
+    }
+    const isLive = r => r.st[0] === 'live';
+    const F = {link: r => r.cand, due: r => r.due <= CY && !isLive(r), next: r => r.due === CY + 1, n2: r => r.due === CY + 2, live: isLive, done: r => !r.cand && r.ly >= CY - 4, all: () => true};
+    const BT = LK ? [['link', '재정비 연동 후보'], ['done', '최근 5년 정비함'], ['live', '지금 발주 진행 중'], ['all', '전체 지자체']]
+      : [['due', '올해까지 도래'], ['next', `내년(${CY + 1}) 도래`], ['n2', `${CY + 2}년 도래`], ['live', '지금 발주 진행 중'], ['all', '전체 지자체']];
+    if(!BT.some(b => b[0] === cf)) cf = BT[0][0];
     const L = R.filter(F[cf]).sort((a, b) => a.due - b.due || a.g.localeCompare(b.g));
-    el.innerHTML = `<div class="sec-head"><h3>법정주기 사업 · 도래하는 지자체 <span class="nmeta">마지막 계약(개찰 뒤 계약일) + ${C.years || 5}년</span></h3>
+    const dt = d => d ? esc(d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8)) : '—';
+    el.innerHTML = `<div class="sec-head"><h3>법정주기 사업 · 도래하는 지자체 <span class="nmeta">${LK ? '법정 주기 없음 · 관리계획 재정비(5년) 연동' : `마지막 계약(개찰 뒤 계약일) + ${C.years || 5}년`}</span></h3>
       <p class="muted">${esc(C.law || '')}${C.product ? ` 웨이즈원 제품: <b>${esc(C.product)}</b>.` : ''}</p></div>
       <div class="seg" role="group" aria-label="법정주기 사업">${CYC.map(c => `<button type="button" data-cyc="${esc(c.id)}" aria-pressed="${String(c.id === C.id)}">${esc(c.name)}</button>`).join('')}</div>
-      <div class="tdcsum" role="group" aria-label="도래 시점">${[['due', '올해까지 도래', cnt.due], ['next', `내년(${CY + 1}) 도래`, cnt.next], ['n2', `${CY + 2}년 도래`, cnt.n2], ['live', '지금 발주 진행 중', cnt.live], ['all', '전체 지자체', cnt.all]].map(([k, l, n]) => `<button type="button" data-cf="${k}" aria-pressed="${String(k === cf)}"><b>${n}</b>${l}</button>`).join('')}</div>
-      ${L.length ? `<div class="tablebox"><table class="tdct"><thead><tr><th>지자체</th><th>상태</th><th>다음 도래</th><th>마지막 계약</th><th>최근 사업</th><th>금액</th><th>수주사</th><th>지난 계약 연도</th></tr></thead><tbody>
-        ${L.map(r => `<tr class="${r.us ? 'us' : ''}"><td class="g">${esc(r.g)}</td><td class="st"><span class="tdst ${r.st[0]}">${r.st[1]}</span>${r.live ? `<span class="nmeta">${esc(STL[r.live.stage] ? STL[r.live.stage][1] : '')} · ${esc(r.live.title.slice(0, 40))}</span>` : ''}</td><td class="n" data-l="다음 도래">${r.due}년</td><td class="n" data-l="마지막 계약">${esc(r.last.slice(0, 4) + '-' + r.last.slice(4, 6) + '-' + r.last.slice(6, 8))}</td>
-          <td class="t">${esc(r.t)}</td><td class="n" data-l="금액">${eok(r.a)}</td><td data-l="수주사">${esc(r.w || '공동수급')}</td><td class="n" data-l="지난 계약">${(r.ys || []).join(' · ')}</td></tr>`).join('')}
+      <div class="tdcsum" role="group" aria-label="도래 시점">${BT.map(([k, l]) => `<button type="button" data-cf="${k}" aria-pressed="${String(k === cf)}"><b>${R.filter(F[k]).length}</b>${l}</button>`).join('')}</div>
+      ${L.length ? `<div class="tablebox"><table class="tdct"><thead><tr><th>지자체</th><th>상태</th><th>${LK ? '정비 시점' : '다음 도래'}</th><th>마지막 계약</th><th>최근 사업</th><th>금액</th><th>수주사</th><th>지난 계약 연도</th></tr></thead><tbody>
+        ${L.map(r => `<tr class="${r.us ? 'us' : ''}"><td class="g">${esc(r.g)}</td><td class="st"><span class="tdst ${r.st[0]}">${r.st[1]}</span>${r.live ? `<span class="nmeta">${esc(STL[r.live.stage] ? STL[r.live.stage][1] : '')} · ${esc(r.live.title.slice(0, 40))}</span>` : ''}${r.via ? `<span class="nmeta">${esc(r.via)}</span>` : ''}</td><td class="n" data-l="${LK ? '정비 시점' : '다음 도래'}">${r.due}년</td><td class="n${r.last ? '' : ' nil'}" data-l="마지막 계약">${dt(r.last)}</td>
+          <td class="t">${esc(r.t)}</td><td class="n${r.a ? '' : ' nil'}" data-l="금액">${r.a ? eok(r.a) : '—'}</td><td class="${r.last ? '' : 'nil'}" data-l="수주사">${r.last ? esc(r.w || '공동수급') : '—'}</td><td class="n${(r.ys || []).length ? '' : ' nil'}" data-l="지난 계약">${(r.ys || []).join(' · ') || '—'}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="nmeta">이 조건에 해당하는 지자체가 없습니다.</p>'}
-      <p class="small muted">나라장터 계약(2010년~)에서 계약명에 「${(C.kws || []).map(esc).join('」·「')}」이 들어간 시·군·구 발주를 지자체별로 묶었습니다. 개찰 뒤 계약일 기준이라 실제 개찰일보다 며칠~몇 주 늦을 수 있고, 다른 이름(예: 도시관리계획 재정비 안에 포함)으로 발주했거나 2010년 이전에만 한 지자체는 빠집니다. 「도래 지남」은 주기가 지났는데 새 계약이 안 보이는 곳으로, 곧 발주하거나 다른 이름으로 이미 했을 수 있습니다.${C.at ? ' 마지막 수집 ' + esc(C.at) + '.' : ''}</p>`;
+      <p class="small muted">${LK ? `나라장터 계약(2010년~)에서 계약명에 연속도면·용도지역·지구 DB 정비가 들어간 <b>5천만원 이상</b> 계약을 지자체별로 묶었습니다(매년 하는 소액 현행화·유지관리는 제외). 「재정비 연동 후보」는 ${(C.link || []).map(id => { const c = (TR.cycles || []).find(x => x.id === id); return c ? '「' + esc(c.name) + '」' : ''; }).filter(Boolean).join('·')}가 작년~${CY + 2}년에 도래하는데 최근 5년 큰 정비 이력이 없는 곳이고, 「정비 시점」은 그 도래 연도(정비 이력이 있으면 마지막 정비 + 5년)입니다.` : `나라장터 계약(2010년~)에서 계약명에 「${(C.kws || []).map(esc).join('」·「')}」이 들어간 시·군·구 발주를 지자체별로 묶었습니다. 개찰 뒤 계약일 기준이라 실제 개찰일보다 며칠~몇 주 늦을 수 있고, 다른 이름(예: 도시관리계획 재정비 안에 포함)으로 발주했거나 2010년 이전에만 한 지자체는 빠집니다. 「도래 지남」은 주기가 지났는데 새 계약이 안 보이는 곳으로, 곧 발주하거나 다른 이름으로 이미 했을 수 있습니다.`}${C.at ? ' 마지막 수집 ' + esc(C.at) + '.' : ''}</p>`;
     $$('#tdcyc [data-cyc]').forEach(b => b.addEventListener('click', () => { cyc = b.dataset.cyc; store('tdcyc', cyc); renderCyc(); }));
     $$('#tdcyc [data-cf]').forEach(b => b.addEventListener('click', () => { cf = b.dataset.cf; store('tdcf', cf); renderCyc(); }));
   }
