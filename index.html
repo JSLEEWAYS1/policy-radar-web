@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=03a3f045">
-<link rel="stylesheet" href="app.css?v=03a3f045">
+<link rel="stylesheet" href="radar.css?v=9a4ec30a">
+<link rel="stylesheet" href="app.css?v=9a4ec30a">
 </head>
 <body>
 
@@ -133,6 +133,7 @@
   <div class="wrap" role="tablist">
     <button class="tab" role="tab" data-tab="overview" id="t-overview">한눈에 보기</button>
     <button class="tab" role="tab" data-tab="g2b" id="t-g2b">나라장터 사업</button>
+    <button class="tab" role="tab" data-tab="trend" id="t-trend">공공발주 트렌드</button>
     <button class="tab" role="tab" data-tab="rnd" id="t-rnd">연구개발·기업지원</button>
     <button class="tab" role="tab" data-tab="ways1" id="t-ways1">웨이즈원 기회</button>
     <button class="tab" role="tab" data-tab="track" id="t-track">수행 실적</button>
@@ -179,6 +180,23 @@
 <section class="view" id="v-g2b" data-view="g2b" hidden>
   <div class="panel prepanel" id="prepanel"></div>
   <div class="panel prepanel expanel" id="expanel" hidden></div>
+</section>
+
+<section class="view" id="v-trend" data-view="trend" hidden>
+  <div class="sec-head"><h2>공공발주 트렌드</h2>
+    <p class="muted">웨이즈원 제품 분야가 나라장터에서 얼마나 발주됐는지 <b>2016년부터 지금까지</b> 연도별 계약 건수·금액으로 보고, 정부 정책·예산과 기술 흐름을 반영해 <b>앞으로 3년</b>을 예측합니다. 키워드를 넣거나 아래 분야를 고르세요.</p></div>
+  <div class="panel tdsearch">
+    <form id="tdform" class="tdform" role="search" autocomplete="off">
+      <label for="tdq">제품·기술 키워드</label>
+      <input id="tdq" type="search" list="tdlist" placeholder="예: 정밀도로지도, C-ITS, 도로대장" maxlength="30">
+      <datalist id="tdlist"></datalist>
+      <button class="btn pri" type="submit">보기</button>
+    </form>
+    <div class="tdchips" id="tdchips" role="list"></div>
+    <p class="nmeta" id="tdmsg" role="status"></p>
+  </div>
+  <div id="tdout" class="tdout"></div>
+  <div class="panel tdcyc" id="tdcyc" hidden></div>
 </section>
 
 <section class="view" id="v-rnd" data-view="rnd" hidden>
@@ -345,8 +363,8 @@
   </div>
 </div>
 
-<script src="config.js?v=03a3f045"></script>
-<script src="radar.js?v=03a3f045"></script>
-<script type="module" src="app.js?v=03a3f045"></script>
+<script src="config.js?v=9a4ec30a"></script>
+<script src="radar.js?v=9a4ec30a"></script>
+<script type="module" src="app.js?v=9a4ec30a"></script>
 </body>
 </html>

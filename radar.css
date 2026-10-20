@@ -1005,3 +1005,121 @@ ol.acts .ad.done{color:var(--ok)}
 .trcert .linkish{font-size:.8rem;color:var(--ink3)}
 .tag.cert{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
 .tag.nocert{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink3);font-weight:500}
+
+/* 공공발주 트렌드(2026-10-20): 연도별 계약 금액·건수(실적 → 올해 예상 → 3년 예측). 두 지표는 같은 축에 겹치지 않고 위아래 두 차트로 나눈다 */
+.tdsearch{display:grid;gap:12px}
+.tdform{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tdform label{font-size:.82rem;font-weight:600;color:var(--ink3)}
+.tdform input{flex:1 1 240px;min-width:0;border:1px solid var(--line2);border-radius:10px;background:var(--surface);color:var(--ink);padding:9px 12px;font:inherit}
+.tdform input:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
+.tdchips{display:flex;flex-wrap:wrap;gap:6px}
+.tdchips button{appearance:none;border:1px solid var(--line2);background:var(--surface);color:var(--ink2);border-radius:999px;padding:4px 12px;font-size:.84rem;cursor:pointer}
+.tdchips button:hover{border-color:var(--ink3);color:var(--ink)}
+.tdchips button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.tdchips button.mine{border-style:dashed}
+.tdout{display:grid;gap:18px}
+.tdhead{display:grid;gap:8px}
+.tdhead h3{font-size:1.25rem;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.tdhead h3 .nmeta{font-family:var(--f-body);font-weight:500}
+.tdtiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tdtiles>div{background:var(--surface);padding:12px 14px;display:grid;gap:3px;align-content:start}
+.tdtiles b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.3rem;font-weight:650;line-height:1.15;color:var(--ink)}
+.tdtiles span{font-size:.78rem;color:var(--ink2);line-height:1.45}
+.tdtiles span b{font-family:var(--f-mono);font-size:inherit;font-weight:700;line-height:inherit}
+.tdtiles .up{color:var(--ok)}
+.tdtiles .dn{color:var(--warn)}
+@media (max-width:760px){.tdtiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tdcharts{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.tdchart{display:grid;gap:6px}
+.tdchart h4{margin:0;font-size:.95rem;font-weight:700;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.tdchart h4 .nmeta{font-weight:500}
+.tdsvgwrap{position:relative}
+.tdsvg{width:100%;height:auto;display:block;overflow:visible}
+.tdsvg text{font-family:var(--f-body);font-size:11px;fill:var(--ink3)}
+.tdsvg .vl{font-family:var(--f-mono);font-size:10.5px;fill:var(--ink2)}
+.tdsvg .grid{stroke:var(--line);stroke-width:1}
+.tdsvg .base{stroke:var(--ink3);stroke-width:1}
+.tdsvg .hist{fill:var(--g-mob)}
+.tdsvg .est{fill:url(#tdhatch);stroke:var(--g-mob);stroke-width:1.5}
+.tdsvg .fc{fill:url(#tdhatch);stroke:var(--g-mob);stroke-width:1.5}
+.tdsvg .band{stroke:var(--ink2);stroke-width:1.5}
+.tdsvg .bl{stroke:var(--ink3);stroke-width:2;stroke-dasharray:5 4;fill:none}
+.tdsvg .bld{fill:var(--surface);stroke:var(--ink3);stroke-width:2}
+.tdsvg .div{stroke:var(--line2);stroke-width:1;stroke-dasharray:3 3}
+.tdsvg .hit{fill:transparent;cursor:default}
+.tdsvg .hit:hover+.hov,.tdsvg .hov{pointer-events:none}
+.tdsvg g.col:hover .hist,.tdsvg g.col:hover .est,.tdsvg g.col:hover .fc{opacity:.85}
+.tdtip{position:absolute;z-index:5;pointer-events:none;background:var(--surface);border:1px solid var(--line2);border-radius:10px;padding:8px 10px;font-size:.8rem;line-height:1.5;color:var(--ink);box-shadow:var(--shadow);min-width:160px;max-width:240px}
+.tdtip b{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.tdtip .nmeta{font-size:.76rem}
+.tdleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.8rem;color:var(--ink2);align-items:center}
+.tdleg i{display:inline-block;width:14px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+.tdleg i.h{background:var(--g-mob)}
+.tdleg i.f{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--g-mob) 45%,transparent) 0 2px,transparent 2px 5px);box-shadow:inset 0 0 0 1.5px var(--g-mob)}
+.tdleg i.b{height:0;border-top:2px dashed var(--ink3);border-radius:0;width:18px}
+.tdleg i.w{width:2px;height:12px;background:var(--ink2);border-radius:0;margin-left:6px}
+details.tdtable>summary{cursor:pointer;font-size:.86rem;font-weight:600;color:var(--ink2)}
+details.tdtable table{border-collapse:collapse;width:100%;min-width:560px;font-size:.84rem;margin-top:8px}
+details.tdtable th,details.tdtable td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums}
+details.tdtable th:first-child,details.tdtable td:first-child{text-align:left}
+details.tdtable th{color:var(--ink3);font-weight:600;font-size:.78rem}
+details.tdtable tr.fcr td{color:var(--ink2)}
+.tddrv{display:grid;gap:10px}
+.tddrv ul{list-style:none;margin:0;padding:0;display:grid}
+.tddrv li{display:grid;grid-template-columns:108px minmax(0,1fr);gap:4px 14px;padding:10px 0;border-top:1px solid var(--line)}
+.tddrv li:first-child{border-top:0}
+.tddrv .eff{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:700;font-size:.92rem;display:grid;gap:2px;align-content:start}
+.tddrv .eff.p{color:var(--ok)}
+.tddrv .eff.m{color:var(--warn)}
+.tddrv .eff small{font-family:var(--f-body);font-weight:500;font-size:.74rem;color:var(--ink3)}
+.tddrv .bd{display:grid;gap:3px;min-width:0}
+.tddrv .bd b{font-weight:650}
+.tddrv .refs{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:.8rem}
+.tdkind{font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--sunk);color:var(--ink2);margin-left:6px;vertical-align:1px}
+.tdout2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.tdout2 .panel{display:grid;gap:8px;align-content:start}
+.tdrank{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.88rem}
+.tdrank li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:baseline}
+.tdrank li .num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.82rem;color:var(--ink2)}
+.tdrank li.us b{color:var(--mark-ink)}
+.tdpipe{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.88rem}
+.tdpipe li{display:grid;gap:2px}
+.tdreq{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+@media (max-width:620px){.tddrv li{grid-template-columns:minmax(0,1fr);gap:2px}}
+
+/* 법정주기 사업 도래 지자체 */
+.tdcyc{display:grid;gap:12px}
+.tdcyc .sec-head h3{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.tdcsum{display:flex;flex-wrap:wrap;gap:8px}
+.tdcsum button{appearance:none;border:1px solid var(--line2);background:var(--surface);border-radius:10px;padding:6px 12px;cursor:pointer;display:grid;gap:1px;text-align:left;color:var(--ink2);font-size:.8rem}
+.tdcsum button b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.15rem;color:var(--ink)}
+.tdcsum button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.tdct{border-collapse:collapse;width:100%;min-width:760px;font-size:.86rem}
+.tdct th,.tdct td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.tdct th{color:var(--ink3);font-weight:600;font-size:.78rem}
+.tdct td.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tdct td.g{font-weight:650;white-space:nowrap}
+.tdct td .nmeta{display:block}
+.tdct tr.us td.g::after{content:" 웨이즈원 수행";font-size:.7rem;font-weight:700;color:var(--mark-ink);margin-left:4px}
+.tdst{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+.tdst.over{background:color-mix(in srgb,var(--warn) 16%,var(--surface));color:var(--warn)}
+.tdst.now{background:var(--mark);color:#fff}
+.tdst.next{background:var(--mark-soft);color:var(--mark-ink)}
+.tdst.n2{background:var(--sunk);color:var(--ink2)}
+.tdst.later{background:transparent;color:var(--ink3);box-shadow:inset 0 0 0 1px var(--line2)}
+.tdst.live{background:color-mix(in srgb,var(--ok) 14%,var(--surface));color:var(--ok)}
+/* 좁은 화면: 표 대신 지자체마다 한 장의 카드(값은 두 칸씩) */
+@media (max-width:700px){
+  .tdcyc .tablebox{overflow:visible}
+  .tdct{min-width:0}
+  .tdct thead{display:none}
+  .tdct,.tdct tbody,.tdct tr,.tdct td{display:block}
+  .tdct tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 14px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .tdct td{border:0;padding:0}
+  .tdct td.g{align-self:center}
+  .tdct td.st{text-align:right}
+  .tdct td.st .nmeta{text-align:right}
+  .tdct td.t{grid-column:1/-1;order:1;color:var(--ink2);font-size:.84rem}
+  .tdct td[data-l]{order:2;display:grid;gap:0;text-align:left;font-size:.84rem;white-space:normal}
+  .tdct td[data-l]::before{content:attr(data-l);font-family:var(--f-body);font-size:.72rem;color:var(--ink3)}
+}
