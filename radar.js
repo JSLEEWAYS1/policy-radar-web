@@ -1505,7 +1505,7 @@ renderPipe(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(
   }
   let FITM = null;
   // 수행 실적 근거: 나라장터 계약 + 나라장터에 결과가 공개되지 않아 팀이 직접 등록한 수주
-  const TRK = [...((D.track && D.track.items) || []), ...((D.track && D.track.manual) || []).filter(x => x && x.title)];
+  const TRK = [...((D.track && D.track.items) || []), ...((D.track && D.track.manual) || []).filter(x => x && x.title && !x.of)];
   const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: TRK, stems: PLAN.stems}));
   const LV = {none: 0, part: 1, core: 2};
   let TKM = null;
@@ -2087,22 +2087,35 @@ ${ax}
   /* 직접 등록 실적: 페이지 데이터(자동 갱신 때 저장소 목록을 옮겨 둔 사본) + 이 화면에서 공용 저장소를 읽은 최신 목록 */
   const DAY = s => (String(s || '').match(/^\d{4}-\d{2}(-\d{2})?$/) || [null])[0];
   const NUM = v => { const n = parseInt(String(v ?? '').replace(/[^\d]/g, ''), 10); return n > 0 ? n : null; };
+  // of: 고친 값 기록이 가리키는 원래 줄(나라장터 자동 수집 'auto:CC:번호' 또는 다른 화면에서 등록한 'db-…'·'web-…'). 원본은 그대로 두고 화면에서 덮어 보여 준다
+  const OFRE = /^(auto:[A-Z]{1,4}:[A-Za-z0-9_-]{4,40}|(db|web|seed)-[A-Za-z0-9_-]{1,60})$/;
   const cleanM = (r, id, origin) => {
     const s = (k, n) => String(r[k] ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
-    const role = RTAG[s('role', 4)] ? s('role', 4) : null, sh = NUM(r.share);
-    return {id, origin, manual: true, title: s('title', 160), buyer: s('buyer', 80), date: DAY(r.date), dateKind: DK.includes(r.dateKind) ? r.dateKind : '계약',
+    const role = RTAG[s('role', 4)] ? s('role', 4) : null, sh = NUM(r.share), of = OFRE.test(s('of', 110)) ? s('of', 110) : '';
+    return {id, origin, manual: true, of, at: s('at', 16), title: s('title', 160), buyer: s('buyer', 80), date: DAY(r.date), dateKind: DK.includes(r.dateKind) ? r.dateKind : (of ? null : '계약'),
       start: DAY(r.start), end: DAY(r.end), amt: NUM(r.amt), est: NUM(r.est), role, share: role === '단독' || role === '하도급' ? 100 : (sh && sh <= 100 ? sh : null),
-      lead: role === '구성' ? s('lead', 60) : '', reason: REASONS.includes(r.reason) ? r.reason : '기타', ref: /^[A-Z0-9-]{6,30}$/.test(s('ref', 30).toUpperCase()) ? s('ref', 30).toUpperCase() : '',
+      lead: role === '구성' ? s('lead', 60) : '', reason: REASONS.includes(r.reason) ? r.reason : (of ? null : '기타'), ref: /^[A-Z0-9-]{6,30}$/.test(s('ref', 30).toUpperCase()) ? s('ref', 30).toUpperCase() : '',
       note: s('note', 200), addedAt: s('addedAt', 10), _doc: origin === 'db' || origin === 'web' ? String(id).replace(/^(db|web)-/, '') : null};
   };
   const SAVED = (T.manual || []).map(x => cleanM(x, x.id, x.origin || 'seed'));
   // 저장소: 레이더 화면은 공용 저장소(origin db), 회원 홈페이지는 회원 서버 표(origin web). 다른 쪽에서 등록한 줄은 데이터 사본으로만 보인다
   let STORE = null, WHY = 'loading', LIVE = null, ALL = [], DUP = [];
   const SRC = {db: '레이더 관리 화면', web: '회원 홈페이지', seed: '초기 등록'};
+  const OVF = ['title', 'buyer', 'ref', 'date', 'dateKind', 'start', 'end', 'amt', 'est', 'role', 'share', 'lead', 'reason', 'note'];
+  let OV = {};
+  // 고친 값 적용: 같은 줄을 여러 번 고쳤으면 가장 최근 것. 직접 등록 줄은 그 줄이 나중에 다시 저장됐으면 원본이 이긴다
+  const apply = (x, tgt) => {
+    const o = OV[tgt]; if(!o || (x.manual && x.at && o.at && o.at < x.at)) return x;
+    const y = {...x}; OVF.forEach(k => { if(o[k] != null && o[k] !== '') y[k] = o[k]; });
+    if(y.role === '단독' || y.role === '하도급') y.share = 100;
+    y._ov = o; return y;
+  };
   function rebuild(){
-    const M = (LIVE && STORE ? SAVED.filter(x => x.origin !== STORE.origin).concat(LIVE) : SAVED).filter(x => x.title && x.buyer);
+    const M0 = (LIVE && STORE ? SAVED.filter(x => x.origin !== STORE.origin).concat(LIVE) : SAVED).filter(x => x.title && x.buyer);
+    OV = {}; M0.filter(x => x.of).forEach(x => { const o = OV[x.of]; if(!o || String(x.at || '') >= String(o.at || '')) OV[x.of] = x; });
+    const M = M0.filter(x => !x.of);
     DUP = M.filter(x => AUTOK.has(norm(x.title)));
-    ALL = AUTO.concat(M.filter(x => !AUTOK.has(norm(x.title))).map(prep));
+    ALL = AUTO.map(x => prep(apply({...x, _tgt: 'auto:' + x.key}, 'auto:' + x.key))).concat(M.filter(x => !AUTOK.has(norm(x.title))).map(x => prep(apply({...x, _tgt: x.id}, x.id))));
     const n = $('#t-track .n');
     if(n) n.textContent = ALL.length; else if(tb && ALL.length) tb.insertAdjacentHTML('beforeend', `<span class="n">${ALL.length}</span>`);
   }
@@ -2129,18 +2142,27 @@ ${ax}
     if(x.manual){
       const amt = x.amt ? `계약 <b class="num">${won(x.amt)}</b>` : `<span class="need">계약금액 확인 필요</span>${x.est ? ` · 추정가격 <b class="num">${won(x.est)}</b>` : ''}`;
       const title = x.ref ? `<a href="${SRCH + encodeURIComponent(x.ref)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : `<span class="tt">${esc(x.title)}</span>`;
-      const mine = STORE && STORE.canWrite !== false && x.origin === STORE.origin && x._doc;
-      const act = mine ? `<span class="tract"><button type="button" class="linkish" data-ed="${esc(x._doc)}">고치기</button><button type="button" class="linkish" data-del="${esc(x._doc)}">지우기</button></span>`
-        : (STORE && SRC[x.origin] && x.origin !== STORE.origin ? `<span class="tract nmeta">${esc(SRC[x.origin])}에서 등록 · 고치려면 그 화면에서</span>` : '');
+      const act = acts(x);
       return `<li class="man"><div class="tw"><b>${esc(ym(x.date) || '-')}${x.dateKind && x.dateKind !== '계약' ? `<small> ${esc(x.dateKind)}</small>` : ''}</b>${rtag}<span class="tag man" title="나라장터에 결과가 공개되지 않아 팀이 직접 등록한 실적">직접 등록</span></div>
         <div class="tb">${title}
           <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer)} · ${amt}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${period}${x.ref ? ` · 공고 ${esc(x.ref)}` : ''}</span>
           ${mem}<span class="mem why">나라장터에 없는 이유: ${esc(x.reason)}${x.note ? ' · ' + esc(x.note) : ''}</span>${extra ? `<span class="kws">${extra}</span>` : ''}${act}</div></li>`;
     }
-    return `<li><div class="tw"><b>${esc(ym(x.date) || '-')}</b>${rtag}</div>
+    const ovn = x._ov ? `<span class="mem why">직접 수정한 값으로 표시${x._ov.note ? ' · ' + esc(x._ov.note) : ''}</span>` : '';
+    return `<li${x._ov ? ' class="ovr"' : ''}><div class="tw"><b>${esc(ym(x.date) || '-')}</b>${rtag}${x._ov ? '<span class="tag edt" title="나라장터 수집 값을 팀이 고친 줄">수정됨</span>' : ''}</div>
       <div class="tb"><a href="${SRCH + encodeURIComponent(x.title)}" target="_blank" rel="noopener">${esc(x.title)}</a>
         <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer || x.org || '')} · 계약 <b class="num">${won(x.amt)}</b>${x.total ? ` (장기계속 총 ${won(x.total)})` : ''}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${x.method ? ' · ' + esc(mth(x.method)) : ''}${x.chg ? ' · 변경 ' + esc(x.chg) + '회' : ''}${period}</span>
-        ${mem}${extra ? `<span class="kws">${extra}</span>` : ''}</div></li>`;
+        ${mem}${ovn}${extra ? `<span class="kws">${extra}</span>` : ''}${acts(x)}</div></li>`;
+  }
+  // 줄마다: 이 화면 저장소의 직접 등록 줄은 고치기·지우기, 나머지(나라장터 수집·다른 화면 등록)는 고치기(고친 값 기록)와 원래 값으로
+  function acts(x){
+    if(!STORE || STORE.canWrite === false) return x.manual && SRC[x.origin] ? `<span class="tract nmeta">${esc(SRC[x.origin])}에서 등록</span>` : '';
+    const own = x.manual && x.origin === STORE.origin && x._doc;
+    const b = [`<button type="button" class="linkish" data-edit="${esc(x._tgt)}">고치기</button>`];
+    if(own) b.push(`<button type="button" class="linkish" data-del="${esc(x._doc)}">지우기</button>`);
+    if(x._ov && x._ov.origin === STORE.origin && x._ov._doc) b.push(`<button type="button" class="linkish" data-del="${esc(x._ov._doc)}" data-undo="1">원래 값으로</button>`);
+    const from = x.manual && !own && SRC[x.origin] ? `<span class="nmeta">${esc(SRC[x.origin])}에서 등록</span>` : (x._ov && x._ov.origin !== STORE.origin && SRC[x._ov.origin] ? `<span class="nmeta">${esc(SRC[x._ov.origin])}에서 수정</span>` : '');
+    return `<span class="tract">${b.join('')}${from}</span>`;
   }
 
   function render(){
@@ -2168,7 +2190,7 @@ ${ax}
       : show.map(k => { const a = G[k].slice().sort((p, q) => (q.date || '').localeCompare(p.date || ''));
         return `<section class="panel trg"><h3>${esc(NAME[k])} <span class="nmeta">${a.length}건 · 계약 총액 <b class="num">${won(sum(a))}</b> · 웨이즈원 몫 <b class="num">${won(mine(a))}</b></span></h3><ul class="trlist">${a.map(row).join('')}</ul></section>`; }).join('');
     const yr = String(T.from || '').slice(0, 4), mn = ALL.filter(x => x.manual).length;
-    document.getElementById('trnote').innerHTML = AUTO.length || mn ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다.${mn ? ` <b>직접 등록 ${mn}건</b>은 수주했지만 나라장터에 개찰결과·계약이 공개되지 않아 팀이 넣은 실적입니다. 계약금액을 모르는 건은 합계에서 뺍니다.` : ''}${DUP.length ? ` 직접 등록한 ${DUP.length}건은 같은 사업명의 나라장터 계약이 잡혀 자동 수집 쪽으로 보여 줍니다.` : ''} 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
+    document.getElementById('trnote').innerHTML = AUTO.length || mn ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다.${mn ? ` <b>직접 등록 ${mn}건</b>은 수주했지만 나라장터에 개찰결과·계약이 공개되지 않아 팀이 넣은 실적입니다. 계약금액을 모르는 건은 합계에서 뺍니다.` : ''}${DUP.length ? ` 직접 등록한 ${DUP.length}건은 같은 사업명의 나라장터 계약이 잡혀 자동 수집 쪽으로 보여 줍니다.` : ''}${ALL.some(x => x._ov) ? ` 팀이 값을 고친 ${ALL.filter(x => x._ov).length}건은 「수정됨」으로 표시하고 고친 값으로 합계를 냅니다(원래 기록은 그대로 둠).` : ''} 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
   }
 
   /* ── 직접 등록 양식 ── */
@@ -2182,7 +2204,7 @@ ${ax}
     ro: '읽기 전용 권한이라 등록할 수 없습니다.'
   };
   const SAVEDT = {db: '레이더 공용 저장소에 저장되어 팀 모두에게 바로 보이고, 다음 자동 갱신 때 회원 홈페이지에도 반영됩니다.', web: '회원 서버에 저장되어 승인된 회원 모두에게 바로 보이고, 몇 시간 안에 레이더 데이터에도 반영됩니다.'};
-  let uid = null, editId = null, delArm = null;
+  let uid = null, editId = null, ofTgt = null, delArm = null;
   const say = (t, err) => { st.textContent = t; st.classList.toggle('err', !!err); };
   const kst = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
   function fill(x){
@@ -2194,20 +2216,29 @@ ${ax}
     ['amt', 'est'].forEach(k => { const v = NUM(form.elements[k].value), h = document.getElementById('trh-' + k); if(h) h.textContent = v ? '= ' + eokT(v) : ''; });
   }
   function roleUi(){ const r = form.elements.role.value; form.elements.share.disabled = !(r === '대표' || r === '구성'); form.elements.lead.disabled = r !== '구성'; }
-  function openForm(x){
-    editId = x ? x._doc : null; fill(x);
+  // x 없음: 새 등록 / own: 이 화면 저장소의 직접 등록 줄 고치기 / ov: 다른 줄을 고친 값으로 덮기(ofTgt)
+  function openForm(x, mode){
+    const auto = !!(x && !x.manual);
+    ofTgt = mode === 'ov' ? x._tgt : null;
+    const prevOv = ofTgt && x._ov && x._ov.origin === STORE.origin ? x._ov : null;
+    editId = mode === 'own' ? x._doc : prevOv ? prevOv._doc : null;
+    fill(x ? {...x, buyer: x.buyer || x.org || '', note: mode === 'ov' ? (x._ov && x._ov.note) || '' : x.note} : null);
+    ['reason', 'dateKind'].forEach(k => { form.elements[k].closest('label').hidden = auto; });
     form.querySelector('[type=submit]').textContent = x ? '고친 내용 저장' : '등록';
-    document.getElementById('trman-t').textContent = x ? '직접 등록 실적 고치기' : '나라장터에 없는 실적 직접 등록';
-    document.getElementById('trman-s').textContent = '협상 결과가 게시되지 않았거나 기관 자체 계약이라 자동 수집에 잡히지 않은 수주를 넣습니다. ' + (SAVEDT[STORE.origin] || '') + ' 나중에 같은 사업명의 나라장터 계약이 잡히면 자동 수집 쪽을 보여 줍니다.';
+    document.getElementById('trman-t').textContent = !x ? '나라장터에 없는 실적 직접 등록' : '실적 고치기 — ' + (x.title || '').slice(0, 40);
+    document.getElementById('trman-s').textContent = !x
+      ? '협상 결과가 게시되지 않았거나 기관 자체 계약이라 자동 수집에 잡히지 않은 수주를 넣습니다. ' + (SAVEDT[STORE.origin] || '') + ' 나중에 같은 사업명의 나라장터 계약이 잡히면 자동 수집 쪽을 보여 줍니다.'
+      : mode === 'own' ? '이 화면에서 등록한 실적입니다. 고친 내용으로 바로 바뀝니다. ' + (SAVEDT[STORE.origin] || '')
+      : (auto ? '나라장터에서 모은 원래 기록은 그대로 두고, 고친 값(계약금액·역할·지분·기간 등)으로 보여 줍니다.' : '다른 화면에서 등록한 원래 기록은 그대로 두고, 고친 값으로 보여 줍니다.') + ' 「원래 값으로」를 누르면 되돌립니다. ' + (SAVEDT[STORE.origin] || '');
     man.hidden = false; openB.setAttribute('aria-expanded', 'true'); say('');
     form.elements.title.focus(); man.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   }
-  function closeForm(){ man.hidden = true; openB.setAttribute('aria-expanded', 'false'); editId = null; form.reset(); }
+  function closeForm(){ man.hidden = true; openB.setAttribute('aria-expanded', 'false'); editId = null; ofTgt = null; form.reset(); ['reason', 'dateKind'].forEach(k => { form.elements[k].closest('label').hidden = false; }); }
   openB.addEventListener('click', () => {
     if(!man.hidden){ closeForm(); return; }
     const why = !STORE ? WHY : STORE.canWrite === false ? 'ro' : null;
     if(why){ hintE.textContent = WHYT[why] || WHYT.none; hintE.classList.add('err'); return; }
-    hintE.textContent = HINT0; hintE.classList.remove('err'); openForm(null);
+    hintE.textContent = HINT0; hintE.classList.remove('err'); openForm(null, 'new');
   });
   document.getElementById('trcancel').addEventListener('click', closeForm);
   form.addEventListener('input', e => { if(e.target.name === 'amt' || e.target.name === 'est') hint(); if(e.target.name === 'role') roleUi(); });
@@ -2215,10 +2246,12 @@ ${ax}
     e.preventDefault(); if(!STORE) return;
     const f = Object.fromEntries(new FormData(form).entries());
     const prev = editId && LIVE ? LIVE.find(x => x._doc === editId) : null;
+    if(ofTgt) f.of = ofTgt;
     const body = cleanM(f, '', STORE.origin);
     if(body.title.length < 4 || !body.buyer || !body.date){ say('사업명(4자 이상)·발주기관·날짜를 넣어 주세요.', true); return; }
     if(f.ref && !body.ref){ say('공고번호는 영문·숫자로 적어 주세요(예: R25BK01232658).', true); return; }
     ['id', 'origin', 'manual', '_doc'].forEach(k => delete body[k]);
+    if(!body.of) delete body.of;
     Object.keys(body).forEach(k => { if(body[k] === '' || body[k] == null) body[k] = null; });
     body.addedAt = (prev && prev.addedAt) || kst().slice(0, 10); body.at = kst();
     if(STORE.origin === 'db') body.by = uid || null;
@@ -2226,7 +2259,8 @@ ${ax}
     const was = editId;
     try {
       if(was) await STORE.set(was, body); else await STORE.add(body);
-      closeForm(); say(''); toast(was ? '고쳤습니다.' : '등록했습니다. ' + (SAVEDT[STORE.origin] || ''));
+      const wasOv = !!ofTgt;
+      closeForm(); say(''); toast(was || wasOv ? '고쳤습니다. ' + (SAVEDT[STORE.origin] || '') : '등록했습니다. ' + (SAVEDT[STORE.origin] || ''));
     } catch(err){
       const c = err && (err.code || '');
       if(c === 'invalid_argument' || c === '42501' || /row-level security|permission/i.test(String(err && err.message))){ STORE.canWrite = false; say(WHYT.ro, true); }
@@ -2236,14 +2270,21 @@ ${ax}
   });
   function toast(t){ const n = document.getElementById('trdone'); n.textContent = t; n.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { n.hidden = true; }, 7000); }
   document.getElementById('trgroups').addEventListener('click', async e => {
-    const ed = e.target.closest('[data-ed]'), del = e.target.closest('[data-del]');
-    if(ed){ const x = (LIVE || []).find(y => y._doc === ed.dataset.ed); if(x) openForm(x); return; }
+    const ed = e.target.closest('[data-edit]'), del = e.target.closest('[data-del]');
+    if(ed){
+      if(!STORE || STORE.canWrite === false) return;
+      const x = ALL.find(y => y._tgt === ed.dataset.edit); if(!x) return;
+      const own = x.manual && x.origin === STORE.origin && x._doc && !(x._ov && x._ov.origin === STORE.origin);
+      openForm(x, own ? 'own' : 'ov'); return;
+    }
     if(!del || !STORE) return;
     const id = del.dataset.del;
-    if(delArm !== id){ delArm = id; del.textContent = '한 번 더 누르면 지웁니다'; setTimeout(() => { if(delArm === id){ delArm = null; del.textContent = '지우기'; } }, 4000); return; }
+    const lab = del.textContent;
+    if(delArm !== id){ delArm = id; del.textContent = del.dataset.undo === '1' ? '한 번 더 누르면 되돌립니다' : '한 번 더 누르면 지웁니다'; setTimeout(() => { if(delArm === id){ delArm = null; del.textContent = lab; } }, 4000); return; }
     delArm = null; del.disabled = true;
-    try { await STORE.del(id); toast('지웠습니다.'); }
-    catch(err){ del.disabled = false; del.textContent = '지우기'; toast(err && (err.code === 'invalid_argument' || err.code === '42501') ? '읽기 전용 권한이라 지울 수 없습니다.' : '지우지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); }
+    const undo = del.dataset.undo === '1';
+    try { await STORE.del(id); toast(undo ? '원래 값으로 되돌렸습니다.' : '지웠습니다.'); }
+    catch(err){ del.disabled = false; del.textContent = del.dataset.undo === '1' ? '원래 값으로' : '지우기'; toast(err && (err.code === 'invalid_argument' || err.code === '42501') ? '읽기 전용 권한이라 지울 수 없습니다.' : '지우지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); }
   });
 
   rebuild(); render();
