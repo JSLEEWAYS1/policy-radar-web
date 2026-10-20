@@ -688,17 +688,39 @@ function compRow(o){ const c = o.competitors; if(!c) return ''; let h = '';
   if(c.market) h += `<details class="mkt"${(c.list||[]).length?'':' open'}><summary>${esc(c.market.title)}</summary><ul class="cmpl">${c.market.list.map(a=>`<li><b>${esc(a.name)}</b><span class="num">${esc(a.n)}건</span><span class="nmeta">${esc(a.what)}</span></li>`).join('')}</ul></details>`;
   if((c.bmc||[]).length) h += `<p class="nmeta bmcm"><span class="kl">BMC 경쟁 메모</span> ${c.bmc.map(m=>`<b>${esc(m.product)}</b> — ${esc(m.text)}`).join(' / ')}</p>`;
   return h ? `<dt>유력 경쟁자</dt><dd>${h}</dd>` : ''; }
+/* BMC가 바뀌면 레이더 갱신 때 자동으로 맞춘 내역(제품 추가·삭제·이름 변경·전략 변경·검색어·사업 기회 연결) */
+function bmcChanges(){
+  const C = BMC.changes; if(!C) return '';
+  const day = s => esc(String(s||'').slice(0,16).replace('T',' '));
+  const li = (k, v) => v ? `<li><span class="k">${k}</span>${v}</li>` : '';
+  const j = a => (a||[]).map(esc).join(' · ');
+  const s = C.search||{};
+  const body = [
+    li('새 제품', j(C.added) && `${j(C.added)} <span class="nmeta">— 적합도 표에 자동 추정값으로 넣고, 키워드가 맞는 사업 기회에 연결</span>`),
+    li('빠진 제품', j(C.removed) && `${j(C.removed)} <span class="nmeta">— 사업 기회·인사이트·연구개발 공고·정책 카탈로그에서 뺌</span>`),
+    li('이름 변경', (C.renamed||[]).map(r=>`${esc(r[0])} → <b>${esc(r[1])}</b>`).join(' · ')),
+    li('전략 변경', (C.changed||[]).map(c=>`<b>${esc(c.name)}</b> <span class="nmeta">${esc((c.what||[]).join(', '))}</span>`).join(' · ')),
+    li('나라장터 검색어', [...(s.added||[]).map(k=>'+'+esc(k)), ...(s.removed||[]).map(k=>'−'+esc(k))].join(' ')),
+    li('사업 기회 연결', (C.linked||[]).map(x=>`${esc(x.opp)} ← <b>${esc(x.product)}</b> <span class="nmeta">(${esc(x.by)})</span>`).join(' · ')),
+    li('다시 볼 사업 기회', j(C.affected) && `${j(C.affected)} <span class="nmeta">— 연계 제품 이름은 바꿨지만 「왜 맞는지·다음 행동」 문구는 사람이 확인</span>`),
+  ].join('');
+  const H = (BMC.history||[]).slice(1);
+  const hist = H.length ? `<details><summary>이전 변경 ${H.length}회</summary><ul>${H.map(h=>`<li><span class="mono small">${day(h.at)}</span> ${[h.added?.length&&`추가 ${j(h.added)}`, h.removed?.length&&`삭제 ${j(h.removed)}`, h.renamed?.length&&`이름 ${h.renamed.map(r=>esc(r[0])+'→'+esc(r[1])).join(', ')}`, h.changed?.length&&`전략 ${j(h.changed)}`].filter(Boolean).join(' · ')||'설명 문구만 바뀜'}</li>`).join('')}</ul></details>` : '';
+  return `<div class="bchg" aria-label="최근 BMC 변경"><h3>최근 BMC 변경 <span class="nmeta">BMC 수정 ${day(C.to)} UTC · 레이더 반영 ${day(C.at)}</span></h3>${body?`<ul>${body}</ul>`:'<p class="nmeta">제품 구성·전략은 그대로이고 설명 문구만 바뀌었습니다.</p>'}${hist}</div>`;
+}
 function bmcBoard(){
   const P = BMC.products||[]; if(!P.length) return '';
   const segs = BMC.segments||[...new Set(P.map(p=>p.seg))];
   const n = P.length, st = P.filter(p=>p.star).length, kw = (BMC.search||[]).length;
   const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
-  const card = p => `<details class="bp${p.star?' st':''}"><summary><span class="bt"><b>${esc(p.name)}</b>${tierPill(p)}</span><span class="bty">${esc([p.type, p.grp].filter(Boolean).join(' · '))}</span><span class="bcn">${esc(p.concept||p.note||'')}</span></summary>
+  const CH = BMC.changes||{}; const isNew = n => (CH.added||[]).includes(n); const oldOf = n => ((CH.renamed||[]).find(r=>r[1]===n)||[])[0];
+  const card = p => `<details class="bp${p.star?' st':''}"><summary><span class="bt"><b>${esc(p.name)}</b>${tierPill(p)}${isNew(p.name)?'<span class="bnew">새 제품</span>':''}${oldOf(p.name)?`<span class="bnew" title="예전 이름: ${esc(oldOf(p.name))}">이름 바뀜</span>`:''}</span><span class="bty">${esc([p.type, p.grp].filter(Boolean).join(' · '))}</span><span class="bcn">${esc(p.concept||p.note||'')}</span></summary>
     <dl>${row('현황', esc(p.note||''))}${row('고객', esc(p.customer||''))}${(p.value||[]).length?row('가치', `<ul>${p.value.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`):''}
     ${row('레퍼런스', hl(p.ref||''))}${row('다음 행동', esc(p.next||''))}${(p.keywords||[]).length?row('나라장터 키워드', `<span class="pchips">${p.keywords.map(k=>`<span class="tc">${esc(k)}</span>`).join('')}</span>`):''}
     ${row('경쟁', esc(p.competitors||''))}${(p.risks||[]).length?row('진입 리스크', `<ul>${p.risks.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`):''}</dl></details>`;
   const mvp = (BMC.mvp||[]).length ? `<div class="mvp">${BMC.mvp.map(m=>`<div><span class="eyebrow">${esc(m.phase)} · ${esc(m.when)}</span><ul>${(m.items||[]).map(i=>`<li><b>${esc(i.name)}</b><span class="nmeta">${esc(i.mvp||'')}</span>${i.kpi?`<span class="nmeta">KPI · ${esc(i.kpi)}</span>`:''}</li>`).join('')}</ul></div>`).join('')}</div>` : '';
   return `<div class="bmch"><span class="bmc-badge">WAYS1 BMC</span><span>BMC 수정 <b>${esc(String(BMC.updatedAt||'').slice(0,10))}</b> · 레이더 반영 ${esc(BMC.fetchedAt||'')} · 제품 <b class="num">${n}개</b> · ★ 우선 <b class="num">${st}개</b> · <span title="${esc((BMC.search||[]).join(', '))}">나라장터 검색어 <b class="num">+${kw}개</b>(BMC 키워드)</span></span>${BMC.url?`<a class="dbtn pg" href="${esc(BMC.url)}" target="_blank" rel="noopener">BMC 열기(비밀번호)</a>`:''}</div>
+    ${bmcChanges()}
     ${segs.map(sg=>`<section class="bseg"><h3>${esc(sg)}</h3><div class="bgrid">${P.filter(p=>p.seg===sg).sort((a,b)=>(b.star-a.star)).map(card).join('')}</div></section>`).join('')}
     ${mvp?`<div class="panel" style="display:grid;gap:10px"><h3>BMC MVP 로드맵</h3>${mvp}</div>`:''}`;
 }
@@ -709,7 +731,7 @@ function renderWays1(){
   $('#prods').innerHTML = bmcBoard() || D.products.map(p=>`<article class="prod"><span class="ly">${esc(p.layer||p.seg||'')}</span><h3>${esc(p.name)}</h3><p>${hl(p.desc||'')}</p></article>`).join('');
   let m = '<thead><tr><th>제품·역량</th>'+MG.map(g=>`<th><span class="dot" style="--c:${g.c};display:inline-block;margin-right:4px"></span>${esc(g.name)}</th>`).join('')+'</tr></thead><tbody>';
   let lastSeg = null;
-  D.products.forEach(p=>{ if(p.seg && p.seg !== lastSeg){ lastSeg = p.seg; m += `<tr class="sg"><td colspan="${MG.length+1}">${esc(p.seg)}</td></tr>`; } m += `<tr><td>${esc(p.name)}${BMCP[p.name]?.star?' <span class="star">★</span>':''}</td>`+MG.map(g=>{const v=(p.fit||{})[g.id]||0; return `<td class="${v?'f'+v:''}" aria-label="${v===3?'바로 대응':v===2?'보완 후 진입':v===1?'신규 역량':'해당 없음'}"></td>`;}).join('')+'</tr>'; });
+  D.products.forEach(p=>{ if(p.seg && p.seg !== lastSeg){ lastSeg = p.seg; m += `<tr class="sg"><td colspan="${MG.length+1}">${esc(p.seg)}</td></tr>`; } const au = p.fitAuto ? ' fa' : ''; m += `<tr><td>${esc(p.name)}${BMCP[p.name]?.star?' <span class="star">★</span>':''}${p.fitAuto?'<span class="auto" title="BMC에 새로 생긴 제품이라 이름·개념·키워드로 자동 추정한 값입니다">자동 추정</span>':''}</td>`+MG.map(g=>{const v=(p.fit||{})[g.id]||0; return `<td class="${v?'f'+v+au:''}" aria-label="${v===3?'바로 대응':v===2?'보완 후 진입':v===1?'신규 역량':'해당 없음'}${v&&p.fitAuto?'(자동 추정)':''}"${v&&p.fitAuto?' title="BMC 키워드로 자동 추정"':''}></td>`;}).join('')+'</tr>'; });
   $('#matrix').innerHTML = m+'</tbody>';
   const kinds = ['','발주계획 대응','사전규격 대응','즉시 공략','보완 후 진입','신규 진입 검토'];
   if(!kinds.includes(oppFilter)) oppFilter = '';
