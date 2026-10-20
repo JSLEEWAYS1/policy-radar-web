@@ -2674,8 +2674,9 @@ ${ax}
       else s += st > 0 && pct(st, ta) >= 1 ? `이고, 지자체 발주는 <b class="num">${pct(st, ta)}%</b>로 적습니다` : '이고, 지자체 발주는 거의 없습니다';
       F.push(['발주기관', s + '.']); }
     const sz = dp.size || [], szA = sz.reduce((s, x) => s + x[1], 0);
-    if(szA > 0){ const bigN = sz.slice(3).reduce((s, x) => s + x[0], 0), m1 = (dp.med || {})[CY - 1];
-      F.push(['규모', `건당 중앙값 ${m1 ? `<b class="num">${eok(m1)}</b>(${CY - 1}년)` : '—'}, 3억원 이상 사업은 최근 5년 <b class="num">${bigN}건</b>(연 ${Math.round(bigN / 5 * 10) / 10}건)이고, 10억원 이상 사업이 금액의 <b class="num">${pct(sz.slice(4).reduce((s, x) => s + x[1], 0), szA)}%</b>를 차지합니다.`]); }
+    if(szA > 0){ const bigN = sz.slice(3).reduce((s, x) => s + x[0], 0), m1 = (dp.med || {})[CY - 1], hugeN = sz.slice(4).reduce((s, x) => s + x[0], 0);
+      const huge = hugeN ? `10억원 이상 사업 <b class="num">${hugeN}건</b>이 금액의 <b class="num">${pct(sz.slice(4).reduce((s, x) => s + x[1], 0), szA)}%</b>를 차지합니다.` : '10억원 이상 사업은 없었습니다.';
+      F.push(['규모', `건당 중앙값 ${m1 ? `<b class="num">${eok(m1)}</b>(${CY - 1}년)` : '—'}, 3억원 이상 사업은 최근 5년 <b class="num">${bigN}건</b>(연 ${Math.round(bigN / 5 * 10) / 10}건)이고, ${huge}`]); }
     const mon = dp.mon || [], mt = mon.reduce((s, m) => s + m[0], 0);
     if(mt >= 12){ const top = mon.map((m, i) => [i + 1, m[0]]).sort((a, b) => b[1] - a[1]).slice(0, 3).sort((a, b) => a[0] - b[0]);
       F.push(['발주 시기', `계약은 ${top.map(t => t[0] + '월').join('·')}에 많습니다(세 달 합 <b class="num">${pct(top.reduce((s, t) => s + t[1], 0), mt)}%</b>). 사전규격·입찰공고는 보통 계약보다 한두 달 먼저 나오니 그 앞달부터 챙기면 됩니다.`]); }
@@ -2782,7 +2783,7 @@ ${ax}
       <div class="panel"><h3>새 발주기관 <span class="nmeta">그해 처음 발주한 기관 / 발주기관 수</span></h3><ul class="tdbars">${yrs(CY - 5, CY).filter(y => (dp.newb || {})[y]).map(y => { const v = dp.newb[y]; return `<li><span class="l">${y}${+y === CY ? '(진행 중)' : ''}</span><span class="b"><i style="width:${pct(v[0], v[1])}%"></i></span><span class="v"><b>${v[0]}</b>/${v[1]}곳 · ${eok(v[2])}</span></li>`; }).join('')}</ul></div>
     </div>
     <div class="panel tdrepp"><h3>반복 발주 기관 <span class="nmeta">최근 5년 두 해 이상 발주 · ${CY + 1}년 가능성 순 · 상위 ${(dp.rep || []).length}곳(전체 ${rs ? rs.all : 0}곳)</span></h3>${repTable(dp)}
-      <p class="nmeta">가능성 높음 = 최근 3년 연속 발주, 보통 = 최근 5년 세 번 이상 또는 작년·올해 연속, 낮음 = 그 밖. 예상 규모 = 최근 세 번 발주 금액의 중앙값. 웨이즈원이 마지막으로 수주한 기관은 강조했습니다.</p></div>
+      <p class="nmeta">가능성 높음 = 최근 3년 연속 발주, 보통 = 최근 5년 세 번 이상 또는 작년·올해 연속, 낮음 = 그 밖. 예상 규모 = 최근 5년 발주한 해들의 연 금액 중앙값(한두 해 큰 사업에 끌려가지 않게). 웨이즈원이 마지막으로 수주한 기관은 강조했습니다.</p></div>
     <div class="panel tdwinp"><h3>경쟁 구도 <span class="nmeta">대표사 기준 · 연도별 금액(억원)</span></h3>
       <p class="nmeta">상위 3사 점유율 <b class="num">${Math.round((dp.top3 || 0) * 100)}%</b> · 시장 집중도(HHI) <b class="num">${(dp.hhi || 0).toLocaleString()}</b>(1,500 미만 낮음 · 2,500 이상 높음) · 해마다 수주사 ${yrs(CY - 4, CY).map(y => `${y} ${(dp.nWin || {})[y] || 0}곳`).join(', ')}</p>
       ${winTable(dp)}</div>` : ''}
