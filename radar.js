@@ -2700,8 +2700,16 @@ ${ax}
   let cyc = load('tdcyc', CYC[0] ? CYC[0].id : ''), cf = load('tdcf', 'due');
   const ST = y => y < CY ? ['over', '도래 지남'] : y === CY ? ['now', '올해 도래'] : y === CY + 1 ? ['next', '내년 도래'] : y === CY + 2 ? ['n2', '2년 후'] : ['later', y + '년'];
   // 지금 레이더가 잡고 있는 같은 사업(사전규격·입찰공고·발주계획)이 있으면 「발주 진행 중」으로 표시
-  const liveFor = (c, g) => { const city = g.split(' ').pop().replace(/(시|군|구)$/, ''); const ks = (c.kws || []).map(norm);
-    for(const o of (D.opportunities || [])) for(const x of items(o)) { if(!x.title || !itemLive(x)) continue; const tt = norm(x.title) + norm(x.org || ''); if(ks.some(k => tt.includes(k)) && tt.includes(city)) return x; }
+  const PL = {'경남': ['경남', '경상남'], '경북': ['경북', '경상북'], '전남': ['전남', '전라남'], '전북': ['전북', '전라북'], '충남': ['충남', '충청남'], '충북': ['충북', '충청북']};
+  const liveFor = (c, g) => { const parts = g.split(' '), full = norm(parts.pop()), prov = parts[0] || '';
+    const ks = (c.kws || []).map(k => k.split(/\s+/).map(norm));
+    for(const o of (D.opportunities || [])) for(const x of items(o)) {
+      if(!x.title || !itemLive(x)) continue;
+      const t = norm(x.title), org = norm(x.org || '');
+      if(!(t.includes(full) || org.includes(full))) continue;  // 같은 시·군·구 이름(시·군·구까지)
+      if(prov && org && !(PL[prov] || [prov]).some(p => org.includes(p))) continue;  // 같은 이름 다른 도(예: 강원 고성군·경남 고성군)
+      if(ks.some(ws => ws.every(w => t.includes(w)))) return x;
+    }
     return null; };
   function renderCyc(){
     const el = $('#tdcyc'); if(!el) return;
