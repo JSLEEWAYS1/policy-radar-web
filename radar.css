@@ -801,6 +801,13 @@ details.mkt ul{margin-top:6px}
 .itl>li.v-out .tn,.itl>li.v-unk .tn{color:var(--ink2)}
 @media (max-width:620px){.itl>li{grid-template-columns:minmax(0,1fr);gap:8px}.itl .tv{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}.itl .trow{grid-template-columns:minmax(0,1fr);gap:2px}}
 
+/* 핵심기술 적합도 근거(2026-10-20): 맞는 말마다 웨이즈원 기술 사전의 출처, 사전 출처 목록 */
+.ifwhy{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:.82rem;color:var(--ink2)}
+.ifwhy b{color:var(--ink);font-weight:650}
+details.ifdict>summary{cursor:pointer;font-size:.84rem;color:var(--ink2);font-weight:600}
+details.ifdict[open]>summary{margin-bottom:6px}
+details.ifdict .ilist{margin-top:6px}
+
 /* 인사이트 실행 계획 (2026-10-19): 판단 한 줄 → 핵심 숫자 → 실행 액션·목표·리스크. 실행 보드는 기한 순 */
 .ins .verdict{font-size:1.02rem;line-height:1.72;color:var(--ink);font-weight:600;padding-left:14px;border-left:3px solid var(--mark)}
 .inums{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}

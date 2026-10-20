@@ -1154,6 +1154,10 @@ renderPipe(); renderEx(); renderBoard(); renderPrograms(); renderInsights(); ren
         if(!best){ t.drop = true; return; }
         t.L = best[0]; t.R = best[1]; t.key = best[0];
         if(best[2] === 'bare' && !jev.get(best[0]) && !known(best[0]) && (VERB.test(best[0]) || JO.some(([j, k]) => j.length >= 2 && best[0].length - j.length === 1 && best[0].endsWith(j) && joOk(best[0][0], j, k)))) t.drop = true;
+        // 「시·군과」처럼 가운뎃점으로 끊긴 한 글자 행정단위 + 조사 조각은 낱말이 아니다
+        if(best[0].length === 2 && /^[시군구도읍면동리][과와의를을은는에]$/.test(best[0])) t.drop = true;
+        // 「만든다·한다·높인다」처럼 ㄴ다로 끝나는 말은 다른 곳에 「만든다는」이 있어도 용언이다
+        if(best[2] === 'bare' && best[0].length >= 3 && best[0].endsWith('다') && (best[0].charCodeAt(best[0].length - 2) - 0xAC00) % 28 === 4 && !known(best[0])) t.drop = true;
       }));
       const okW = w => w.length >= 2 && (known(w) || segd(w) || (ev.get(w) || 0) >= 2);
       const ONEJ = new Set(['에', '의', '를', '을', '은', '는', '이', '가', '와', '과', '로', '도', '및']);
@@ -1347,36 +1351,61 @@ renderPipe(); renderEx(); renderBoard(); renderPrograms(); renderInsights(); ren
     return {learn, stems, clean, weak: t => WEAK.has(t)};
   })();
   /* ── 웨이즈원 핵심기술 적합도: 기획안의 핵심 낱말이 웨이즈원이 실제로 가진 기술인지 따진다.
-     근거는 BMC 제품 이름·키워드, 나라장터 수행 실적 계약명, 사업군 핵심어다.
-     「AI·플랫폼·데이터·실증」처럼 누구나 쓰는 말은 빼고 센다. 이런 말이 겹치는 것만으로는 웨이즈원이 할 일이 있다고 보지 않는다. ── */
-  const makeFit = ({products = [], track = [], stems}) => {
+     근거는 「웨이즈원 기술 사전」(BMC 제품 이름·키워드·개념·가치 문장과 웨이즈원을 다룬 공개 기사, 보유 면허에서 뽑은 낱말, D.company.tech),
+     BMC 제품 이름·키워드(BMC가 바뀌면 바로 반영), 나라장터 수행 실적 계약명이다.
+     「AI·플랫폼·데이터·실증」처럼 누구나 쓰는 말, 「정확성·효율성」 같은 성질 낱말, 「군과·시의」 같은 조사 붙은 한 글자 행정단위는 세지 않는다. ── */
+  const makeFit = ({products = [], track = [], stems, tech = null}) => {
     const W = s => String(s || '').toLowerCase().split(/\s+/).filter(Boolean);
-    // 사업군 핵심어(지도 SW·데이터, 공간데이터 서비스, LDM 인프라, 스마트 모빌리티)
-    const CORE = '정밀지도 정밀도로지도 고정밀지도 공간정보 지리정보 측량 수치지도 점군 도화 동적지도 교통 신호 교차로 횡단보도 보행신호 버스 자율주행 셔틀 도로 도로대장 포장관리 공원 수목 토지적성평가 토지적성 용도지역지구 용도지역 도시계획 재해취약성 인허가 행정 민원 입지분석 적지분석 입지 후보지 토지이용 개발제한구역 경사도 표고 주제도 연속지적도 지적 필지 위치정보 주소정보 내비게이션 실내지도 하수관로 상수관로 지하시설물 테마지도 품질검증 신뢰도 정합성 이상치 결측 오류검지 맵매칭 링크 노드 차로 교통량 신호정보 유고 유고상황 유고검지 신호현시 정지선 검지기 시범운행지구 실증도시 교통안전 원격관제 매핑 교차로';
-    const LAT = new Set(W('hd map hdmap ldm v2x c-its its dsrc bis bms mms gis lis cav opendrive xodr adasis indoorgml upis pms tls ipss odd mrc'));
+    // 기술 사전이 없을 때만 쓰는 기본 사업군 핵심어
+    const CORE = '정밀지도 정밀도로지도 고정밀지도 공간정보 지리정보 측량 수치지도 점군 도화 동적지도 교통 신호 교차로 횡단보도 보행신호 버스 자율주행 셔틀 도로 도로대장 포장관리 공원 수목 토지적성평가 토지적성 용도지역지구 용도지역 도시계획 재해취약성 인허가 행정 민원 입지분석 필지 품질검증 신뢰도 정합성 이상치 오류검지 맵매칭 차로 교통량 신호정보 유고검지 신호현시 검지기 시범운행지구 실증도시 원격관제';
+    const LAT = new Set(W('hd map hdmap ldm v2x c-its its dsrc bis bms mms gis lis cav opendrive xodr adasis indoorgml upis pms tls ipss odd mrc krris spat rsu j2735 hmi amr'));
     // 인접 기술: 웨이즈원도 쓰지만 다른 분야에서도 흔한 기술. 절반 이하로만 센다
-    const ADJ = new Set(W('디지털트윈 트윈 3차원 시뮬레이션 관제 통합관제 영상분석 cctv 돌발상황 엣지 측위 지도 위치 좌표 hmi amr lidar 라이다 twin 3d edge 모빌리티 차량'));
+    const ADJ = new Set(W('디지털트윈 트윈 3차원 시뮬레이션 관제 통합관제 영상분석 cctv 돌발상황 엣지 측위 지도 위치 좌표 lidar 라이다 twin 3d edge 모빌리티 차량'));
     // 누구나 쓰는 말·계약 행정 말: 어느 쪽으로도 세지 않는다
-    const GEN = new Set(W(`ai 인공지능 데이터 빅데이터 플랫폼 시스템 솔루션 서비스 통합 실시간 스마트 디지털 digital 기술 기술개발 개발 구축 실증 모델 학습 분석 관리 운영 안전 센터 정보 시각화 모니터링 예측 자동 자율 고도화 연계 표준 클라우드 소프트웨어 sw 사업화 생태계 인력 양성 기업 지역 산업 현장 공간 환경 위험 국내 해외 글로벌 시장 정부 지원 확산 활용 기반 구현 적용 검증 테스트베드 테스트 체계 고도 피지컬 ax dx 전환 혁신 지능형 차세대 미래 핵심 공정 품질 장비 설비 모듈 단계 과제 연구 성과 효과 수요 수요처 참여 참여기업 기관 대학 지자체 공공기관 작업 구역 구간 기준 조건 타당성 시나리오 접수 분류 추천 공무원 상황 오류 결과 사업 용역 유지보수 유지관리 홈페이지 시행 총괄 차분 협상 계약 수의계약 하자보수 기능개선 응용소프트웨어 개선 관련 건립 현황 건설공사 공구 신설공사 정비 저감사업 조사 구매 신규 콘텐츠 제작 예비조사 강화 조성 조성사업 특화도시 세트 데이터세트 신규 갱신체계 효율적 수립 서버 모델 db 웹 앱 api iot 5g 클라우드 보안 사용자 고객 이용자 시민 주민 국민 플랫폼화 대시보드 리포트 보고서 알림 경보 검지 감지 인식 탐지 추적 자동화 최적화 효율화 무인 원격 실시간성 정확도 오차 영상 융합 객체 탑재 처리 검토 생성 이미지 결과물 추출 변환 측정 운행 성능 속도 범위 정밀 고정밀 자료 문서 내용 화면 입력 출력 연동 전송 수신 저장 조회 등록 관리자 담당자 사용자용 담당자용 인프라 여건 사업계획서 계획서 제품소개서 소개서 기획서 제안서 inc all rights reserved 전후 확인 상황 파악 부족 곤란 객관 객관적 직접 즉시 공백 기존 신규 추가 수단 기준 근거 자료 구간 구간별 단계 모듈 결과 이력 기록 요소 일반 제작사 책임 판단 대응 개선 지연 증가 확대 절감 향상 신속 육안`));
+    const GEN = new Set(W(`ai 인공지능 딥러닝 머신러닝 기계학습 데이터 빅데이터 플랫폼 시스템 솔루션 서비스 통합 실시간 스마트 디지털 digital 기술 기술개발 개발 구축 실증 모델 학습 분석 관리 운영 안전 센터 정보 시각화 모니터링 예측 자동 자율 고도화 연계 표준 클라우드 소프트웨어 sw 사업화 생태계 인력 양성 기업 지역 산업 현장 공간 환경 위험 국내 해외 글로벌 시장 정부 지원 확산 활용 기반 구현 적용 검증 테스트베드 테스트 체계 고도 피지컬 ax dx 전환 혁신 지능형 차세대 미래 핵심 공정 품질 장비 설비 모듈 단계 과제 연구 성과 효과 수요 수요처 참여 참여기업 기관 대학 지자체 공공기관 작업 구역 구간 기준 조건 타당성 시나리오 접수 분류 추천 공무원 상황 오류 결과 사업 용역 유지보수 유지관리 홈페이지 시행 총괄 차분 협상 계약 수의계약 하자보수 기능개선 응용소프트웨어 개선 관련 건립 현황 건설공사 공구 신설공사 정비 저감사업 조사 구매 신규 콘텐츠 제작 예비조사 강화 조성 조성사업 특화도시 세트 데이터세트 갱신체계 효율적 수립 서버 db 웹 앱 api iot 5g 보안 사용자 고객 이용자 시민 주민 국민 플랫폼화 대시보드 리포트 보고서 알림 경보 검지 감지 인식 탐지 추적 자동화 최적화 효율화 무인 원격 실시간성 정확도 오차 영상 융합 객체 탑재 처리 검토 생성 이미지 결과물 추출 변환 측정 운행 성능 속도 범위 정밀 고정밀 자료 문서 내용 화면 입력 출력 연동 전송 수신 저장 조회 등록 관리자 담당자 사용자용 담당자용 인프라 여건 사업계획서 계획서 제품소개서 소개서 기획서 제안서 inc all rights reserved 전후 확인 파악 부족 곤란 객관 객관적 직접 즉시 공백 기존 추가 수단 근거 구간별 이력 기록 요소 일반 제작사 책임 판단 대응 지연 증가 확대 절감 향상 신속 육안 수준 단위 방식 구조 계층 레이어 규칙 엔진 도구 정량 정량화 지표 목표 지침 규정 매뉴얼 가이드 가이드라인 사례 국가 전국 광역 시군 시도 읍면동 도시 공공 민간 협력 협업 공동 상생 공개 공유 홍보 교류 협의 협약 소통 제고 촉진 보급 육성 창출 고용 일자리 매출 수익 비용 예산 투자 사업비 정책 제도 법령 기획 계획 전략 로드맵 거버넌스 컨설팅 자문 교육 행사 세미나 워크숍 회의 운영비 인건비 경비 장소 시설 공간 건물`));
     const PLACE = /^[가-힣]{1,3}(시|군|구)$/;
-    const OWN = new Set();
-    const addAll = txt => stems(txt).forEach(k => { if (!GEN.has(k) && !ADJ.has(k) && !PLACE.test(k) && k.length >= 2) OWN.add(k); });
-    addAll(products.map(p => [p.name, Array.isArray(p.keywords) ? p.keywords.join(' ') : ''].join('\n')).join('\n'));
-    addAll(track.map(x => x.title).join('\n'));
-    addAll(CORE);
-    LAT.forEach(k => OWN.add(k));
+    // 한 글자 행정단위·의존명사에 조사가 붙은 조각(시·군과 → 군과)
+    const BOUND = /^[시군구도읍면동리](과|와|의|를|을|은|는|에|로)$/;
+    // 성질·비율을 뜻하는 낱말(정확성·효율성·만족도는 기술 요소가 아니다). 기술 사전에 있으면(정합성) 웨이즈원 기술로 센다
+    const ABS = /^[가-힣]{1,4}(성|률|율)$/;
+    // 「웨이즈원에 없는 요소」로 셀 두 글자 낱말: 다른 분야를 가리키는 말만(방법·협력·향상 같은 두 글자 일반 명사는 세지 않는다)
+    const DOMAIN = new Set(W('드론 로봇 위성 항공 우주 해양 선박 조선 의료 병원 바이오 제약 전력 전기 수소 배터리 반도체 원전 에너지 태양광 풍력 철도 항만 물류 택배 유통 농업 축산 수산 산림 기상 기후 하천 수질 대기 수도 하수 상수 건축 건물 교량 터널 금융 핀테크 결제 블록체인 메타버스 게임 관광 문화 예술 방송 통신 보안 국방 소방 경찰 치안 복지 돌봄 교육 학교 보건 식품 화학 소재 부품 섬유 자동차 배송 주차 충전 전지 센서 칩 서버 음성 번역 챗봇 언어'));
+    const OWN = new Set(), SRC = new Map();
+    const noteOf = (k, v) => { if (!SRC.has(k)) SRC.set(k, v); };
+    const addAll = (txt, v) => stems(txt).forEach(k => { if (!GEN.has(k) && !ADJ.has(k) && !PLACE.test(k) && !BOUND.test(k) && k.length >= 2) { OWN.add(k); if (v) noteOf(k, v); } });
+    const TERMS = (tech && Array.isArray(tech.terms)) ? tech.terms.filter(x => x && x.t) : [];
+    // ① 웨이즈원 기술 사전(BMC 문장·공개 기사·보유 면허에서 뽑은 낱말)
+    TERMS.forEach(x => addAll([x.t, x.a || ''].join('\n'), {t: x.t, c: x.c || '', s: x.s || []}));
+    // ② BMC 제품 이름·키워드(BMC가 바뀌면 바로 따라간다)
+    products.forEach(p => addAll([p.name, Array.isArray(p.keywords) ? p.keywords.join('\n') : ''].join('\n'), {t: p.name, c: p.seg || '', s: ['bmc:' + p.name]}));
+    // ③ 나라장터 수행 실적 계약명
+    track.forEach(x => addAll(x.title, {t: x.title, c: '수행 실적', s: ['track']}));
+    if (!TERMS.length) addAll(CORE, {t: '사업군 핵심어', c: '', s: []});
+    LAT.forEach(k => { OWN.add(k); const x = TERMS.find(y => W([y.t, y.a].join(' ')).includes(k)); noteOf(k, x ? {t: x.t, c: x.c || '', s: x.s || []} : {t: k.toUpperCase(), c: '', s: []}); });
     const ownH = [...OWN].filter(o => /[가-힣]/.test(o) && o.length >= 2);
+    const hostOf = k => ownH.filter(o => k.includes(o) && (k.length - o.length <= 4 || o.length >= 3)).sort((a, b) => b.length - a.length)[0];
     const kind = k => {
-      if (GEN.has(k) || PLACE.test(k)) return null;
+      if (GEN.has(k) || PLACE.test(k) || BOUND.test(k)) return null;
       if (ADJ.has(k) || [...ADJ].some(a => /[가-힣]/.test(a) && a.length >= 2 && k.includes(a) && k.length - a.length <= 5 && !OWN.has(k))) return 'adj';
       if (OWN.has(k)) return 'own';
+      if (ABS.test(k) || /^[가-힣]{2,}다$/.test(k)) return null;  // 성질 낱말, 용언(만든다·높인다)
       if (/^[a-z0-9+&-]+$/.test(k)) return 'out';
+      if (k.length === 2 && /^[가-힣]+$/.test(k) && !DOMAIN.has(k) && !hostOf(k)) return null;
       // 붙여 쓴 긴 낱말은 웨이즈원 낱말(3자 이상)이 들어 있으면 웨이즈원 기술로 본다(자율주행운영지원 → 자율주행)
-      return ownH.some(o => k.includes(o) && (k.length - o.length <= 4 || o.length >= 3)) ? 'own' : 'out';
+      return hostOf(k) ? 'own' : 'out';
     };
+    // 근거 설명: 「정밀도로지도 · 지도 SW·데이터 · BMC 정밀지도(HD Map)·공개 기사 3건·수행 실적」
+    const srcOf = k => {
+      const v = SRC.get(k) || SRC.get(hostOf(k) || '');
+      if (!v) return '';
+      const s = v.s || [], bm = s.filter(x => x.startsWith('bmc:')).map(x => x.slice(4)), web = s.filter(x => x.startsWith('web:')).length;
+      const parts = [bm.length ? 'BMC ' + bm.slice(0, 2).join('·') : '', web ? `공개 기사 ${web}건` : '', s.includes('quals') ? '보유 면허' : '', s.includes('track') ? '나라장터 수행 실적' : ''].filter(Boolean);
+      return [v.t, v.c, parts.join('·')].filter(Boolean).join(' · ');
+    };
+    const info = {terms: TERMS.length, products: products.length, track: track.length, sources: (tech && tech.sources) || [], at: (tech && tech.updatedAt) || ''};
     // 기획안에서 점수가 높은 낱말 15개(누구나 쓰는 말 제외)로 판단한다
     function judge(plan, docText) {
-      const own = [], adj = [], out = [], keys = []; let so = 0, sa = 0, sx = 0;
+      const own = [], adj = [], out = [], keys = [], why = {}; let so = 0, sa = 0, sx = 0;
       // 구(Digital Twin·4D Perception)의 한 조각이면 구 전체로 보여 준다
       const ph = {}; ((plan && plan.terms) || []).forEach(x => { if (x.phrase && x.t) String(x.t).toLowerCase().split(/\s+/).forEach(p => { if (!ph[p]) ph[p] = {t: x.t, s: x.s}; }); });
       for (const x of (plan && plan.terms) || []) {
@@ -1385,7 +1414,7 @@ renderPipe(); renderEx(); renderBoard(); renderPrograms(); renderInsights(); ren
         const c = kind(x.key); if (!c) continue;
         const show = /^[a-z0-9+&-]+$/.test(x.key) && ph[x.key] && ph[x.key].s >= .6 * x.s ? ph[x.key].t : (x.t || x.key); keys.push(x.key);
         const put = (arr, v) => { if (!arr.includes(v)) arr.push(v); };
-        if (c === 'own') { put(own, show); so += x.s; } else if (c === 'adj') { put(adj, show); sa += x.s; } else { put(out, show); sx += x.s; }
+        if (c === 'own') { put(own, show); so += x.s; why[show] = srcOf(x.key); } else if (c === 'adj') { put(adj, show); sa += x.s; } else { put(out, show); sx += x.s; }
       }
       const tot = so + sa + sx;
       // 인접 기술(디지털트윈·관제 등)은 보통 40%만 센다. 다만 웨이즈원 기술이 웨이즈원에 없는 요소만큼 이상 나오는 기획안(웨이즈원 분야)에서는
@@ -1396,9 +1425,15 @@ renderPipe(); renderEx(); renderBoard(); renderPrograms(); renderInsights(); ren
       // 기획안의 추진체계·참여기관에 웨이즈원이 없으면(이미 짜인 컨소시엄) 따로 알린다
       const t = String(docText || '');
       const team = /(참여기관|참여기업|참여 기업|추진체계|컨소시엄|기관명|주관기관|공동연구기관|수행기관)/.test(t) && !/(웨이즈원|ways1|WAYS1|Ways1)/.test(t);
-      return {fit, level, own, adj, out, keys, team, adjW};
+      return {fit, level, own, adj, out, keys, team, adjW, why};
     }
-    return {judge, kind, has: k => OWN.has(k) || ADJ.has(k)};
+    // AI 판정에 넘길 웨이즈원 기술 요약(사업군별 대표 낱말)
+    const summary = () => {
+      if (!TERMS.length) return '정밀지도·정밀도로지도 구축, 공간정보·GIS·측량, LDM·C-ITS·ITS 교통 소프트웨어, 자율주행 운영·관제, 도로대장·토지적성평가·인허가 같은 공공 공간정보 사업';
+      const g = {}; TERMS.forEach(x => { (g[x.c || '기타'] = g[x.c || '기타'] || []).push(x.t); });
+      return Object.entries(g).map(([c, a]) => `${c}(${a.join('·')})`).join(', ');
+    };
+    return {judge, kind, has: k => OWN.has(k) || ADJ.has(k), srcOf, info, summary};
   };
   /* ── 과업별 검증: 기획안을 과업 단위로 나눠, 과업마다 웨이즈원이 맡을 수 있는지(직접·인접·불가),
      근거가 되는 웨이즈원 제품·수행 실적, 기획안에서 이미 그 과업을 맡은 기관, 문서에 적힌 금액을 보여 준다. ── */
@@ -1569,7 +1604,7 @@ renderPipe(); renderEx(); renderBoard(); renderPrograms(); renderInsights(); ren
   let FITM = null;
   // 수행 실적 근거: 나라장터 계약 + 나라장터에 결과가 공개되지 않아 팀이 직접 등록한 수주
   const TRK = [...((D.track && D.track.items) || []), ...((D.track && D.track.manual) || []).filter(x => x && x.title && !x.of)];
-  const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: TRK, stems: PLAN.stems}));
+  const fitM = () => FITM || (FITM = makeFit({products: BMCL, track: TRK, stems: PLAN.stems, tech: (D.company && D.company.tech) || null}));
   const LV = {none: 0, part: 1, core: 2};
   let TKM = null;
   const tkM = () => TKM || (TKM = makeTasks({stems: PLAN.stems, kind: fitM().kind, products: BMCL, track: TRK, clean: PLAN.clean}));
@@ -1670,7 +1705,7 @@ ${prgs || '(없음)'}
  "keywords": ["나라장터 계약 검색어 2~4개, 예: 교통정보센터 유지관리"],
  "risks": ["주요 위험 1~3개, 각 30자 안팎"],
  "coreFit": {"level": "core 또는 part 또는 none", "why": "판단 근거 한 문장(기획안의 핵심 과업과 웨이즈원 기술을 나란히 적는다)"}}
-핵심기술 판정(coreFit)은 냉정하게 한다. 웨이즈원의 핵심기술은 정밀지도·정밀도로지도 구축, 공간정보·GIS·측량, LDM·C-ITS·ITS 교통 소프트웨어, 자율주행 운영·관제, 도로대장·토지적성평가·인허가 같은 공공 공간정보 사업이다. 기획안의 핵심 과업(예산과 인력이 가장 많이 가는 일)을 웨이즈원이 직접 수행할 수 있으면 core, 지도 표출·관제 화면 같은 주변 기능만 맡을 수 있으면 part, 그마저 아니면 none이다. AI·플랫폼·데이터·디지털트윈·실증 같은 일반적인 말이 겹치는 것은 근거가 아니다. 기획안의 참여기관 명단에 웨이즈원이 없으면 why에 그 사실을 적는다.
+핵심기술 판정(coreFit)은 냉정하게 한다. 웨이즈원의 핵심기술은 웨이즈원 기술 사전(BMC 제품 설명과 공개 기사에서 뽑은 낱말)의 ${fitM().summary()}이다. 기획안의 핵심 과업(예산과 인력이 가장 많이 가는 일)을 웨이즈원이 직접 수행할 수 있으면 core, 지도 표출·관제 화면 같은 주변 기능만 맡을 수 있으면 part, 그마저 아니면 none이다. AI·플랫폼·데이터·디지털트윈·실증 같은 일반적인 말이 겹치는 것은 근거가 아니다. 기획안의 참여기관 명단에 웨이즈원이 없으면 why에 그 사실을 적는다.
 규칙: elements 3~7개는 기획안의 핵심 과업 기준으로 뽑는다. product는 그 제품이 그 과업의 핵심을 직접 수행할 때만 넣고, 화면·DB·지도 표출처럼 곁가지만 맡으면 null로 둔다(웨이즈원 제품이 맡을 수 없는 요소도 product null로 넣는다), policies 0~6개, opps 0~4개(strong은 그 사업 안에서 바로 실행할 수 있을 때만), items 0~6개(아이디어를 실제로 실행할 수단이 되는 공고만), programs 0~3개.`;
   }
   const arr = v => Array.isArray(v) ? v : [];
@@ -1895,17 +1930,22 @@ ${ax}
     const top = f.out.slice(0, 3).join('·');
     const msg = f.level === 'none' ? `이 기획안의 중심은 <b>${esc(top || '다른 분야 기술')}</b>입니다. 웨이즈원 보유 기술(정밀지도·LDM·ITS·공간정보·자율주행 관제 등)과 겹치는 것은 ${f.adj.length ? esc(f.adj.slice(0, 4).join('·')) + ' 같은 주변 기술뿐' : '거의 없습니다'}${f.adj.length ? '입니다' : ''}. 레이더 사업과 낱말이 겹쳐도 추진 근거로 보지 않고 종합 판정을 보류로 둡니다.`
       : f.level === 'part' ? `핵심 요소 가운데 일부만 웨이즈원 기술로 맡을 수 있습니다. 웨이즈원에 없는 <b>${esc(top)}</b>는 협력사가 맡아야 하므로 주관보다 참여·협력 형태로 검토하세요.`
-      : `기획안의 핵심 요소 대부분이 웨이즈원 보유 기술(BMC 제품·수행 실적)과 맞습니다.`;
-    const chips = (a, cls, tag) => a.map(k => `<span class="${cls}">${esc(k)}${tag ? ` · ${tag}` : ''}</span>`).join('');
+      : `기획안의 핵심 요소 대부분이 웨이즈원 보유 기술(웨이즈원 기술 사전·BMC 제품·수행 실적)과 맞습니다.`;
+    const chips = (a, cls, tag, why) => a.map(k => `<span class="${cls}"${why && why[k] ? ` title="근거: ${esc(why[k])}"` : ''}>${esc(k)}${tag ? ` · ${tag}` : ''}</span>`).join('');
+    const I = fitM().info, src = I.sources || [];
     return `<div class="panel isec ifit ${f.level}">
       <h3>웨이즈원 핵심기술 적합도 <span class="fitv">${pct}%</span><span class="vd ${c}">${l}</span></h3>
       <p class="ifmsg">${msg}</p>
-      <div class="ifrow"><span class="kl">웨이즈원 기술과 맞는 말</span><div class="pchips">${chips(f.own, 'pc') + chips(f.adj, 'tc', '인접') || '<span class="nmeta">없음</span>'}</div></div>
+      <div class="ifrow"><span class="kl">웨이즈원 기술과 맞는 말</span><div class="pchips">${chips(f.own, 'pc', '', f.why) + chips(f.adj, 'tc', '인접') || '<span class="nmeta">없음</span>'}</div></div>
+      ${f.own.length && f.why ? `<ul class="ifwhy">${f.own.slice(0, 6).filter(k => f.why[k]).map(k => `<li><b>${esc(k)}</b> ← ${esc(f.why[k])}</li>`).join('')}</ul>` : ''}
       <div class="ifrow"><span class="kl">웨이즈원에 없는 핵심 요소</span><div class="pchips">${chips(f.out.slice(0, 8), 'tc') || '<span class="nmeta">없음</span>'}</div></div>
       ${f.team ? `<p class="ithin">기획안의 추진체계·참여기관 명단에 웨이즈원이 없습니다. 이미 짜인 컨소시엄이면 들어갈 역할이 있는지 주관기관에 먼저 확인하세요.</p>` : ''}
       ${f.byTasks ? `<p class="ithin">${f.byTasks === 'adjonly' ? '과업별로 보면 웨이즈원이 직접 맡을 과업이 없어 「일부 일치」로 낮췄습니다.' : '과업별로 보면 웨이즈원이 직접 맡을 과업이 없고 인접 과업도 이미 다른 기관이 맡고 있어 「핵심기술 불일치」로 판정했습니다.'}</p>` : ''}
       ${f.ai ? `<p class="nmeta">AI 판정 · ${esc(f.ai.why)}</p>` : ''}
-      <p class="nmeta">기획안에서 점수가 높은 낱말 15개(AI·플랫폼·데이터처럼 누구나 쓰는 말 제외)를 웨이즈원 BMC 제품·나라장터 수행 실적·사업군 핵심어와 맞춰 본 비중입니다. 인접 기술(디지털트윈·관제·3D 등)은 40%만 세고, 웨이즈원 기술이 웨이즈원에 없는 요소만큼 이상 나오는 기획안에서는 80%로 셉니다(같은 말이 LDM TWIN 같은 웨이즈원 제품을 가리키므로). 50% 이상 일치, 30~50% 일부 일치, 30% 미만 불일치.</p>
+      <details class="ifdict"><summary>웨이즈원 기술 사전 · 낱말 <b class="num">${I.terms}개</b> · BMC 제품 <b class="num">${I.products}개</b> · 수행 실적 <b class="num">${I.track}건</b> · 공개 기사 <b class="num">${src.length}건</b>${I.at ? ` (${esc(I.at)} 갱신)` : ''}</summary>
+        <p class="nmeta">BMC 제품의 이름·키워드·개념·가치 문장, 웨이즈원을 다룬 공개 기사, 보유 면허, 나라장터 수행 실적 계약명에서 뽑은 낱말입니다. BMC가 바뀌면 제품 이름·키워드는 바로, 설명·기사 낱말은 매주 월요일에 다시 학습합니다.</p>
+        ${src.length ? `<ul class="ilist">${src.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a> <span class="nmeta">${esc(s.by || '')} · ${esc(s.date || '')}</span></li>`).join('')}</ul>` : ''}</details>
+      <p class="nmeta">기획안에서 점수가 높은 낱말 15개(AI·플랫폼·데이터처럼 누구나 쓰는 말, 정확성·효율성 같은 성질 낱말 제외)를 웨이즈원 기술 사전·BMC 제품·나라장터 수행 실적과 맞춰 본 비중입니다. 맞는 말에 마우스를 올리면 근거가 보입니다. 인접 기술(디지털트윈·관제·3D 등)은 40%만 세고, 웨이즈원 기술이 웨이즈원에 없는 요소만큼 이상 나오는 기획안에서는 80%로 셉니다(같은 말이 LDM TWIN 같은 웨이즈원 제품을 가리키므로). 50% 이상 일치, 30~50% 일부 일치, 30% 미만 불일치.</p>
     </div>`;
   }
   // 과업별 검증 상자
