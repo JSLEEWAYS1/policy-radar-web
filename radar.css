@@ -1126,3 +1126,72 @@ details.tdtable tr.fcr td{color:var(--ink2)}
   .tdcyc .seg{display:flex;flex-wrap:wrap;gap:6px;border:0;background:transparent;overflow:visible}
   .tdcyc .seg button,.tdcyc .seg button+button{border:1px solid var(--line2);border-radius:999px;padding:6px 12px}
 }
+
+/* 세부 분석(2026-10-20 2차): 핵심 문장·예측 근거·유형 구성·발주 구조·반복 발주 기관·경쟁 구도 */
+.tdfind ul,.tdchk{list-style:none;margin:0;padding:0;display:grid}
+.tdfind li,.tdchk li{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 14px;padding:9px 0;border-top:1px solid var(--line);font-size:.92rem;line-height:1.65}
+.tdfind li:first-child,.tdchk li:first-child{border-top:0}
+.tdfind .k,.tdchk .k{font-size:.8rem;font-weight:700;color:var(--ink3);padding-top:2px}
+.tdfind{display:grid;gap:6px}
+.tddec{display:grid;gap:10px}
+.tdct2{border-collapse:collapse;width:100%;min-width:640px;font-size:.88rem}
+.tdct2 th,.tdct2 td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.tdct2 th{color:var(--ink3);font-weight:600;font-size:.78rem}
+.tdct2 td.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tdct2 td.up{color:var(--ok)}
+.tdct2 td.dn{color:var(--warn)}
+.tdcls{display:grid;gap:8px}
+.tdleg i[style]{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+.tdgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:14px}
+.tdgrid .panel{display:grid;gap:10px;align-content:start}
+.tdbars{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.tdbars li{display:grid;grid-template-columns:minmax(72px,auto) minmax(0,1fr);gap:2px 10px;align-items:center;font-size:.86rem}
+.tdbars .l{color:var(--ink);font-weight:600;white-space:nowrap}
+.tdbars .b{height:10px;border-radius:5px;background:var(--sunk);overflow:hidden}
+.tdbars .b i{display:block;height:100%;border-radius:5px;background:var(--g-mob)}
+.tdbars .v{grid-column:2;font-size:.8rem;color:var(--ink2);font-variant-numeric:tabular-nums}
+.tdbars .v b{font-family:var(--f-mono);color:var(--ink)}
+.tdmon{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;align-items:end;height:150px}
+.tdmon>div{display:grid;grid-template-rows:auto 1fr auto;height:100%;text-align:center;gap:3px}
+.tdmon .c{display:flex;align-items:flex-end;justify-content:center;background:transparent}
+.tdmon .c i{display:block;width:72%;min-height:2px;border-radius:3px 3px 0 0;background:color-mix(in srgb,var(--g-mob) 45%,var(--sunk))}
+.tdmon .top .c i{background:var(--g-mob)}
+.tdmon b{font-family:var(--f-mono);font-size:.72rem;font-weight:600;color:var(--ink2)}
+.tdmon .top b{color:var(--ink)}
+.tdmon small{font-size:.7rem;color:var(--ink3)}
+.tdrepp,.tdwinp{display:grid;gap:10px}
+.tdrep,.tdwin{border-collapse:collapse;width:100%;font-size:.86rem}
+.tdrep{min-width:820px}
+.tdwin{min-width:760px}
+.tdrep th,.tdrep td,.tdwin th,.tdwin td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.tdrep th,.tdwin th{color:var(--ink3);font-weight:600;font-size:.78rem}
+.tdrep td.n,.tdwin td.n,.tdwin th.yc{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tdrep td.g,.tdwin td.g{font-weight:650}
+.tdrep td .nmeta{display:block;font-weight:400}
+.tdrep tr.us td.g::after,.tdwin tr.us td.g::after{content:" 웨이즈원";font-size:.7rem;font-weight:700;color:var(--mark-ink);margin-left:4px}
+.tdwin tr.us td{background:color-mix(in srgb,var(--mark) 6%,var(--surface))}
+.tdp{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+.tdp.high{background:var(--mark);color:#fff}
+.tdp.mid{background:var(--mark-soft);color:var(--mark-ink)}
+.tdp.low{background:var(--sunk);color:var(--ink2)}
+.tdsh{display:inline-block;width:56px;height:8px;border-radius:4px;background:var(--sunk);margin-right:8px;vertical-align:0;overflow:hidden}
+.tdsh i{display:block;height:100%;background:var(--g-mob);border-radius:4px}
+@media (max-width:700px){
+  .tdfind li,.tdchk li{grid-template-columns:minmax(0,1fr);gap:2px}
+  .tdwin th.yc,.tdwin td.yc{display:none}
+  .tdwin{min-width:0}
+  .tdrepp .tablebox{overflow:visible}
+  .tdrep{min-width:0}
+  .tdrep thead{display:none}
+  .tdrep,.tdrep tbody,.tdrep tr,.tdrep td{display:block}
+  .tdrep tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .tdrep td{border:0;padding:0}
+  .tdrep td.st{text-align:right}
+  .tdrep td.t{grid-column:1/-1;order:3;font-size:.84rem;color:var(--ink2)}
+  .tdrep td[data-l]{order:2;display:grid;text-align:left;font-size:.84rem;white-space:normal}
+  .tdrep td[data-l]::before{content:attr(data-l);font-family:var(--f-body);font-size:.72rem;color:var(--ink3)}
+}
+.tdct2 td:first-child{white-space:nowrap}
+.tdwin tr.jv td{color:var(--ink3);font-style:normal}
+.tdrep td.n[data-l="발주한 해"]{white-space:normal;max-width:240px}
+.tdrep td.yr{text-align:left;white-space:normal;max-width:220px}

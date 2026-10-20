@@ -2520,6 +2520,33 @@ ${ax}
   let reqStore = null;
 
   // ── 예측 계산 ──
+  const PHI = .7;
+  const med = L => { const a = [...L].sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : 0; };
+  function core(pts){  // 로그 선형 추세의 연 증가율 g와 추세에서 벗어난 정도 sd
+    let g = 1, sd = .35;
+    if(pts.length >= 3){
+      const xs = pts.map(p => p.y), ls = pts.map(p => Math.log(p.v)), mx = xs.reduce((a, b) => a + b) / xs.length, ml = ls.reduce((a, b) => a + b) / ls.length;
+      const b = xs.reduce((s, x, i) => s + (x - mx) * (ls[i] - ml), 0) / Math.max(1e-9, xs.reduce((s, x) => s + (x - mx) ** 2, 0));
+      g = Math.min(1.4, Math.max(.7, Math.exp(b)));
+      const res = ls.map((l, i) => l - (ml + b * (xs[i] - mx)));
+      sd = Math.max(.12, Math.min(.45, Math.sqrt(res.reduce((s, r) => s + r * r, 0) / Math.max(1, res.length - 2))));
+    }
+    return {g, sd};
+  }
+  // 과거 검증: 지난 5년(완결된 해) 각각을 그 전 해까지의 실적만으로 1년 앞서 예측해 실제와 비교한다(정책 요인 없이 기준 추세만)
+  function backtest(T, k){
+    const Y = (T.hist || {}).years || {}, v = y => +((Y[y] || [0, 0])[k] || 0), errs = [];
+    for(let o = CY - 5; o <= CY - 1; o++){
+      const pts = []; for(let y = Math.max(Y0, o - 6); y < o; y++) if(v(y) > 0) pts.push({y, v: v(y)});
+      if(pts.length < 4 || !(v(o) > 0)) continue;
+      const {g} = core(pts.slice(-6)), a1 = v(o - 1), a2 = v(o - 2), a3 = v(o - 3);
+      const f = (.5 * a1 + .3 * (a2 || a1) + .2 * (a3 || a2 || a1)) * g ** PHI;
+      if(f > 0) errs.push({y: o, f, act: v(o), e: Math.log(v(o) / f)});
+    }
+    const abs = errs.map(x => Math.abs(x.e)).sort((a, b) => a - b);
+    return {errs, mdape: errs.length ? med(errs.map(x => Math.abs(x.act / x.f - 1))) : null, q80: abs.length >= 3 ? abs[Math.min(abs.length - 1, Math.ceil(.8 * abs.length) - 1)] : null,
+      bias: errs.length ? med(errs.map(x => x.act / x.f - 1)) : null};
+  }
   function series(T, k){  // k: 0 건수, 1 금액
     const H = T.hist || {}, Y = H.years || {}, ym = H.ym || {};
     const v = y => +((Y[y] || [0, 0])[k] || 0);
@@ -2534,26 +2561,21 @@ ${ax}
     const ytd = v(CY), est = ytd / share;
     // 기준 추세: 최근 6개 점(올해 예상 포함)의 로그 선형 추세, 연 증가율은 0.7~1.4배로 묶고 해마다 0.7씩 줄여 간다
     const pts = [...hist.slice(-5), {y: CY, v: est}].filter(p => p.v > 0);
-    let g = 1, sd = .35;
-    if(pts.length >= 3){
-      const xs = pts.map(p => p.y), ls = pts.map(p => Math.log(p.v)), mx = xs.reduce((a, b) => a + b) / xs.length, ml = ls.reduce((a, b) => a + b) / ls.length;
-      const b = xs.reduce((s, x, i) => s + (x - mx) * (ls[i] - ml), 0) / Math.max(1e-9, xs.reduce((s, x) => s + (x - mx) ** 2, 0));
-      g = Math.min(1.4, Math.max(.7, Math.exp(b)));
-      const res = ls.map((l, i) => l - (ml + b * (xs[i] - mx)));
-      sd = Math.max(.12, Math.min(.45, Math.sqrt(res.reduce((s, r) => s + r * r, 0) / Math.max(1, res.length - 2))));
-    }
+    const {g, sd} = core(pts);
     const prev = v(CY - 1), prev2 = v(CY - 2);
     const L = [est, prev, prev2].some(x => x > 0) ? (.5 * est + .3 * (prev || est) + .2 * (prev2 || prev || est)) : 0;
-    const PHI = .7;
+    const bt = backtest(T, k);
     const fc = FY.map((y, i) => {
       let e = 0; for(let j = 1; j <= i + 1; j++) e += PHI ** j;
       const base = L * g ** e;
       const ds = (T.drivers || []).filter(d => (d.y || []).includes(y));
       const mult = ds.reduce((m, d) => m * (1 + (+d.eff || 0)), 1);
-      const adj = base * mult, w = Math.exp(1.28 * sd * Math.sqrt(1 + e));  // 감쇠한 만큼(e) 범위도 천천히 넓어진다
+      // 80% 범위: 과거 5년을 1년 앞서 맞혀 본 오차(로그)의 80% 분위로 잡고, 없으면 추세에서 벗어난 정도로 잡는다. 멀어질수록(감쇠 e) 넓힌다
+      const lw = bt.q80 != null ? Math.min(.7, Math.max(.1, bt.q80)) * Math.sqrt((1 + e) / (1 + PHI)) : 1.28 * sd * Math.sqrt(1 + e);
+      const adj = base * mult, w = Math.exp(lw);
       return {y, base, adj, lo: adj / w, hi: adj * w, mult, ds};
     });
-    return {hist, ytd, est, share, fc, g, sd};
+    return {hist, ytd, est, share, fc, g, sd, bt, L};
   }
   // ── 차트(SVG): 실적 막대 · 올해(지금까지 + 남은 예상) · 예측(빗금) + 80% 범위 · 기준 추세(점선) ──
   let TIP = null, lastW = 0;
@@ -2595,11 +2617,91 @@ ${ax}
     const ks = (T.kws || []).map(k => k.split(/\s+/).map(norm));
     const hit = t => ks.some(ws => ws.every(w => norm(t).includes(w)));
     const out = [];
-    (D.opportunities || []).filter(o => !isDiscarded(o)).forEach(o => items(o).forEach(x => { if(x.title && hit(x.title) && itemLive(x)) out.push({st: x.stage, t: x.title, org: x.org || '', when: x.stage === 'plan' ? ym(x.planMonth) + ' 발주 예정' : x.stage === 'pre' ? '의견 마감 ' + md(x.opinionDeadline) : '입찰 마감 ' + md(x.deadline), amt: x.budget || ''}); }));
-    ((D.ex && D.ex.items) || []).forEach(g => { if(hit(g.title)) { const x = g[g.stage] || {}; out.push({st: g.stage, t: g.title, org: '한국도로공사', when: g.stage === 'plan' ? ym(x.planMonth) + ' 발주 예정' : g.stage === 'pre' ? '의견 마감 ' + md(x.opinionDeadline) : '입찰 마감 ' + md(x.deadline), amt: x.budget ? eokT(x.budget) : ''}); } });
+    (D.opportunities || []).filter(o => !isDiscarded(o)).forEach(o => items(o).forEach(x => { if(x.title && hit(x.title) && itemLive(x)) out.push({st: x.stage || 'bid', t: x.title, org: x.org || '', when: x.stage === 'plan' ? ym(x.planMonth) + ' 발주 예정' : x.stage === 'pre' ? '의견 마감 ' + md(x.opinionDeadline) : '입찰 마감 ' + md(x.deadline), amt: x.budget || '', amtN: parseAmt(x.budget)}); }));
+    ((D.ex && D.ex.items) || []).forEach(g => { if(hit(g.title)) { const x = g[g.stage] || {}; out.push({st: g.stage, t: g.title, org: '한국도로공사', when: g.stage === 'plan' ? ym(x.planMonth) + ' 발주 예정' : g.stage === 'pre' ? '의견 마감 ' + md(x.opinionDeadline) : '입찰 마감 ' + md(x.deadline), amt: x.budget ? eokT(x.budget) : '', amtN: parseAmt(x.budget || x.price)}); } });
     return out.slice(0, 8);
   }
   const STL = {plan: ['plan', '발주계획'], pre: ['pre', '사전규격'], bid: ['ok', '입찰공고']};
+  const parseAmt = v => { if(typeof v === 'number') return v; const s = String(v || '').replace(/,/g, ''); let n = 0; const e = s.match(/(\d+(?:\.\d+)?)\s*억/), m = s.match(/(\d+(?:\.\d+)?)\s*만/);
+    if(e) n += +e[1] * 1e8; if(m) n += +m[1] * 1e4; if(!e && !m){ const d = s.match(/(\d{6,})/); if(d) n = +d[1]; } return n; };
+  // ── 세부 분석(계약 한 건 단위로 모은 hist.deep) ──
+  const CLS = [['build', '구축·고도화', 'var(--g-mob)'], ['om', '유지관리·운영', 'var(--g-its)'], ['data', '데이터·조사·검증', 'var(--g-twin)'], ['plan', '연구·계획·설계', 'var(--g-city)'], ['goods', '물품·장비', 'var(--g-air)'], ['etc', '기타', 'var(--g-base)']];
+  const CLSN = Object.fromEntries(CLS.map(c => [c[0], c[1]]));
+  const ORGN = {central: '중앙부처', public: '공공기관', metro: '광역지자체', local: '기초지자체', other: '기타'};
+  const SIZEN = ['5천만원 미만', '5천만~1억', '1~3억', '3~10억', '10~30억', '30억 이상'];
+  const MTHN = {'수': '수의계약', '제': '제한경쟁', '일': '일반경쟁', '지': '지명경쟁', '?': '미상'};
+  const PN = {high: '높음', mid: '보통', low: '낮음'};
+  const pct = (a, b) => b > 0 ? Math.round(a / b * 100) : 0;
+  const sumA = o => Object.values(o || {}).reduce((s, v) => s + (+v[1] || 0), 0);
+  const yrs = (a, b) => { const r = []; for(let y = a; y <= b; y++) r.push(String(y)); return r; };
+  const range = (o, ys) => { const r = {}; ys.forEach(y => Object.entries((o || {})[y] || {}).forEach(([k, v]) => { (r[k] ||= [0, 0]); r[k][0] += v[0]; r[k][1] += v[1]; })); return r; };
+  const niceMax = max => { const p = 10 ** Math.floor(Math.log10(max)); const m = max / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
+  function bars(list, opt = {}){  // [[이름, 건수, 금액]] — 기본은 금액 기준, opt.by === 'n'이면 건수 기준
+    const i = opt.by === 'n' ? 1 : 2, tot = list.reduce((s, x) => s + x[i], 0) || 1, mx = Math.max(1, ...list.map(x => x[i]));
+    return `<ul class="tdbars">${list.map(x => `<li><span class="l">${esc(x[0])}</span><span class="b"><i style="width:${Math.max(1.5, x[i] / mx * 100).toFixed(1)}%"></i></span><span class="v"><b>${pct(x[i], tot)}%</b> ${i === 2 ? eok(x[2]) + ' · ' + x[1].toLocaleString() + '건' : x[1].toLocaleString() + '건 · ' + eok(x[2])}</span></li>`).join('')}</ul>`;
+  }
+  function months(mon){
+    const tot = mon.reduce((s, m) => s + m[0], 0) || 1, mx = Math.max(1, ...mon.map(m => m[0])), top = new Set(mon.map((m, i) => [i, m[0]]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]));
+    return `<div class="tdmon" role="img" aria-label="월별 계약 건수 비중">${mon.map((m, i) => `<div class="${top.has(i) ? 'top' : ''}" title="${i + 1}월 ${pct(m[0], tot)}% · ${m[0].toLocaleString()}건 · ${eok(m[1])}"><b>${pct(m[0], tot)}</b><span class="c"><i style="height:${(m[0] / mx * 100).toFixed(1)}%"></i></span><small>${i + 1}월</small></div>`).join('')}</div>`;
+  }
+  function stack(dp, W0){  // 사업 유형별 연도별 금액(쌓은 막대). 올해는 진행 중이라 옅게
+    const ys = yrs(Y0, CY), W = Math.round(Math.max(300, Math.min(1100, W0))), narrow = W < 560, Hh = narrow ? 190 : 210, pl = narrow ? 40 : 56, pr = 8, pt = 12, pb = 28;
+    const nice = niceMax(Math.max(1, ...ys.map(y => sumA(dp.cls[y])))), ix = (W - pl - pr) / ys.length, bw = Math.min(34, ix * .62), Yp = v => pt + (Hh - pt - pb) * (1 - v / nice);
+    let s = `<svg class="tdsvg" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="사업 유형별 연도별 계약 금액">`;
+    [0, .5, 1].forEach(f => { s += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${Yp(f * nice)}" y2="${Yp(f * nice)}"/><text x="${pl - 6}" y="${Yp(f * nice) + 4}" text-anchor="end">${esc(eok(f * nice, true))}</text>`; });
+    ys.forEach((y, i) => { const x = pl + ix * i + (ix - bw) / 2; let acc = 0;
+      s += `<g class="col" data-y="${y}"${+y === CY ? ' opacity=".55"' : ''}>`;
+      CLS.forEach(([k, , c]) => { const v = ((dp.cls[y] || {})[k] || [0, 0])[1]; if(!v) return; const y1 = Yp(acc + v), y0 = Yp(acc); s += `<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, y0 - y1).toFixed(1)}" fill="${c}" stroke="var(--surface)" stroke-width="1.5"/>`; acc += v; });
+      s += `<text x="${(x + bw / 2).toFixed(1)}" y="${Hh - pb + 16}" text-anchor="middle">${narrow || +y < CY ? String(y).slice(2) : y}</text><rect class="hit" x="${(pl + ix * i).toFixed(1)}" y="${pt}" width="${ix.toFixed(1)}" height="${Hh - pt - pb}"/></g>`; });
+    return s + `<line class="base" x1="${pl}" x2="${W - pr}" y1="${Yp(0)}" y2="${Yp(0)}"/></svg>`;
+  }
+  // 데이터로 본 핵심: 세부 집계에서 숫자로 문장을 만든다
+  function findings(A, dp){
+    const F = [], r3 = yrs(CY - 3, CY - 1), p3 = yrs(CY - 6, CY - 4);
+    const c3 = range(dp.cls, r3), c0 = range(dp.cls, p3), t3 = sumA(c3), t0 = sumA(c0);
+    if(t3 > 0){
+      const top = CLS.map(c => [c, (c3[c[0]] || [0, 0])[1]]).sort((a, b) => b[1] - a[1])[0];
+      let s = `최근 3년(${CY - 3}~${CY - 1}) 금액의 <b class="num">${pct(top[1], t3)}%</b>가 「${top[0][1]}」입니다`;
+      if(t0 > 0){ const ch = CLS.map(c => [c, pct((c3[c[0]] || [0, 0])[1], t3) - pct((c0[c[0]] || [0, 0])[1], t0)]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
+        if(Math.abs(ch[1]) >= 8) s += `. 그 전 3년보다 「${ch[0][1]}」 비중이 <b class="num">${ch[1] > 0 ? '+' : '−'}${Math.abs(ch[1])}%p</b> ${ch[1] > 0 ? '늘었습니다' : '줄었습니다'}`; }
+      F.push(['사업 유형', s + '.']);
+    }
+    const o5 = range(dp.org, yrs(CY - 4, CY)), ta = sumA(o5);
+    if(ta > 0){ const L = Object.entries(o5).sort((a, b) => b[1][1] - a[1][1]);
+      let s = `최근 5년 금액 기준으로 ${L.slice(0, 2).map(([k, v]) => `${ORGN[k] || k} <b class="num">${pct(v[1], ta)}%</b>`).join(', ')}`;
+      const sd = (dp.sido || []).filter(x => x[0] !== '전국·중앙' && x[0] !== '기타'), st = sd.reduce((s, x) => s + x[2], 0);
+      if(st > 0 && st >= ta * .2) s += `이고, 지자체 발주는 ${sd.slice(0, 3).map(x => `${x[0]} <b class="num">${pct(x[2], st)}%</b>`).join(', ')} 순입니다`;
+      else s += st > 0 && pct(st, ta) >= 1 ? `이고, 지자체 발주는 <b class="num">${pct(st, ta)}%</b>로 적습니다` : '이고, 지자체 발주는 거의 없습니다';
+      F.push(['발주기관', s + '.']); }
+    const sz = dp.size || [], szA = sz.reduce((s, x) => s + x[1], 0);
+    if(szA > 0){ const bigN = sz.slice(3).reduce((s, x) => s + x[0], 0), m1 = (dp.med || {})[CY - 1];
+      F.push(['규모', `건당 중앙값 ${m1 ? `<b class="num">${eok(m1)}</b>(${CY - 1}년)` : '—'}, 3억원 이상 사업은 최근 5년 <b class="num">${bigN}건</b>(연 ${Math.round(bigN / 5 * 10) / 10}건)이고, 10억원 이상 사업이 금액의 <b class="num">${pct(sz.slice(4).reduce((s, x) => s + x[1], 0), szA)}%</b>를 차지합니다.`]); }
+    const mon = dp.mon || [], mt = mon.reduce((s, m) => s + m[0], 0);
+    if(mt >= 12){ const top = mon.map((m, i) => [i + 1, m[0]]).sort((a, b) => b[1] - a[1]).slice(0, 3).sort((a, b) => a[0] - b[0]);
+      F.push(['발주 시기', `계약은 ${top.map(t => t[0] + '월').join('·')}에 많습니다(세 달 합 <b class="num">${pct(top.reduce((s, t) => s + t[1], 0), mt)}%</b>). 사전규격·입찰공고는 보통 계약보다 한두 달 먼저 나오니 그 앞달부터 챙기면 됩니다.`]); }
+    const rs = dp.repSum;
+    if(rs) F.push(['반복 발주', `최근 5년 금액의 <b class="num">${Math.round(rs.shareA5 * 100)}%</b>가 두 해 이상 발주한 기관에서 나왔습니다. 최근 3년 연속 발주한 <b class="num">${rs.high[0]}곳</b>은 ${CY + 1}년에도 발주할 가능성이 높고, 그 규모는 연 <b class="num">${eok(rs.high[1])}</b> 안팎입니다.`]);
+    const nb = (dp.newb || {})[CY - 1];
+    if(nb && nb[1]) F.push(['새 발주기관', `${CY - 1}년 발주기관 ${nb[1]}곳 가운데 <b class="num">${nb[0]}곳</b>이 처음 발주했습니다(금액 ${eok(nb[2])}, 그해의 ${pct(nb[2], sumA((dp.cls || {})[CY - 1]))}%).`]);
+    const W = wins(dp), jv = (dp.win || []).find(w => /^공동수급/.test(w.w));
+    if(W.length){ const lead = W[0], us = W.find(w => w.us), lvl = dp.hhi >= 2500 ? '높음' : dp.hhi >= 1500 ? '보통' : '낮음';
+      F.push(['경쟁', `상위 3사가 최근 5년 금액의 <b class="num">${Math.round(dp.top3 * 100)}%</b>(1위 ${esc(lead.w)} <b class="num">${Math.round(lead.sh * 100)}%</b>), 시장 집중도(HHI) <b class="num">${(dp.hhi || 0).toLocaleString()}</b>(${lvl})입니다${jv ? ` · 대표사가 표시되지 않은 공동수급 계약이 ${Math.round(jv.sh * 100)}%` : ''}. ${us ? (us.sh >= .005 ? `웨이즈원은 <b class="num">${us.rank}위</b>(${Math.round(us.sh * 1000) / 10}%)입니다` : `웨이즈원 대표사 수주는 ${us.n}건으로 미미합니다(${us.rank}위)`) : '웨이즈원은 최근 5년 대표사로 수주한 계약이 없습니다'}.`]); }
+    const m5 = dp.mth || {}, mA = sumA(m5);
+    if(mA > 0) F.push(['계약 방법', `수의계약 <b class="num">${pct((m5['수'] || [0, 0])[1], mA)}%</b>, 제한경쟁 <b class="num">${pct((m5['제'] || [0, 0])[1], mA)}%</b>, 일반경쟁 <b class="num">${pct((m5['일'] || [0, 0])[1], mA)}%</b>(금액 기준)입니다.`]);
+    if(A.bt && A.bt.errs.length >= 3) F.push(['예측 검증', `이 예측 방법으로 ${A.bt.errs[0].y}~${A.bt.errs[A.bt.errs.length - 1].y}년을 한 해 앞서 맞혀 보면 오차 중앙값이 <b class="num">±${Math.round(A.bt.mdape * 100)}%</b>입니다(정책 요인 없이 기준 추세만).`]);
+    return F;
+  }
+  const wins = dp => { const all = dp.win || [], jvR = (all.find(w => /^공동수급/.test(w.w)) || {}).rank || 1e9;
+    return all.filter(w => !/^공동수급/.test(w.w)).map(w => ({...w, rank: w.rank > jvR ? w.rank - 1 : w.rank})); };
+  function repTable(dp){
+    const L = dp.rep || []; if(!L.length) return '<p class="nmeta">두 해 이상 발주한 기관이 없습니다.</p>';
+    return `<div class="tablebox"><table class="tdrep"><thead><tr><th>발주기관</th><th>${CY + 1}년 가능성</th><th>발주한 해</th><th>최근 5년 금액</th><th>예상 규모</th><th>최근 계약</th></tr></thead><tbody>${L.map(r => `<tr class="${/웨이즈원/.test(r.lw) ? 'us' : ''}"><td class="g">${esc(r.b)}<span class="nmeta">${esc(ORGN[r.org] || '')} · ${esc(CLSN[r.cls] || '')}</span></td><td class="st"><span class="tdp ${r.p}">${PN[r.p]}</span></td><td class="n yr" data-l="발주한 해">${r.ys.join(' · ')}</td><td class="n" data-l="최근 5년">${eok(r.a5)}</td><td class="n" data-l="예상 규모">${eok(r.exp)}</td><td class="t">${esc(r.lt)}<span class="nmeta">${r.ly}년 · ${eok(r.la)} · ${esc(r.lw)}</span></td></tr>`).join('')}</tbody></table></div>`;
+  }
+  function winTable(dp){
+    const W = wins(dp), jv = (dp.win || []).find(w => /^공동수급/.test(w.w)), ys = dp.winYrs || [], mx = Math.max(.01, ...W.map(w => w.sh));
+    return `<div class="tablebox"><table class="tdwin"><thead><tr><th>수주사(대표사)</th><th>최근 5년 점유율</th><th>금액</th><th>건수</th>${ys.map(y => `<th class="yc">${y}</th>`).join('')}</tr></thead><tbody>${W.map(w => `<tr class="${w.us ? 'us' : ''}"><td class="g">${w.rank}. ${esc(w.w)}</td><td class="n"><span class="tdsh"><i style="width:${(w.sh / mx * 100).toFixed(1)}%"></i></span>${Math.round(w.sh * 1000) / 10}%</td><td class="n">${eok(w.a)}</td><td class="n">${w.n}</td>${w.y.map(v => `<td class="n yc">${v ? eok(v, true) : '—'}</td>`).join('')}</tr>`).join('')}${jv ? `<tr class="jv"><td class="g">공동수급(대표사 미표시)</td><td class="n">${Math.round(jv.sh * 1000) / 10}%</td><td class="n">${eok(jv.a)}</td><td class="n">${jv.n}</td>${jv.y.map(v => `<td class="n yc">${v ? eok(v, true) : '—'}</td>`).join('')}</tr>` : ''}</tbody></table></div>`;
+  }
+
   function find(q){
     const n = norm(q); if(!n) return null;
     return TOP.find(t => norm(t.name) === n) || TOP.find(t => (t.kws || []).some(k => norm(k) === n)) || TOP.find(t => norm(t.name).includes(n) || n.includes(norm(t.name))) || TOP.find(t => (t.kws || []).some(k => norm(k).includes(n) || n.includes(norm(k))));
@@ -2623,9 +2725,12 @@ ${ax}
     const pr = (T.products || []).map(p => `<span class="pc">${esc(p)}</span>`).join('');
     const D2 = [...(T.drivers || [])].sort((a, b) => Math.min(...a.y) - Math.min(...b.y) || Math.abs(b.eff) - Math.abs(a.eff));
     const KIND = {policy: '정책', tech: '기술', risk: '위험', pipeline: '발주계획'};
-    const P = pipe(T), H = T.hist;
+    const P = pipe(T), H = T.hist, dp = H.deep && H.deep.cls ? H.deep : null;
+    const F = dp ? findings(A, dp) : [], pipeA = P.reduce((s, x) => s + (x.amtN || 0), 0), rs = dp && dp.repSum;
+    const o5 = dp ? range(dp.org, yrs(CY - 4, CY)) : {};
+    const medL = dp ? yrs(CY - 5, CY - 1).filter(y => (dp.med || {})[y]).map(y => `${y} ${eok(dp.med[y])}`).join(' → ') : '';
     out.innerHTML = `<div class="panel tdhead">
-      <h3>${esc(T.name)} <span class="nmeta">검색어 ${(T.kws || []).map(esc).join(' · ')} · 나라장터 계약 <b class="num">${(H.n || 0).toLocaleString()}건</b>(${Y0}년~)${H.truncated ? ' · 일부 연도 건수가 많아 잘렸을 수 있음' : ''}</span></h3>
+      <h3>${esc(T.name)} <span class="nmeta">검색어 ${(T.kws || []).map(esc).join(' · ')} · 나라장터 계약 <b class="num">${(H.n || 0).toLocaleString()}건</b>(${Y0}년~${H.dup ? `, 나라장터·연계기관에 두 번 잡힌 같은 계약 ${H.dup.toLocaleString()}건은 한 번만 셈` : ''}${H.fw && H.fw[0] ? `, 조달청 제3자단가계약 ${H.fw[0]}건(한도액 ${eok(H.fw[1])})은 실제 주문액이 아니어서 뺌` : ''})${H.truncated ? ' · 일부 연도 건수가 많아 잘렸을 수 있음' : ''}</span></h3>
       ${pr ? `<div class="pchips">${pr}</div>` : ''}
       <div class="tdtiles">
         <div><b>${eok(avg5)}</b><span>최근 5년(${CY - 5}~${CY - 1}) 연평균 발주 금액</span></div>
@@ -2635,6 +2740,7 @@ ${ax}
       </div>
       ${T.outlook ? `<p class="ifmsg">${esc(T.outlook)}</p>` : ''}
     </div>
+    ${F.length ? `<div class="panel tdfind"><h3>데이터로 본 핵심 <span class="nmeta">최근 5년 계약 <b class="num">${(dp.n5 || 0).toLocaleString()}건</b> · ${eok(dp.a5 || 0)}을 한 건씩 나눠 본 결과</span></h3><ul>${F.map(f => `<li><span class="k">${f[0]}</span><span>${f[1]}</span></li>`).join('')}</ul></div>` : ''}
     <div class="panel tdcharts">
       <div class="tdleg"><span><i class="h"></i>실적(계약)</span><span><i class="f"></i>${CY}년 남은 몫 예상 · ${FY[0]}~${FY[2]} 예측(정책·기술 반영)</span><span><i class="w"></i>80% 범위</span><span><i class="b"></i>기준 추세(과거 흐름만)</span></div>
       <div class="tdchart"><h4>발주 금액 <span class="nmeta">억원 · 계약 금액 합계</span></h4><div class="tdsvgwrap" data-c="a">${cA.svg}</div></div>
@@ -2645,18 +2751,48 @@ ${ax}
         ${A.fc.map((f, i) => `<tr class="fcr"><td>${f.y}</td><td>${cnt(N.fc[i].adj)}</td><td>${eok(f.adj)}</td><td>예측 · 기준 추세 ${eok(f.base)} · 정책·기술 ×${f.mult.toFixed(2)} · 80% ${eok(f.lo)}~${eok(f.hi)}</td></tr>`).join('')}
       </tbody></table></div></details>
     </div>
+    <div class="panel tddec"><h3>예측 근거 분해 <span class="nmeta">금액 · 예측 = 기준 추세 × 정책·기술 요인</span></h3>
+      <div class="tablebox"><table class="tdct2"><thead><tr><th>연도</th><th>기준 추세</th><th>정책·기술 요인</th><th>예측</th><th>80% 범위</th><th>반영한 요인</th></tr></thead><tbody>
+        ${A.fc.map(f => `<tr><td>${f.y}</td><td class="n">${eok(f.base)}</td><td class="n ${f.adj >= f.base ? 'up' : 'dn'}">${f.adj >= f.base ? '+' : '−'}${eok(Math.abs(f.adj - f.base))}</td><td class="n"><b>${eok(f.adj)}</b></td><td class="n">${eok(f.lo)}~${eok(f.hi)}</td><td>${f.ds.map(d => esc(d.t) + ' ' + (d.eff >= 0 ? '+' : '−') + Math.abs(Math.round(d.eff * 100)) + '%').join(', ') || '—'}</td></tr>`).join('')}
+      </tbody></table></div>
+      <ul class="tdchk">
+        <li><span class="k">반복 발주 바닥</span><span>${rs ? `최근 3년 연속 발주한 기관 <b class="num">${rs.high[0]}곳</b>의 연 규모 합 <b class="num">${eok(rs.high[1])}</b>(${FY[0]}년 예측의 ${pct(rs.high[1], A.fc[0].adj)}%) · 두세 번 발주한 기관 ${rs.mid[0]}곳 ${eok(rs.mid[1])}` : '세부 자료를 모으면 표시합니다'}</span></li>
+        <li><span class="k">이미 잡힌 발주</span><span>지금 발주계획·사전규격·입찰공고 중인 <b class="num">${P.length}건</b>${pipeA ? ` · 예산 합 <b class="num">${eok(pipeA)}</b>` : ''} — 계약되면 올해 말~내년 실적으로 잡힙니다</span></li>
+        <li><span class="k">과거 검증</span><span>${A.bt.errs.length ? A.bt.errs.map(e => `${e.y}년 예측 ${eok(e.f)} → 실제 ${eok(e.act)}(${e.act >= e.f ? '+' : '−'}${Math.abs(Math.round((e.act / e.f - 1) * 100))}%)`).join(' · ') + ` · 오차 중앙값 <b class="num">±${Math.round(A.bt.mdape * 100)}%</b>` : '검증할 만큼 과거 자료가 없습니다'}</span></li>
+      </ul>
+      <p class="nmeta">기준 추세는 최근 6년(올해 예상 포함)의 로그 선형 추세를 해마다 0.7배씩 약하게 이어 간 값입니다. 80% 범위는 과거 검증 오차의 80% 분위로 잡고(검증 자료가 3년 미만이면 추세에서 벗어난 정도), 멀리 갈수록 넓힙니다. 반복 발주 바닥과 이미 잡힌 발주는 예측에 더하지 않고 비교용으로만 보여 줍니다.</p>
+    </div>
     <div class="panel tddrv"><h3>예측에 반영한 정책·기술 요인 <span class="nmeta">${TR.driversAt ? esc(TR.driversAt) + ' 학습' : ''}</span></h3>
       ${D2.length ? `<ul>${D2.map(d => `<li><span class="eff ${d.eff >= 0 ? 'p' : 'm'}">${d.eff >= 0 ? '+' : ''}${Math.round(d.eff * 100)}%<small>${(d.y || []).join('·')}년</small></span>
         <div class="bd"><span><b>${esc(d.t)}</b><span class="tdkind">${esc(KIND[d.kind] || d.kind || '')}</span></span><span class="nmeta">${esc(d.why || '')}</span>${(d.ref || []).length ? `<span class="refs">${d.ref.map(pref).join('')}</span>` : ''}</div></li>`).join('')}</ul>` : '<p class="nmeta">아직 반영한 요인이 없습니다. 기준 추세만 그렸습니다.</p>'}
       <p class="nmeta">요인은 레이더 정책 카탈로그의 예산·일정·목표와 기술 흐름을 읽고 연도별 증감률로 적은 판단입니다. 같은 해에 여러 요인이 겹치면 곱해서 반영합니다(예: +35%와 −15%면 ×1.15).</p>
     </div>
+    ${dp ? `<div class="panel tdcls"><h3>사업 유형별 구성 <span class="nmeta">연도별 계약 금액(억원) · 계약명으로 분류</span></h3>
+      <div class="tdleg">${CLS.map(c => `<span><i style="background:${c[2]}"></i>${c[1]}</span>`).join('')}</div>
+      <div class="tdsvgwrap" data-c="s">${stack(dp, cw)}</div>
+      <details class="tdtable"><summary>유형별 표 보기</summary><div class="tablebox"><table><thead><tr><th>연도</th>${CLS.map(c => `<th>${c[1]}</th>`).join('')}<th>합계</th></tr></thead><tbody>${yrs(Y0, CY).map(y => `<tr><td>${y}</td>${CLS.map(c => `<td>${eok(((dp.cls[y] || {})[c[0]] || [0, 0])[1], true)}</td>`).join('')}<td>${eok(sumA(dp.cls[y]), true)}</td></tr>`).join('')}</tbody></table></div></details>
+      <p class="nmeta">계약명 낱말로 나눴습니다: 물품 계약·구매·장비 → 물품·장비, 연구·ISP·계획·설계 → 연구·계획·설계, 유지관리·유지보수·운영 → 유지관리·운영, DB·조사·현행화·검증 → 데이터·조사·검증, 구축·고도화·개발·도입 → 구축·고도화. ${CY}년은 진행 중이라 옅게 그렸습니다.</p>
+    </div>
+    <div class="tdgrid">
+      <div class="panel"><h3>발주기관 유형 <span class="nmeta">최근 5년 금액</span></h3>${bars(Object.entries(o5).sort((a, b) => b[1][1] - a[1][1]).map(([k, v]) => [ORGN[k] || k, v[0], v[1]]))}</div>
+      <div class="panel"><h3>지역 <span class="nmeta">최근 5년 금액 · 상위 8</span></h3>${bars((dp.sido || []).slice(0, 8).map(x => [x[0], x[1], x[2]]))}</div>
+      <div class="panel"><h3>계약 규모 <span class="nmeta">최근 5년 건수</span></h3>${bars((dp.size || []).map((x, i) => [SIZEN[i], x[0], x[1]]), {by: 'n'})}${medL ? `<p class="nmeta">건당 중앙값 ${medL}</p>` : ''}</div>
+      <div class="panel"><h3>계약 방법 <span class="nmeta">최근 5년 금액</span></h3>${bars(Object.entries(dp.mth || {}).sort((a, b) => b[1][1] - a[1][1]).map(([k, v]) => [MTHN[k] || k, v[0], v[1]]))}</div>
+      <div class="panel"><h3>발주 시기 <span class="nmeta">${CY - 5}~${CY - 1}년 월별 계약 건수 비중(%)</span></h3>${months(dp.mon || [])}</div>
+      <div class="panel"><h3>새 발주기관 <span class="nmeta">그해 처음 발주한 기관 / 발주기관 수</span></h3><ul class="tdbars">${yrs(CY - 5, CY).filter(y => (dp.newb || {})[y]).map(y => { const v = dp.newb[y]; return `<li><span class="l">${y}${+y === CY ? '(진행 중)' : ''}</span><span class="b"><i style="width:${pct(v[0], v[1])}%"></i></span><span class="v"><b>${v[0]}</b>/${v[1]}곳 · ${eok(v[2])}</span></li>`; }).join('')}</ul></div>
+    </div>
+    <div class="panel tdrepp"><h3>반복 발주 기관 <span class="nmeta">최근 5년 두 해 이상 발주 · ${CY + 1}년 가능성 순 · 상위 ${(dp.rep || []).length}곳(전체 ${rs ? rs.all : 0}곳)</span></h3>${repTable(dp)}
+      <p class="nmeta">가능성 높음 = 최근 3년 연속 발주, 보통 = 최근 5년 세 번 이상 또는 작년·올해 연속, 낮음 = 그 밖. 예상 규모 = 최근 세 번 발주 금액의 중앙값. 웨이즈원이 마지막으로 수주한 기관은 강조했습니다.</p></div>
+    <div class="panel tdwinp"><h3>경쟁 구도 <span class="nmeta">대표사 기준 · 연도별 금액(억원)</span></h3>
+      <p class="nmeta">상위 3사 점유율 <b class="num">${Math.round((dp.top3 || 0) * 100)}%</b> · 시장 집중도(HHI) <b class="num">${(dp.hhi || 0).toLocaleString()}</b>(1,500 미만 낮음 · 2,500 이상 높음) · 해마다 수주사 ${yrs(CY - 4, CY).map(y => `${y} ${(dp.nWin || {})[y] || 0}곳`).join(', ')}</p>
+      ${winTable(dp)}</div>` : ''}
     <div class="tdout2">
       <div class="panel"><h3>이미 잡힌 발주</h3>${P.length ? `<ul class="tdpipe">${P.map(x => `<li><span><span class="tag ${STL[x.st][0]}">${STL[x.st][1]}</span> <b>${esc(x.t)}</b></span><span class="nmeta">${esc(x.org)} · ${esc(x.when)}${x.amt ? ' · ' + esc(x.amt) : ''}</span></li>`).join('')}</ul>` : '<p class="nmeta">레이더가 지금 잡고 있는 발주계획·사전규격·입찰공고 가운데 이 분야 검색어가 들어간 것이 없습니다.</p>'}</div>
-      <div class="panel"><h3>주요 발주기관 <span class="nmeta">최근 5년 금액순</span></h3><ol class="tdrank">${(H.buyers || []).slice(0, 6).map(b => `<li><b>${esc(b.name)}</b><span class="num">${b.n}건 · ${eok(b.amt)}</span></li>`).join('') || '<li class="nmeta">없음</li>'}</ol></div>
-      <div class="panel"><h3>주요 수주사 <span class="nmeta">최근 5년 금액순 · 대표사 기준</span></h3><ol class="tdrank">${(H.winners || []).slice(0, 6).map(w => `<li class="${w.us ? 'us' : ''}"><b>${esc(w.name)}</b><span class="num">${w.n}건 · ${eok(w.amt)}</span></li>`).join('') || '<li class="nmeta">없음</li>'}</ol></div>
+      ${dp ? '' : `<div class="panel"><h3>주요 발주기관 <span class="nmeta">최근 5년 금액순</span></h3><ol class="tdrank">${(H.buyers || []).slice(0, 6).map(b => `<li><b>${esc(b.name)}</b><span class="num">${b.n}건 · ${eok(b.amt)}</span></li>`).join('') || '<li class="nmeta">없음</li>'}</ol></div>
+      <div class="panel"><h3>주요 수주사 <span class="nmeta">최근 5년 금액순 · 대표사 기준</span></h3><ol class="tdrank">${(H.winners || []).slice(0, 6).map(w => `<li class="${w.us ? 'us' : ''}"><b>${esc(w.name)}</b><span class="num">${w.n}건 · ${eok(w.amt)}</span></li>`).join('') || '<li class="nmeta">없음</li>'}</ol></div>`}
       <div class="panel"><h3>큰 계약 <span class="nmeta">최근 3년</span></h3><ul class="tdpipe">${(H.ex || []).map(x => `<li><b>${esc(x.t)}</b><span class="nmeta">${esc(x.b)} · ${esc(x.w || '공동수급')} · <b class="num">${eok(x.a)}</b> · ${esc(x.d.slice(0, 4) + '-' + x.d.slice(4, 6))}</span></li>`).join('') || '<li class="nmeta">없음</li>'}</ul></div>
     </div>
-    <p class="small muted">기준: ${esc(TR.basis || '나라장터 계약')}. 계약명에 검색어 낱말이 모두 들어간 계약만 셉니다(공사·감리·청소·드론 등 제외). 장기계속계약은 차수별 계약 금액으로 잡히고, 2025년 차세대 나라장터 전환 전후로 연계기관 계약 집계 방식이 다를 수 있습니다. 기준 추세는 최근 6년(올해 예상 포함)의 로그 선형 추세를 해마다 약하게(0.7배씩) 이어 간 값이고, 80% 범위는 과거 해마다의 들쭉날쭉함으로 잡았습니다. 마지막 수집 ${esc(TR.collectedAt || '')}.</p>`;
+    <p class="small muted">기준: ${esc(TR.basis || '나라장터 계약')}. 계약명에 검색어 낱말이 모두 들어간 계약만 셉니다(공사·감리·청소·드론 등 제외). 장기계속계약은 차수별 계약 금액으로 잡히고, 2025년 차세대 나라장터 전환 전후로 연계기관 계약 집계 방식이 다를 수 있습니다. 예측 방법과 범위는 위 「예측 근거 분해」에 있습니다. 사업 유형·발주기관 유형은 계약명·기관명으로 나눈 것이라 일부 섞일 수 있습니다. 마지막 수집 ${esc(TR.collectedAt || '')}.</p>`;
     // 막대 위에 올리면 값 보기
     const bind = (wrap, S, c, fmt, lab) => {
       if(!wrap) return;
@@ -2678,6 +2814,19 @@ ${ax}
     };
     bind(out.querySelector('[data-c="a"]'), A, cA, eok, '금액');
     bind(out.querySelector('[data-c="n"]'), N, cN, cnt, '건수');
+    // 사업 유형 막대: 올리면 그해 유형별 금액
+    const sw = out.querySelector('[data-c="s"]');
+    if(sw && dp) sw.querySelectorAll('g.col').forEach(g => {
+      const y = g.dataset.y, c = dp.cls[y] || {};
+      const show = () => {
+        if(!TIP){ TIP = document.createElement('div'); TIP.className = 'tdtip'; }
+        sw.appendChild(TIP);
+        const r = g.getBoundingClientRect(), wr = sw.getBoundingClientRect();
+        TIP.innerHTML = `<b>${y}</b>${+y === CY ? ' 진행 중' : ''} · 합계 <b>${eok(sumA(c))}</b><br>` + CLS.filter(k => c[k[0]]).map(k => `<span class="nmeta">${k[1]} ${eok(c[k[0]][1])} · ${c[k[0]][0]}건 (${pct(c[k[0]][1], sumA(c))}%)</span>`).join('<br>');
+        TIP.style.left = Math.min(Math.max(0, r.left - wr.left + r.width / 2 - 90), wr.width - 200) + 'px'; TIP.style.top = Math.max(0, r.top - wr.top - 8) + 'px'; TIP.style.transform = 'translateY(-100%)';
+      };
+      g.addEventListener('mouseenter', show); g.addEventListener('mouseleave', () => { if(TIP && TIP.parentNode) TIP.remove(); }); g.addEventListener('click', show);
+    });
   }
   // ── 검색 ──
   $('#tdchips').addEventListener('click', e => { const b = e.target.closest('[data-td]'); if(!b) return; cur = b.dataset.td; store('trend', cur); $('#tdmsg').textContent = ''; render(); });
