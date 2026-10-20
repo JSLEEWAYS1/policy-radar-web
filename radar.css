@@ -956,3 +956,13 @@ ol.acts .ad.done{color:var(--ok)}
 .trtop #trhint.err{color:var(--warn);font-weight:600}
 .tag.edt{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink2);font-weight:600}
 .trlist .tract .nmeta{font-size:.8rem}
+/* 실적증명서 첨부 */
+.trnocert[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.trcert{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:.84rem}
+.trcert .kl{flex:none}
+.trcert a.cf{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--ok) 10%,var(--surface));color:var(--ok);font-weight:600;text-decoration:none;overflow-wrap:anywhere}
+.trcert a.cf:hover{text-decoration:underline}
+.trcert .cf.other{background:var(--sunk);color:var(--ink2);font-weight:500}
+.trcert .linkish{font-size:.8rem;color:var(--ink3)}
+.tag.cert{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
+.tag.nocert{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink3);font-weight:500}

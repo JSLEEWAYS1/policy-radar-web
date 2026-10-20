@@ -86,7 +86,31 @@ async function trackStore() {
     del: async id => chk(await T().delete().eq('id', id))
   };
 }
-window.W1STORE = {trackManual: trackStore};
+// 실적증명서: 회원 서버 파일함 track-certs(비공개)와 목록 표 track_certs. 승인된 회원만 올리고 열람·삭제한다(supabase/track_manual.sql).
+// 파일 이름(한글)은 목록 표에만 두고, 파일함 경로는 영문·숫자로 만든다. 열람은 5분짜리 서명 주소로 연다.
+async function certStore() {
+  const T = () => sb.from('track_certs'), B = () => sb.storage.from('track-certs');
+  const probe = await T().select('id').limit(1);
+  if (probe.error) {
+    const m = String(probe.error.code || '') + ' ' + String(probe.error.message || '');
+    return {ok: false, why: /42P01|PGRST205|PGRST106|does not exist|schema cache/i.test(m) ? 'setup' : 'error'};
+  }
+  const chk = r => { if (r.error) { const e = new Error(r.error.message); e.code = r.error.code || r.error.statusCode; throw e; } return r.data; };
+  const EXT = {'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg'};
+  return {
+    ok: true, canWrite: me?.status === 'approved',
+    list: async () => chk(await T().select('id, target, path, name, type, size, created_at').order('created_at', {ascending: true}).limit(1000)),
+    upload: async (target, file, type) => {
+      const path = target.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 100) + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + (EXT[type] || 'bin');
+      chk(await B().upload(path, file, {contentType: type, upsert: false}));
+      const r = await T().insert({target, path, name: String(file.name || '실적증명서').slice(0, 160), type, size: file.size});
+      if (r.error) { await B().remove([path]); chk(r); }
+    },
+    url: async path => chk(await B().createSignedUrl(path, 300)).signedUrl,
+    remove: async row => { chk(await B().remove([row.path])); chk(await T().delete().eq('id', row.id)); }
+  };
+}
+window.W1STORE = {trackManual: trackStore, trackCerts: certStore};
 
 function openApp(D) {
   $('#gate').hidden = true; $('#app').hidden = false;

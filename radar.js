@@ -2121,10 +2121,28 @@ ${ax}
   }
 
   let role = 'all', kw = null;
+  /* 실적증명서: 이 화면 저장소에 올린 파일(레이더 = 파일 저장소 + trackCerts 목록, 홈페이지 = 회원 서버 파일함 + track_certs 표)과
+     다른 화면에 올린 파일의 이름(데이터 사본 track.certs). 줄마다 원래 줄 기준(_tgt: 'auto:CC:번호'·'db-…'·'web-…')으로 붙는다 */
+  const TC = T.certs || {};
+  let CST = null, CWHY = 'loading', CERT = null, nocert = false, upTgt = null;
+  const certsOf = tgt => {
+    const o = CST && CERT ? CST.origin : null, own = o ? (CERT[tgt] || []) : [], other = [];
+    Object.entries(TC).forEach(([org, m]) => { if(org !== o && m && Array.isArray(m[tgt])) m[tgt].forEach(f => other.push({...f, where: org})); });
+    return {own, other, n: own.length + other.length};
+  };
+  const shortN = s => { s = String(s || ''); return s.length > 30 ? s.slice(0, 28) + '…' : s; };
+  function certLine(x){
+    const {own, other} = certsOf(x._tgt), can = (CST && CST.canWrite !== false) || CWHY === 'setup';
+    if(!own.length && !other.length && !can) return '';
+    const a = own.map(f => `<a class="cf" href="${f.href ? esc(f.href) : '#'}"${f.href ? ' target="_blank" rel="noopener"' : ` data-copen="${esc(x._tgt)}" data-cid="${esc(f.id)}"`} title="${esc(f.name)}">${esc(shortN(f.name))}</a>${CST && CST.canWrite !== false ? `<button type="button" class="linkish" data-cdel="${esc(x._tgt)}" data-cid="${esc(f.id)}">지우기</button>` : ''}`).join('');
+    const b = other.map(f => `<span class="cf other" title="${esc(f.name)}">${esc(shortN(f.name))} · ${esc(SRC[f.where] || '')}에 있음</span>`).join('');
+    return `<div class="trcert"><span class="kl">실적증명서</span>${a}${b}${!own.length && !other.length ? '<span class="nmeta">없음</span>' : ''}${can ? `<button type="button" class="linkish" data-up="${esc(x._tgt)}">+ 올리기</button>` : ''}</div>`;
+  }
   try { const r = JSON.parse(localStorage.getItem('w1radar.trrole') || '""'); if(r && (r === 'all' || ROLE[r])) role = r; } catch(e) {}
   const tb = document.getElementById('t-track');
   const seg = document.getElementById('trrole');
   seg.addEventListener('click', e => { const b = e.target.closest('button[data-r]'); if(!b) return; role = b.dataset.r; store('trrole', role); render(); });
+  document.getElementById('trnocert').addEventListener('click', () => { nocert = !nocert; render(); });
 
   const tbl = document.getElementById('trtable');
   const pick = (tr) => { const k = tr.dataset.k; kw = kw === k ? null : k; render(); if(kw) document.getElementById('trgroups').scrollIntoView({behavior: 'smooth', block: 'start'}); };
@@ -2146,13 +2164,13 @@ ${ax}
       return `<li class="man"><div class="tw"><b>${esc(ym(x.date) || '-')}${x.dateKind && x.dateKind !== '계약' ? `<small> ${esc(x.dateKind)}</small>` : ''}</b>${rtag}<span class="tag man" title="나라장터에 결과가 공개되지 않아 팀이 직접 등록한 실적">직접 등록</span></div>
         <div class="tb">${title}
           <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer)} · ${amt}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${period}${x.ref ? ` · 공고 ${esc(x.ref)}` : ''}</span>
-          ${mem}<span class="mem why">나라장터에 없는 이유: ${esc(x.reason)}${x.note ? ' · ' + esc(x.note) : ''}</span>${extra ? `<span class="kws">${extra}</span>` : ''}${act}</div></li>`;
+          ${mem}<span class="mem why">나라장터에 없는 이유: ${esc(x.reason)}${x.note ? ' · ' + esc(x.note) : ''}</span>${extra ? `<span class="kws">${extra}</span>` : ''}${certLine(x)}${act}</div></li>`;
     }
     const ovn = x._ov ? `<span class="mem why">직접 수정한 값으로 표시${x._ov.note ? ' · ' + esc(x._ov.note) : ''}</span>` : '';
     return `<li${x._ov ? ' class="ovr"' : ''}><div class="tw"><b>${esc(ym(x.date) || '-')}</b>${rtag}${x._ov ? '<span class="tag edt" title="나라장터 수집 값을 팀이 고친 줄">수정됨</span>' : ''}</div>
       <div class="tb"><a href="${SRCH + encodeURIComponent(x.title)}" target="_blank" rel="noopener">${esc(x.title)}</a>
         <span class="nmeta">${x.role === '하도급' ? '원도급 ' : ''}${esc(x.buyer || x.org || '')} · 계약 <b class="num">${won(x.amt)}</b>${x.total ? ` (장기계속 총 ${won(x.total)})` : ''}${x._mine != null && x.role !== '단독' && x.role !== '하도급' ? ` · 웨이즈원 몫 <b class="num">${won(x._mine)}</b>` : ''}${x.method ? ' · ' + esc(mth(x.method)) : ''}${x.chg ? ' · 변경 ' + esc(x.chg) + '회' : ''}${period}</span>
-        ${mem}${ovn}${extra ? `<span class="kws">${extra}</span>` : ''}${acts(x)}</div></li>`;
+        ${mem}${ovn}${extra ? `<span class="kws">${extra}</span>` : ''}${certLine(x)}${acts(x)}</div></li>`;
   }
   // 줄마다: 이 화면 저장소의 직접 등록 줄은 고치기·지우기, 나머지(나라장터 수집·다른 화면 등록)는 고치기(고친 값 기록)와 원래 값으로
   function acts(x){
@@ -2169,7 +2187,9 @@ ${ax}
     const segs = [['all', '전체'], ['lead', '대표·단독'], ['mem', '공동수급 구성원'], ['sub', '하도급']].filter(([k]) => k === 'all' || ALL.some(x => ROLE[k].includes(x.role)));
     if(role !== 'all' && !segs.some(([k]) => k === role)) role = 'all';
     seg.innerHTML = segs.map(([k, l]) => `<button type="button" data-r="${k}" aria-pressed="${k === role}">${l} <span class="nmeta">${k === 'all' ? ALL.length : ALL.filter(x => ROLE[k].includes(x.role)).length}</span></button>`).join('');
-    const L = ALL.filter(x => role === 'all' || ROLE[role].includes(x.role));
+    const nc = ALL.filter(x => !certsOf(x._tgt).n).length, cb = document.getElementById('trnocert');
+    cb.textContent = `실적증명서 없는 것만 ${nc}`; cb.setAttribute('aria-pressed', String(nocert));
+    const L = ALL.filter(x => role === 'all' || ROLE[role].includes(x.role)).filter(x => !nocert || !certsOf(x._tgt).n);
     const sum = a => a.reduce((s, x) => s + (x.amt || 0), 0), mine = a => a.reduce((s, x) => s + (x._mine || 0), 0);
     const buyers = new Set(L.map(x => x.buyer || x.org)).size, unk = L.filter(x => !x.amt).length, man = L.filter(x => x.manual).length;
     document.getElementById('trkpi').innerHTML = [
@@ -2189,8 +2209,8 @@ ${ax}
     document.getElementById('trgroups').innerHTML = !L.length ? `<p class="trempty">${ALL.length ? '이 조건에 맞는 사업이 없습니다.' : '아직 수집된 실적이 없습니다. 나라장터 자동 수집이 다음에 돌 때 채워집니다.'}</p>`
       : show.map(k => { const a = G[k].slice().sort((p, q) => (q.date || '').localeCompare(p.date || ''));
         return `<section class="panel trg"><h3>${esc(NAME[k])} <span class="nmeta">${a.length}건 · 계약 총액 <b class="num">${won(sum(a))}</b> · 웨이즈원 몫 <b class="num">${won(mine(a))}</b></span></h3><ul class="trlist">${a.map(row).join('')}</ul></section>`; }).join('');
-    const yr = String(T.from || '').slice(0, 4), mn = ALL.filter(x => x.manual).length;
-    document.getElementById('trnote').innerHTML = AUTO.length || mn ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다.${mn ? ` <b>직접 등록 ${mn}건</b>은 수주했지만 나라장터에 개찰결과·계약이 공개되지 않아 팀이 넣은 실적입니다. 계약금액을 모르는 건은 합계에서 뺍니다.` : ''}${DUP.length ? ` 직접 등록한 ${DUP.length}건은 같은 사업명의 나라장터 계약이 잡혀 자동 수집 쪽으로 보여 줍니다.` : ''}${ALL.some(x => x._ov) ? ` 팀이 값을 고친 ${ALL.filter(x => x._ov).length}건은 「수정됨」으로 표시하고 고친 값으로 합계를 냅니다(원래 기록은 그대로 둠).` : ''} 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
+    const yr = String(T.from || '').slice(0, 4), mn = ALL.filter(x => x.manual).length, wc = ALL.filter(x => certsOf(x._tgt).n).length;
+    document.getElementById('trnote').innerHTML = AUTO.length || mn ? `출처: 나라장터 계약현황(조달청 계약과 연계기관 계약). 대표·단독 계약은 웨이즈원 업체 번호로 모두 찾고, 공동수급 구성원 계약은 ${yr ? yr + '년 이후 ' : ''}공간정보·교통 분야 검색어로 모은 경쟁 계약 ${(T.scanned || 0).toLocaleString()}건의 업체 목록을 하나씩 확인해 찾았습니다. 검색어에 걸리지 않는 분야의 구성원 계약이나 수의계약으로 맺은 공동계약은 빠질 수 있고, 하도급은 나라장터에 통보된 것만 나옵니다. 장기계속 계약은 차수별 계약금액으로 더하고, 전체 사업비는 괄호에 둡니다.${mn ? ` <b>직접 등록 ${mn}건</b>은 수주했지만 나라장터에 개찰결과·계약이 공개되지 않아 팀이 넣은 실적입니다. 계약금액을 모르는 건은 합계에서 뺍니다.` : ''}${DUP.length ? ` 직접 등록한 ${DUP.length}건은 같은 사업명의 나라장터 계약이 잡혀 자동 수집 쪽으로 보여 줍니다.` : ''}${ALL.some(x => x._ov) ? ` 팀이 값을 고친 ${ALL.filter(x => x._ov).length}건은 「수정됨」으로 표시하고 고친 값으로 합계를 냅니다(원래 기록은 그대로 둠).` : ''}${wc ? ` 실적증명서는 ${ALL.length}건 중 ${wc}건에 올라가 있습니다(파일은 올린 화면에서 열람).` : ''} 확인 ${esc(T.checkedAt || T.at || '')}.` : '';
   }
 
   /* ── 직접 등록 양식 ── */
@@ -2269,7 +2289,45 @@ ${ax}
     } finally { btn.disabled = false; }
   });
   function toast(t){ const n = document.getElementById('trdone'); n.textContent = t; n.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { n.hidden = true; }, 7000); }
+  const cfile = document.getElementById('trcfile');
+  const CTYPE = {pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg'};
+  const cerr = e => { const c = e && (e.code || e.statusCode || ''); return c === 'too_large' ? '20MB 초과' : c === 'unsupported_type' ? 'PDF·JPG·PNG만' : c === 'quota_or_state' ? '저장 공간 부족' : c === 'rate_limited' ? '잠시 뒤 다시' : c === 'not_granted' || c === '42501' || c === '403' ? '권한 없음' : '올리지 못함'; };
+  cfile.addEventListener('change', async () => {
+    const files = [...cfile.files], tgt = upTgt; cfile.value = '';
+    if(!files.length || !tgt || !CST) return;
+    const x = ALL.find(y => y._tgt === tgt); let ok = 0; const bad = [];
+    toast(`실적증명서 ${files.length}건을 올리는 중입니다.`);
+    for(const f of files){
+      const type = /^(application\/pdf|image\/png|image\/jpeg)$/.test(f.type) ? f.type : CTYPE[(f.name.split('.').pop() || '').toLowerCase()];
+      if(!type){ bad.push(f.name + '(PDF·JPG·PNG만)'); continue; }
+      if(f.size > 20 * 1024 * 1024){ bad.push(f.name + '(20MB 초과)'); continue; }
+      try { await CST.upload(tgt, f, type, x ? x.title : ''); ok++; } catch(err){ bad.push(f.name + '(' + cerr(err) + ')'); }
+    }
+    toast((ok ? `실적증명서 ${ok}건을 올렸습니다. ` : '') + (bad.length ? '올리지 못한 파일: ' + bad.join(', ') : ''));
+  });
   document.getElementById('trgroups').addEventListener('click', async e => {
+    const up = e.target.closest('[data-up]'), cop = e.target.closest('[data-copen]'), cdel = e.target.closest('[data-cdel]');
+    if(up){
+      if(!CST){ toast(WHYT[CWHY] || WHYT.none); return; }
+      if(CST.canWrite === false){ toast(WHYT.ro); return; }
+      upTgt = up.dataset.up; cfile.click(); return;
+    }
+    if(cop){
+      e.preventDefault();
+      const f = ((CERT && CERT[cop.dataset.copen]) || []).find(y => String(y.id) === cop.dataset.cid); if(!f || !CST || !CST.open) return;
+      const w = window.open('', '_blank');
+      try { const u = await CST.open(f); if(w) w.location.href = u; else location.href = u; }
+      catch(err){ if(w) w.close(); toast('파일을 열지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); }
+      return;
+    }
+    if(cdel){
+      const key = 'c:' + cdel.dataset.cid;
+      if(delArm !== key){ delArm = key; const lab = cdel.textContent; cdel.textContent = '한 번 더 누르면 지웁니다'; setTimeout(() => { if(delArm === key){ delArm = null; cdel.textContent = lab; } }, 4000); return; }
+      delArm = null; cdel.disabled = true;
+      try { await CST.remove(cdel.dataset.cdel, cdel.dataset.cid); toast('실적증명서를 지웠습니다.'); }
+      catch(err){ cdel.disabled = false; cdel.textContent = '지우기'; toast('지우지 못했습니다(' + cerr(err) + ').'); }
+      return;
+    }
     const ed = e.target.closest('[data-edit]'), del = e.target.closest('[data-del]');
     if(ed){
       if(!STORE || STORE.canWrite === false) return;
@@ -2297,10 +2355,41 @@ ${ax}
         if(user){ try { uid = await user.id(); } catch(e){} try { canWrite = await user.can('data.write'); } catch(e){} }
         STORE = {origin: 'db', canWrite, add: b => db.collection('trackManual').add(b), set: (id, b) => db.doc('trackManual/' + id).set(b), del: id => db.doc('trackManual/' + id).delete()};
         db.collection('trackManual').limit(200).onSnapshot(snap => { LIVE = snap.docs.map(d => cleanM(d.data(), 'db-' + d.id, 'db')); rebuild(); render(); }, () => {});
+        // 실적증명서: 파일 저장소(편집 권한자만 올림)와 trackCerts 목록(문서 id = 원래 줄)
+        const assets = await RT.use('assets').catch(() => null);
+        const strip = f => ({id: f.id, name: f.name, type: f.type, size: f.size, at: f.at});
+        const titleOf = tgt => ((ALL.find(y => y._tgt === tgt) || {}).title || '').slice(0, 160);
+        CST = {origin: 'db', canWrite: assets ? canWrite : false,
+          upload: async (tgt, f, type) => {
+            const r = await assets.upload(f, {type});
+            const cur = ((CERT && CERT[tgt]) || []).map(strip);
+            await db.doc('trackCerts/' + tgt).set({of: tgt, title: titleOf(tgt), files: cur.concat([{id: r.id, name: String(f.name).slice(0, 160), type: r.contentType, size: r.sizeBytes, at: kst()}])});
+          },
+          remove: async (tgt, id) => {
+            const rest = ((CERT && CERT[tgt]) || []).filter(c => c.id !== id).map(strip);
+            if(rest.length) await db.doc('trackCerts/' + tgt).set({of: tgt, title: titleOf(tgt), files: rest}); else await db.doc('trackCerts/' + tgt).delete();
+            try { await assets.delete(id); } catch(err){}
+          }};
+        CWHY = assets ? null : 'ro';
+        db.collection('trackCerts').limit(500).onSnapshot(snap => {
+          const M = {};
+          snap.docs.forEach(d => { const v = d.data() || {}, tgt = String(v.of || d.id); M[tgt] = (Array.isArray(v.files) ? v.files : []).filter(f => f && /^[0-9a-f]{32}$/.test(String(f.id))).map(f => ({id: f.id, name: String(f.name || '실적증명서').slice(0, 160), type: f.type, size: f.size, at: f.at, href: '/_blob/' + f.id})); });
+          CERT = M; render();
+        }, () => {});
         return;
       }
       const W = typeof window !== 'undefined' && window.W1STORE;  // 회원 홈페이지: 회원 서버의 track_manual 표
-      if(!W || typeof W.trackManual !== 'function'){ WHY = 'none'; return; }
+      if(!W || typeof W.trackManual !== 'function'){ WHY = 'none'; CWHY = 'none'; return; }
+      if(typeof W.trackCerts === 'function') (async () => {  // 실적증명서: 회원 서버 파일함(track-certs)과 track_certs 표
+        const c = await W.trackCerts().catch(() => null);
+        if(!c || !c.ok){ CWHY = (c && c.why) || 'error'; render(); return; }
+        const pullC = async () => { const rows = await c.list(); const M = {}; rows.forEach(r => (M[r.target] ||= []).push({id: String(r.id), name: r.name, type: r.type, size: r.size, at: r.created_at, path: r.path})); CERT = M; render(); };
+        CST = {origin: 'web', canWrite: c.canWrite,
+          upload: async (tgt, f, type, title) => { await c.upload(tgt, f, type, title); await pullC(); },
+          remove: async (tgt, id) => { const row = ((CERT && CERT[tgt]) || []).find(y => String(y.id) === String(id)); if(row) await c.remove(row); await pullC(); },
+          open: f => c.url(f.path)};
+        CWHY = null; await pullC();
+      })().catch(() => { CWHY = 'error'; });
       const s = await W.trackManual();
       if(!s || !s.ok){ WHY = (s && s.why) || 'error'; return; }
       const pull = async () => { const rows = await s.list(); LIVE = rows.map(r => cleanM(r.data || {}, 'web-' + r.id, 'web')); rebuild(); render(); };
