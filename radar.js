@@ -33,6 +33,10 @@ const fitTag = f => f ? `<span class="fit ${f}">${FITL[f]}</span>` : '';
 const lvTag = p => `<span class="tag lv">${esc(p.level)}</span>`;
 const grpTag = p => `<span class="tag"><span class="dot" style="--c:${gcol(p)}"></span>${esc((GC[p.group]||GC.base).name)}</span>`;
 const pref = id => byId[id] ? `<button type="button" class="linkish" data-goto="${esc(id)}">${esc(byId[id].short||byId[id].name)}</button>` : '';
+const LZ = new Map(); let LZN = 0;
+const lzBody = fn => { const k = 'z' + (++LZN); LZ.set(k, fn); return `<div data-lz="${k}" hidden></div>`; };
+function fillLz(d){ d.querySelectorAll('[data-lz]').forEach(el => { if(el.closest('details') !== d) return; const fn = LZ.get(el.dataset.lz); LZ.delete(el.dataset.lz); el.outerHTML = fn ? fn() : ''; }); }
+document.addEventListener('toggle', e => { const d = e.target; if(d && d.tagName === 'DETAILS' && d.open) fillLz(d); }, true);
 function store(k,v){try{localStorage.setItem('w1radar.'+k,JSON.stringify(v))}catch(e){}}
 function load(k,d){try{const v=localStorage.getItem('w1radar.'+k);return v?JSON.parse(v):d}catch(e){return d}}
 
@@ -245,7 +249,7 @@ function renderPipe(){
     <p class="small muted">${esc(cur[2])}</p>${body}${qualBox()}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
 }
-document.addEventListener('click',e=>{const b=e.target.closest('[data-tabgo]'); if(b){e.preventDefault(); if(b.dataset.pipego){ pipeTab = b.dataset.pipego; store('pipe', pipeTab); renderPipe(); } show(b.dataset.tabgo);}});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-tabgo]'); if(b){e.preventDefault(); if(b.dataset.pipego){ pipeTab = b.dataset.pipego; store('pipe', pipeTab); if(READY.has('g2b')) renderPipe(); } show(b.dataset.tabgo);}});
 /* 한국도로공사(주요 고객): 자체 전자조달 공고가 나라장터에 연계된 것을 공고기관으로 모아 사업 단위(발주계획→사전규격→입찰공고)로 보여 준다 */
 let exTab = load('extab', 'bid');
 document.addEventListener('click', e => { const b = e.target.closest('[data-scrollto]'); if(b){ const el = document.getElementById(b.dataset.scrollto); if(el) el.scrollIntoView({behavior: 'smooth', block: 'start'}); } });
@@ -303,10 +307,15 @@ $('#kpis').innerHTML = [
 /* tabs */
 const TABS = ['overview','g2b','trend','rnd','ways1','track','idea','catalog','links','timeline','sources'];
 let cur = 'overview';
+// 탭 내용은 그 탭을 처음 열 때 그린다(첫 화면을 빨리 띄우기 위해). 다른 탭으로 바로 가는 버튼은 ensure로 그 탭을 먼저 그린다.
+const LAZY = {}, READY = new Set();
+function lazy(t, fn){ (LAZY[t] ||= []).push(fn); if(READY.has(t)) fn(); }
+function ensure(t){ if(READY.has(t)) return; READY.add(t); (LAZY[t] || []).forEach(fn => { try { fn(); } catch(e){ console.error(e); } }); }
 function show(t, opt={}){
   if(!TABS.includes(t)) t='overview';
   cur = t;
   $$('.view').forEach(v=>v.hidden = v.dataset.view!==t);
+  ensure(t);  // 보이게 한 다음 그린다(트렌드 차트가 화면 폭을 재므로)
   $$('.tab').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t ? 'true':'false'));
   if(t==='links') requestAnimationFrame(drawEdges);
   if(!opt.keepScroll) window.scrollTo({top:0});
@@ -385,7 +394,7 @@ function renderInsights(){
     ${B.length?`<div class="bizsum"><span class="kl">추진할 사업 ${B.length}건</span><ul>${B.map(o=>`<li>${entryTag(o)}
       ${o.entry?`<button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>`:`<span style="font-weight:600">${esc(o.title)}</span>`}
       ${bizWhen(o)?`<span class="when">${esc(bizWhen(o))}</span>`:''}</li>`).join('')}</ul></div>`:''}
-    ${B.length||i.tech?.length?`<details class="insmore"><summary>사업별 협력 대상·나라장터 단계</summary>
+    ${B.length||i.tech?.length?`<details class="insmore"><summary>사업별 협력 대상·나라장터 단계</summary>${lzBody(() => `
       ${i.tech?.length?`<div class="kv" style="margin-bottom:12px"><span class="kl">핵심 기술</span><div class="pchips">${i.tech.map(x=>`<span class="tc">${esc(x)}</span>`).join('')}</div></div>`:''}
       <div class="bizl">${B.map(o=>`<div class="biz">
         <div class="bh">${entryTag(o)}${noticeTag(o) || (o.horizon?`<span class="tag">${esc(o.horizon)}</span>`:'')}</div>
@@ -393,7 +402,7 @@ function renderInsights(){
         ${o.entry?'':`<span class="small muted">${esc(o.why)}</span>`}
         <div class="kv"><span class="kl">협력 기술</span><div class="pchips">${(o.partners?.tech||[]).map(x=>`<span class="tc">${esc(x)}</span>`).join('')}</div></div>
         ${(o.partners?.orgs||[]).length?`<div class="kv"><span class="kl">협력 기업</span>${orgList(o.partners.orgs)}</div>`:''}
-        ${bizNotice(o)}</div>`).join('')}</div></details>`:''}
+        ${bizNotice(o)}</div>`).join('')}</div>`)}</details>`:''}
     ${i.basis?`<div class="refs"><span class="conf">근거</span><span>${esc(i.basis)}</span></div>`:`<div class="refs"><span class="conf">근거 정책</span>${(i.refs||[]).map(pref).join('')}</div>`}
     </article>`; };
   $('#insights').innerHTML = INS.map(card).join('');
@@ -437,7 +446,7 @@ function renderActs(){
     ${past.length ? `<details class="actmore"><summary>기한이 지난 액션 ${past.length}건</summary><ul class="actl">${past.map(row).join('')}</ul></details>` : ''}`;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-ins]'); if(!b) return; e.preventDefault();
-  const el = document.getElementById('ins-' + b.dataset.ins); if(!el) return; if(typeof show === 'function' && cur !== 'overview') show('overview', {keepScroll: true});
+  ensure('overview'); const el = document.getElementById('ins-' + b.dataset.ins); if(!el) return; if(typeof show === 'function' && cur !== 'overview') show('overview', {keepScroll: true});
   el.scrollIntoView({behavior: 'smooth', block: 'start'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); });
 
 /* 신규 발견 사업: 최근 7일 안에 자동 수집이 새로 찾은 나라장터 공고(foundAt)·단계가 바뀐 공고(stageAt)와 연구개발·기업지원 공고(addedAt) */
@@ -547,7 +556,7 @@ function renderHeat(){
     h += '</tr>';
   });
   $('#heat').innerHTML = h + '</tbody>';
-  $$('#heat button[data-g]').forEach(b=>b.addEventListener('click',()=>{ F.groups=new Set([b.dataset.g]); F.level=b.dataset.l; F.q=''; F.min=''; F.fit=''; syncFilters(); renderCatalog(); show('catalog'); }));
+  $$('#heat button[data-g]').forEach(b=>b.addEventListener('click',()=>{ ensure('catalog'); F.groups=new Set([b.dataset.g]); F.level=b.dataset.l; F.q=''; F.min=''; F.fit=''; syncFilters(); renderCatalog(); show('catalog'); }));
 }
 function renderNews(){
   const items = [...P].sort((a,b)=>recentDate(b).localeCompare(recentDate(a))).slice(0,10);
@@ -592,7 +601,7 @@ function renderCatalog(){
   $('#plist').innerHTML = list.length ? list.map(p=>`<details class="pol" id="p-${esc(p.id)}" style="--c:${gcol(p)}">
     <summary><div class="top">${newTag(p)}${grpTag(p)}${lvTag(p)}<span class="tag">${esc(p.ministry)}</span>${fitTag(p.w1?.fit)}<span class="when">${esc(p.announced||'')}${p.period?' · 계획기간 '+esc(p.period):''}</span></div>
     <div class="nm">${esc(p.name)}</div><div class="vs">${hl(p.vision)}</div><span class="more">펼쳐서 세부 내용 보기</span></summary>
-    <div class="body">${docBody(p)}</div></details>`).join('') : '<p class="muted">조건에 맞는 정책이 없습니다. 조건을 줄이거나 초기화해 보세요.</p>';
+    <div class="body">${lzBody(() => docBody(p))}</div></details>`).join('') : '<p class="muted">조건에 맞는 정책이 없습니다. 조건을 줄이거나 초기화해 보세요.</p>';
 }
 function syncFilters(){
   $('#q').value = F.q; $('#flevel').value = F.level; $('#fmin').value = F.min; $('#ffit').value = F.fit; $('#fsort').value = F.sort;
@@ -614,6 +623,7 @@ function initCatalog(){
 }
 function gotoPolicy(id){
   if(!byId[id]) return;
+  ensure('catalog');
   F.q=''; F.groups.clear(); F.level=''; F.min=''; F.fit=''; syncFilters(); renderCatalog();
   show('catalog',{keepScroll:true});
   const el = document.getElementById('p-'+id);
@@ -621,7 +631,7 @@ function gotoPolicy(id){
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-goto]'); if(b){e.preventDefault(); gotoPolicy(b.dataset.goto);}});
 function gotoOpp(id){
-  oppFilter=''; renderWays1(); show('ways1',{keepScroll:true});
+  ensure('ways1'); oppFilter=''; renderWays1(); show('ways1',{keepScroll:true});
   const el=document.getElementById('o-'+id);
   if(el){ el.scrollIntoView({block:'start',behavior:'smooth'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 }
@@ -784,7 +794,7 @@ function renderWays1(){
   const cls = ENTRY_CLS;
   // 공고 상세는 「나라장터 사업」 화면과 같으므로 카드에서는 접어 둔다
   const nsum = o => { const a = [livePlans(o).length && `발주계획 ${livePlans(o).length}건`, livePres(o).length && `사전규격 ${livePres(o).length}건`, liveBids(o).length && `입찰공고 ${liveBids(o).length}건`].filter(Boolean);
-    return a.length ? `<details class="nbox"><summary>나라장터 ${a.join(' · ')}${horizonTxt(o)?` <span class="nmeta">${esc(horizonTxt(o))}</span>`:''}</summary>${noticeBlock(o)}</details>` : noticeBlock(o); };
+    return a.length ? `<details class="nbox"><summary>나라장터 ${a.join(' · ')}${horizonTxt(o)?` <span class="nmeta">${esc(horizonTxt(o))}</span>`:''}</summary>${lzBody(() => noticeBlock(o))}</details>` : noticeBlock(o); };
   $('#opps').innerHTML = ACT.filter(o=>!oppFilter||effEntry(o)===oppFilter).map(o=>`<article class="opp" id="o-${esc(o.id)}">
     ${nsum(o)}
     <div class="h"><div class="top"><span class="fit ${cls[effEntry(o)]}">${esc(effEntry(o))}</span>${horizonTxt(o)?`<span class="tag">${esc(horizonTxt(o))}</span>`:''}</div>
@@ -829,7 +839,10 @@ function renderSources(){
   $('#foot').innerHTML = `${esc(D.meta.footer)}`;
 }
 
-renderPipe(); renderEx(); renderBoard(); renderPrograms(); renderInsights(); renderNewFound(); renderHeat(); renderNews(); initCatalog(); initLinks(); renderTimeline(); renderWays1(); renderSources();
+lazy('overview', renderBoard); lazy('overview', renderInsights); lazy('overview', renderNewFound); lazy('overview', renderHeat); lazy('overview', renderNews);
+lazy('g2b', renderPipe); lazy('g2b', renderEx); lazy('rnd', renderPrograms); lazy('catalog', initCatalog); lazy('links', initLinks);
+lazy('timeline', renderTimeline); lazy('ways1', renderWays1); lazy('sources', renderSources);
+$('#foot').innerHTML = `${esc(D.meta.footer)}`;
 
 /* ── 아이디어 검증 (2026-10-19) ─────────────────────────
    기획안 → ① 레이더에서 실행할 사업 찾기 → ② 정책·기술·경제·실행 점수.
@@ -2145,7 +2158,7 @@ ${ax}
   })();
 
   /* 처음 화면: 예시 아이디어를 키워드로 분석해 둔다(AI 호출 없음) */
-  { const p0 = PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L) || fitM().has(L), lex: corpus().lex}); S.sel = kwSelect(EXAMPLE, p0, fitM().judge(p0, EXAMPLE)); S.example = true; render(); }
+  lazy('idea', () => { if(S.sel) return; const p0 = PLAN.learn({text: EXAMPLE, known: L => corpus().words.has(L) || fitM().has(L), lex: corpus().lex}); S.sel = kwSelect(EXAMPLE, p0, fitM().judge(p0, EXAMPLE)); S.example = true; render(); });
 })();
 
 /* 웨이즈원 수행 실적(2026-10-19): 나라장터 계약에서 웨이즈원이 대표·단독·공동수급 구성원·하도급으로 들어간 사업을 사업 키워드별로 묶는다.
@@ -2448,7 +2461,7 @@ ${ax}
     catch(err){ del.disabled = false; del.textContent = del.dataset.undo === '1' ? '원래 값으로' : '지우기'; toast(err && (err.code === 'invalid_argument' || err.code === '42501') ? '읽기 전용 권한이라 지울 수 없습니다.' : '지우지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); }
   });
 
-  rebuild(); render();
+  rebuild(); lazy('track', render);
   (async () => {
     try {
       if(RT){  // 레이더 관리 화면: 공용 저장소 trackManual(실시간 구독)
@@ -2903,7 +2916,7 @@ ${ax}
     $$('#tdcyc [data-cyc]').forEach(b => b.addEventListener('click', () => { cyc = b.dataset.cyc; store('tdcyc', cyc); renderCyc(); }));
     $$('#tdcyc [data-cf]').forEach(b => b.addEventListener('click', () => { cf = b.dataset.cf; store('tdcf', cf); renderCyc(); }));
   }
-  render(); renderCyc();
+  lazy('trend', () => { render(); renderCyc(); });
   // 폭이 크게 바뀌면(회전·창 크기) 차트를 다시 그린다
   let rz = 0; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { const o = $('#tdout'); if(o && !root.hidden && Math.abs((o.clientWidth || 0) - lastW) > 80) render(); }, 200); });
   // 레이더 관리 화면: 키워드 분석 요청 저장소(trendReq)
