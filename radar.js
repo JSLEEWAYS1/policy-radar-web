@@ -302,10 +302,12 @@ $('#kpis').innerHTML = [
   [PRG.length,'R&D·기업지원', 'rnd', 'rnd'],
   [P.length,'정책·계획', '', 'catalog']
 ].map(([v,l,c,t,pp])=>`<button type="button" class="kpi ${c||''}" data-tabgo="${t}"${pp?` data-pipego="${pp}"`:''}><b>${v}</b><span><i class="dot" style="--c:${({hot:'var(--ok)',pre:'var(--pre)',plan:'var(--plan)',rnd:'var(--rnd)'})[c]||'var(--ink3)'}"></i>${l}</span></button>`).join('');
-[['g2b', nPlanItems + nPreItems + nBidItems + exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
+const NEWS = ((D.news||{}).items||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+const _d7 = new Date(Date.now() + 9*3600e3 - 7*864e5).toISOString().slice(0,10);
+[['press', NEWS.filter(x=>String(x.date) >= _d7).length], ['g2b', nPlanItems + nPreItems + nBidItems + exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
-const TABS = ['overview','g2b','trend','rnd','ways1','track','idea','catalog','links','timeline','sources'];
+const TABS = ['overview','press','g2b','trend','rnd','ways1','track','idea','catalog','links','timeline','sources'];
 let cur = 'overview';
 // 탭 내용은 그 탭을 처음 열 때 그린다(첫 화면을 빨리 띄우기 위해). 다른 탭으로 바로 가는 버튼은 ensure로 그 탭을 먼저 그린다.
 const LAZY = {}, READY = new Set();
@@ -823,7 +825,10 @@ function renderWays1(){
 
 /* sources */
 function renderSources(){
-  $('#method').innerHTML = D.method.map(x=>`<p>${esc(x)}</p>`).join('');
+  const KL = (D.kwLineage||{}).items||[];  // 키워드 계보: 정책 자동 갱신이 기존 키워드와 함께 찾는 발전·고도화 키워드
+  $('#method').innerHTML = D.method.map(x=>`<p>${esc(x)}</p>`).join('') + (KL.length ? `<div style="display:grid;gap:6px;margin-top:6px;padding-top:12px;border-top:1px solid var(--line)">
+    <p><b style="color:var(--ink)">추적 키워드 계보</b> — 정부 정책은 기존 키워드가 발전·고도화된 이름(예: 스마트시티 → AI시티, C-ITS → AI-ITS)으로 발표되는 일이 많아, 자동 갱신은 아래 낱말 전부로 새 발표를 찾고 새로 확인된 고도화 키워드는 계보에 더합니다${D.kwLineage.updatedAt?` (마지막 추가 ${esc(D.kwLineage.updatedAt)})`:''}.</p>
+    <ul style="margin:0;padding-left:18px;display:grid;gap:4px">${KL.map(k=>`<li><b style="color:var(--ink)">${esc(k.base)}</b> → ${(k.terms||[]).map(esc).join(' · ')}${k.note?` <span style="color:var(--ink3);font-size:.82rem">— ${esc(k.note)}</span>`:''}</li>`).join('')}</ul></div>` : '');
   const rows = [];
   P.forEach(p=>(p.sources||[]).forEach(s=>rows.push({p,s})));
   const seen = new Set();
@@ -839,6 +844,49 @@ function renderSources(){
   $('#foot').innerHTML = `${esc(D.meta.footer)}`;
 }
 
+/* 최신 뉴스: 우리 키워드(키워드 계보 포함)에 맞는 보도자료·기사. 키워드 묶음은 키워드 계보의 기존 키워드(base) 기준 */
+const PF = Object.assign({kind:'', days:30, base:'', q:''}, load('press', {}));
+function newsBase(x){
+  const L = (D.kwLineage||{}).items||[]; const ks = (x.kws||[]).map(k=>String(k).toLowerCase());
+  const hit = L.filter(l => [l.base].concat(l.terms||[]).some(t => ks.includes(String(t).toLowerCase()) || ks.some(k => k.includes(String(t).toLowerCase()) && String(t).length >= 3)));
+  return hit.length ? hit.map(l=>l.base) : ['기타'];
+}
+function renderPress(){
+  const N = (D.news||{});
+  $('#pintro').innerHTML = `웨이즈원이 추적하는 키워드와 그 고도화 키워드(「출처·방법」의 키워드 계보)에 맞는 정부 보도자료와 언론 기사를 모읍니다. 요약은 원문을 읽고 새로 쓴 것이며, 제목을 누르면 원문이 열립니다. 6시간마다 갱신하고 90일이 지난 기사는 뺍니다.${N.checkedAt?` <span class="asof">마지막 확인 ${esc(N.checkedAt)}</span>`:''}`;
+  const cut = PF.days ? new Date(Date.now() + 9*3600e3 - PF.days*864e5).toISOString().slice(0,10) : '';
+  const q = PF.q.trim().toLowerCase();
+  const base1 = NEWS.filter(x => (!cut || String(x.date) >= cut) && (!PF.kind || x.kind === PF.kind) && (!q || [x.title,x.summary,x.publisher,x.ministry,(x.kws||[]).join(' ')].join(' ').toLowerCase().includes(q)));
+  const cnt = {}; base1.forEach(x => newsBase(x).forEach(b => cnt[b] = (cnt[b]||0) + 1));
+  const bases = ((D.kwLineage||{}).items||[]).map(l=>l.base).filter(b=>cnt[b]).concat(cnt['기타']?['기타']:[]);
+  if(PF.base && !cnt[PF.base]) PF.base = '';
+  const L = base1.filter(x => !PF.base || newsBase(x).includes(PF.base));
+  $('#pkind').innerHTML = [['','전체'],['press','보도자료'],['news','기사']].map(([k,l])=>`<button type="button" data-pk="${k}" aria-pressed="${PF.kind===k}">${l}</button>`).join('');
+  $('#pdays').innerHTML = [[7,'7일'],[30,'30일'],[0,'전체']].map(([k,l])=>`<button type="button" data-pd="${k}" aria-pressed="${PF.days===k}">${l}</button>`).join('');
+  $('#pchips').innerHTML = `<button type="button" class="chip" data-pb="" aria-pressed="${!PF.base}">전체 ${base1.length}</button>` + bases.map(b=>`<button type="button" class="chip" data-pb="${esc(b)}" aria-pressed="${PF.base===b}">${esc(b)} ${cnt[b]}</button>`).join('');
+  $('#pcount').textContent = `${L.length}건`;
+  if(document.activeElement !== $('#pq')) $('#pq').value = PF.q;
+  const today = NOWK.slice(0,10), yday = new Date(Date.now() + 9*3600e3 - 864e5).toISOString().slice(0,10);
+  const wd = d => { try { return '일월화수목금토'[new Date(d+'T00:00:00+09:00').getDay()]; } catch(e){ return ''; } };
+  const dayLabel = d => (d===today?'오늘 · ':d===yday?'어제 · ':'') + `${+d.slice(5,7)}월 ${+d.slice(8,10)}일 (${wd(d)})`;
+  const groups = []; L.forEach(x => { const g = groups[groups.length-1]; if(g && g.d === x.date) g.a.push(x); else groups.push({d:x.date, a:[x]}); });
+  const fresh = x => String(x.addedAt||'').slice(0,10) >= yday;
+  $('#plist').innerHTML = groups.length ? groups.map(g => `<div class="pday"><h3>${esc(dayLabel(String(g.d)))}</h3>${g.a.map(x => `<article class="pitem">
+      <div class="pt1"><span class="tag ${x.kind==='press'?'press':''}">${x.kind==='press'?'보도자료':'기사'}</span><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>${fresh(x)?'<span class="tag new">새로 반영</span>':''}</div>
+      <span class="nmeta">${esc(x.publisher||'')}${x.ministry&&x.ministry!==x.publisher?' · '+esc(x.ministry):''}</span>
+      <p class="ps">${hl(x.summary||'')}</p>
+      ${x.why?`<p class="pw">웨이즈원 관점 — ${esc(x.why)}</p>`:''}
+      <div class="pk">${(x.kws||[]).map(k=>`<span class="tag kw">${esc(k)}</span>`).join('')}${(x.policies||[]).filter(id=>byId[id]).length?`<span>관련 정책</span>${x.policies.filter(id=>byId[id]).map(pref).join(' · ')}`:''}</div>
+    </article>`).join('')}</div>`).join('') : `<p class="pempty">조건에 맞는 뉴스가 없습니다.${PF.days?' 기간을 「전체」로 넓혀 보세요.':''}</p>`;
+}
+(() => {
+  const v = document.getElementById('v-press'); if(!v) return;
+  v.addEventListener('click', e => { const b = e.target.closest('[data-pk],[data-pd],[data-pb]'); if(!b) return;
+    if(b.dataset.pk !== undefined) PF.kind = b.dataset.pk; else if(b.dataset.pd !== undefined) PF.days = +b.dataset.pd; else PF.base = b.dataset.pb;
+    store('press', {kind:PF.kind, days:PF.days, base:PF.base}); renderPress(); });
+  let tq; v.addEventListener('input', e => { if(e.target.id !== 'pq') return; clearTimeout(tq); tq = setTimeout(() => { PF.q = e.target.value; renderPress(); }, 150); });
+})();
+lazy('press', renderPress);
 lazy('overview', renderBoard); lazy('overview', renderInsights); lazy('overview', renderNewFound); lazy('overview', renderHeat); lazy('overview', renderNews);
 lazy('g2b', renderPipe); lazy('g2b', renderEx); lazy('rnd', renderPrograms); lazy('catalog', initCatalog); lazy('links', initLinks);
 lazy('timeline', renderTimeline); lazy('ways1', renderWays1); lazy('sources', renderSources);

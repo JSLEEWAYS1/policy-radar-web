@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=de0709b5">
-<link rel="stylesheet" href="app.css?v=de0709b5">
+<link rel="stylesheet" href="radar.css?v=a9be084b">
+<link rel="stylesheet" href="app.css?v=a9be084b">
 </head>
 <body>
 
@@ -132,6 +132,7 @@
 <nav class="tabs" aria-label="화면 이동">
   <div class="wrap" role="tablist">
     <button class="tab" role="tab" data-tab="overview" id="t-overview">한눈에 보기</button>
+    <button class="tab" role="tab" data-tab="press" id="t-press">최신 뉴스</button>
     <button class="tab" role="tab" data-tab="g2b" id="t-g2b">나라장터 사업</button>
     <button class="tab" role="tab" data-tab="trend" id="t-trend">공공발주 트렌드</button>
     <button class="tab" role="tab" data-tab="rnd" id="t-rnd">연구개발·기업지원</button>
@@ -171,10 +172,21 @@
       <div class="tablebox"><table class="heat" id="heat"></table></div>
     </div>
     <div class="panel" style="display:grid;gap:8px">
-      <div class="sec-head"><h3>최근 발표·변화</h3></div>
+      <div class="sec-head" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;max-width:none"><h3>최근 발표·변화</h3><button type="button" class="btn" data-tabgo="press">최신 뉴스 보기</button></div>
       <ul class="news" id="news"></ul>
     </div>
   </div>
+</section>
+
+<section class="view" id="v-press" data-view="press" hidden>
+  <div class="sec-head"><h2>최신 뉴스·보도자료</h2>
+    <p class="muted" id="pintro"></p></div>
+  <div class="panel pfilt">
+    <div class="frow"><div class="seg" id="pkind" role="group" aria-label="종류"></div><div class="seg" id="pdays" role="group" aria-label="기간"></div>
+      <input class="search" id="pq" type="search" placeholder="제목·요약·기관 검색" maxlength="40" aria-label="뉴스 검색"><span class="count" id="pcount"></span></div>
+    <div class="chips" id="pchips" role="group" aria-label="키워드"></div>
+  </div>
+  <div class="pnews" id="plist"></div>
 </section>
 
 <section class="view" id="v-g2b" data-view="g2b" hidden>
@@ -363,8 +375,8 @@
   </div>
 </div>
 
-<script src="config.js?v=de0709b5"></script>
-<script src="radar.js?v=de0709b5"></script>
-<script type="module" src="app.js?v=de0709b5"></script>
+<script src="config.js?v=a9be084b"></script>
+<script src="radar.js?v=a9be084b"></script>
+<script type="module" src="app.js?v=a9be084b"></script>
 </body>
 </html>

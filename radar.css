@@ -611,6 +611,24 @@ details.discard>summary{font-weight:650}
   details.pol>summary{padding:16px}
 }
 
+/* 최신 뉴스 (2026-10-28) */
+.pfilt{display:grid;gap:12px}
+.pfilt .frow{gap:10px}
+.pnews{display:grid;gap:22px}
+.pday{display:grid;gap:10px}
+.pday>h3{font-family:var(--f-mono);font-size:.86rem;font-weight:600;color:var(--ink3);letter-spacing:.02em;display:flex;align-items:center;gap:10px}
+.pday>h3::after{content:"";flex:1;border-top:1px solid var(--line)}
+.pitem{display:grid;gap:7px;padding:16px 18px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
+.pitem .pt1{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.pitem .pt1 a{font-weight:650;font-size:1rem;line-height:1.45;color:var(--ink);text-decoration:none}
+.pitem .pt1 a:hover{text-decoration:underline}
+.pitem .ps{font-size:.94rem;line-height:1.7;color:var(--ink2)}
+.pitem .pw{font-size:.88rem;line-height:1.6;color:var(--mark-ink)}
+.pitem .pk{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:.84rem;color:var(--ink3)}
+.tag.press{background:color-mix(in srgb,var(--g-its) 14%,var(--surface));color:var(--g-its)}
+.tag.kw{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink2);font-weight:500}
+.pempty{color:var(--ink3);padding:18px 0}
+
 /* BMC 반영 · 전차 수주사 · 유력 경쟁자 (2026-10-16) */
 .prv .cw{color:var(--ink);font-weight:700}
 b.streak{font-weight:700;color:var(--warn)}
