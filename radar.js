@@ -599,21 +599,29 @@ function renderCatalog(){
   if(F.sort==='date') list.sort((a,b)=>recentDate(b).localeCompare(recentDate(a)));
   else if(F.sort==='tier') list.sort((a,b)=>a.tier-b.tier || String(b.announced||'').localeCompare(String(a.announced||'')));
   else list.sort((a,b)=>(a.short||a.name).localeCompare(b.short||b.name,'ko'));
-  $('#ccount').textContent = `${list.length}건 / 전체 ${P.length}건`;
+  $('#ccount').innerHTML = `${list.length}건 / 전체 ${P.length}건` + catCond();
   $('#plist').innerHTML = list.length ? list.map(p=>`<details class="pol" id="p-${esc(p.id)}" style="--c:${gcol(p)}">
     <summary><div class="top">${newTag(p)}${grpTag(p)}${lvTag(p)}<span class="tag">${esc(p.ministry)}</span>${fitTag(p.w1?.fit)}<span class="when">${esc(p.announced||'')}${p.period?' · 계획기간 '+esc(p.period):''}</span></div>
     <div class="nm">${esc(p.name)}</div><div class="vs">${hl(p.vision)}</div><span class="more">펼쳐서 세부 내용 보기</span></summary>
-    <div class="body">${lzBody(() => docBody(p))}</div></details>`).join('') : '<p class="muted">조건에 맞는 정책이 없습니다. 조건을 줄이거나 초기화해 보세요.</p>';
+    <div class="body">${lzBody(() => docBody(p))}</div></details>`).join('') : catEmpty();
 }
+/* 카탈로그 조건 안내 (2026-10-29) */
+function catNarrow(){ const a=[]; if(F.q) a.push('검색어 「'+F.q+'」'); if(F.level) a.push('단계 '+F.level); if(F.min) a.push('부처 '+F.min); if(F.fit) a.push('연계 '+(({core:'즉시 공략',adj:'보완 후 진입',new:'신규 역량 필요'})[F.fit]||F.fit)); return a; }
+function catGroupName(){ return F.groups.size ? [...F.groups].map(g=>(GROUPS.find(x=>x.id===g)||{}).name||g).join('·') : '전체 분야'; }
+function catCond(){ const a=catNarrow(); return a.length ? ` <span class="catcond">· 적용 중인 조건: ${esc(a.join(' · '))} <button type="button" class="catlink" data-catwiden="1">조건 풀기</button></span>` : ''; }
+function catEmpty(){ const a=catNarrow(); if(!a.length) return '<p class="muted">이 분야에 등록된 정책이 없습니다.</p>';
+  const n=P.filter(p=>!F.groups.size || F.groups.has(p.group) || (p.groups||[]).some(g=>F.groups.has(g))).length;
+  return `<div class="catempty"><p class="muted">${esc(a.join(' · '))} 조건에 맞는 정책이 없습니다.</p><button type="button" class="btn" data-catwiden="1">조건 풀고 ${esc(catGroupName())} 정책 모두 보기 (${n}건)</button></div>`; }
+document.addEventListener('click',e=>{ if(!e.target.closest('[data-catwiden]')) return; F.q='';F.level='';F.min='';F.fit=''; syncFilters(); renderCatalog(); });
 function syncFilters(){
   $('#q').value = F.q; $('#flevel').value = F.level; $('#fmin').value = F.min; $('#ffit').value = F.fit; $('#fsort').value = F.sort;
   $$('#cchips .chip').forEach(c=>c.setAttribute('aria-pressed', c.dataset.g ? String(F.groups.has(c.dataset.g)) : String(F.groups.size===0)));
 }
 function initCatalog(){
   $('#cchips').innerHTML = `<button type="button" class="chip" data-all="1">전체 분야</button>` + GROUPS.map(g=>`<button type="button" class="chip" data-g="${g.id}"><span class="dot" style="--c:${g.c}"></span>${esc(g.name)}</button>`).join('');
-  $$('#cchips .chip').forEach(c=>c.addEventListener('click',()=>{ if(c.dataset.all) F.groups.clear(); else { F.groups.has(c.dataset.g)?F.groups.delete(c.dataset.g):F.groups.add(c.dataset.g);} syncFilters(); renderCatalog(); }));
+  $$('#cchips .chip').forEach(c=>c.addEventListener('click',()=>{ const g=c.dataset.g||'', again=g && F.groups.size===1 && F.groups.has(g); F.groups.clear(); if(g && !again) F.groups.add(g); F.q=''; F.level=''; F.min=''; F.fit=''; syncFilters(); renderCatalog(); }));
   $('#flevel').innerHTML = '<option value="">전체</option>'+LEVELS.map(l=>`<option>${esc(l)}</option>`).join('');
-  const mins = [...new Set(P.flatMap(p=>String(p.ministry||'').split(/[·,、/]\s*|\s*\+\s*|\s+및\s+/)).map(s=>s.trim()).filter(s=>s && s.length<14))].sort((a,b)=>a.localeCompare(b,'ko'));
+  const mins = [...new Set(P.flatMap(p=>String(p.ministry||'').replace(/\s*[(（][^)）]*[)）]/g,'').split(/[·,、/]\s*|\s*\+\s*|\s+및\s+/)).map(s=>s.trim()).filter(s=>s && s.length<14))].sort((a,b)=>a.localeCompare(b,'ko'));
   $('#fmin').innerHTML = '<option value="">전체</option>'+mins.map(m=>`<option>${esc(m)}</option>`).join('');
   $('#q').addEventListener('input',e=>{F.q=e.target.value; renderCatalog();});
   $('#flevel').addEventListener('change',e=>{F.level=e.target.value; renderCatalog();});
@@ -871,7 +879,7 @@ function renderPress(){
   const dayLabel = d => (d===today?'오늘 · ':d===yday?'어제 · ':'') + `${+d.slice(5,7)}월 ${+d.slice(8,10)}일 (${wd(d)})`;
   const groups = []; L.forEach(x => { const g = groups[groups.length-1]; if(g && g.d === x.date) g.a.push(x); else groups.push({d:x.date, a:[x]}); });
   const fresh = x => String(x.addedAt||'').slice(0,10) >= yday;
-  $('#plist').innerHTML = groups.length ? groups.map(g => `<div class="pday"><h3>${esc(dayLabel(String(g.d)))}</h3>${g.a.map(x => `<article class="pitem">
+  $('#pnlist').innerHTML = groups.length ? groups.map(g => `<div class="pday"><h3>${esc(dayLabel(String(g.d)))}</h3>${g.a.map(x => `<article class="pitem">
       <div class="pt1"><span class="tag ${x.kind==='press'?'press':''}">${x.kind==='press'?'보도자료':'기사'}</span><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>${fresh(x)?'<span class="tag new">새로 반영</span>':''}</div>
       <span class="nmeta">${esc(x.publisher||'')}${x.ministry&&x.ministry!==x.publisher?' · '+esc(x.ministry):''}</span>
       <p class="ps">${hl(x.summary||'')}</p>

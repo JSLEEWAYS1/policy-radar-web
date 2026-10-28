@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=a9be084b">
-<link rel="stylesheet" href="app.css?v=a9be084b">
+<link rel="stylesheet" href="radar.css?v=cb1f5271">
+<link rel="stylesheet" href="app.css?v=cb1f5271">
 </head>
 <body>
 
@@ -186,7 +186,7 @@
       <input class="search" id="pq" type="search" placeholder="제목·요약·기관 검색" maxlength="40" aria-label="뉴스 검색"><span class="count" id="pcount"></span></div>
     <div class="chips" id="pchips" role="group" aria-label="키워드"></div>
   </div>
-  <div class="pnews" id="plist"></div>
+  <div class="pnews" id="pnlist"></div>
 </section>
 
 <section class="view" id="v-g2b" data-view="g2b" hidden>
@@ -238,13 +238,13 @@
   <div class="sec-head"><h2>정책 카탈로그</h2>
     <p class="muted">항목을 펼치면 정부 문서식(□ ○) 요약, 공간정보 결합 지점, 상위계획 연계, 출처를 볼 수 있습니다.</p></div>
   <div class="filters panel">
-    <div class="frow"><input class="search" id="q" type="search" placeholder="정책명·과제·키워드 검색 (예: 정밀도로지도, 시범운행지구, 디지털트윈)" aria-label="검색"></div>
+    <div class="frow"><input class="search" id="q" type="search" autocomplete="off" placeholder="정책명·과제·키워드 검색 (예: 정밀도로지도, 시범운행지구, 디지털트윈)" aria-label="검색"></div>
     <div class="frow"><div class="chips" id="cchips"></div></div>
     <div class="frow">
-      <label for="flevel">단계</label><select id="flevel"></select>
-      <label for="fmin">부처</label><select id="fmin"></select>
-      <label for="ffit">웨이즈원 연계</label><select id="ffit"><option value="">전체</option><option value="core">즉시 공략</option><option value="adj">보완 후 진입</option><option value="new">신규 역량 필요</option></select>
-      <label for="fsort">정렬</label><select id="fsort"><option value="date">최신 발표순</option><option value="tier">계층순</option><option value="name">이름순</option></select>
+      <label for="flevel">단계</label><select id="flevel" autocomplete="off"></select>
+      <label for="fmin">부처</label><select id="fmin" autocomplete="off"></select>
+      <label for="ffit">웨이즈원 연계</label><select id="ffit" autocomplete="off"><option value="">전체</option><option value="core">즉시 공략</option><option value="adj">보완 후 진입</option><option value="new">신규 역량 필요</option></select>
+      <label for="fsort">정렬</label><select id="fsort" autocomplete="off"><option value="date">최신 발표순</option><option value="tier">계층순</option><option value="name">이름순</option></select>
       <button class="btn" id="freset" type="button">조건 초기화</button>
     </div>
   </div>
@@ -375,8 +375,8 @@
   </div>
 </div>
 
-<script src="config.js?v=a9be084b"></script>
-<script src="radar.js?v=a9be084b"></script>
-<script type="module" src="app.js?v=a9be084b"></script>
+<script src="config.js?v=cb1f5271"></script>
+<script src="radar.js?v=cb1f5271"></script>
+<script type="module" src="app.js?v=cb1f5271"></script>
 </body>
 </html>
