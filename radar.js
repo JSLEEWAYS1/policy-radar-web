@@ -372,12 +372,27 @@ function renderInsights(){
   /* 핵심 숫자의 출처: gov 정부 정책·예산·제도 / market 나라장터 공고·시장 / w1 웨이즈원 실적. k가 없으면 문구로 추정 */
   const NK = {gov: '정부 정책', market: '나라장터', w1: '웨이즈원 실적'};
   const nkind = n => n.k && NK[n.k] ? n.k : /웨이즈원|\((대표|구성|단독|하도급)[^)]*\)/.test(n.l || '') ? 'w1' : /마감|사전규격|입찰|발주|경쟁|유찰|수의계약|연속 수행|공고/.test(n.l || '') ? 'market' : 'gov';
+  /* 거버닝 구조: 사실마다 출처·확인 상태, 판단마다 근거 사실 번호를 붙인다 */
+  const GVK = {gov: '정부 발표', market: '나라장터', w1: '웨이즈원 실적'};
+  const GVC = {ok: '원문 대조', rec: '수집 당시 확인', own: '나라장터 계약 기록', live: '나라장터 공고', bmc: '웨이즈원 BMC'};
+  const gvBlock = G => { const ck = G.checked ? md(G.checked) : '';
+    const src = s => { if(!s) return ''; const t = [s.by, s.date].filter(Boolean).join(' · ');
+      return s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(t)}</a>` : (/수행 실적/.test(s.by || '') ? `<button type="button" class="linkish" data-tabgo="track">${esc(t)}</button>` : esc(t)); };
+    return `<p class="verdict">${hl(G.msg)}</p>
+    <div class="gv">
+      <div class="gvsec"><span class="gvh">확인된 사실 <small>출처와 확인 상태를 함께 적었습니다</small></span>
+        <ol class="gvf">${(G.facts || []).map((f, k) => `<li><span class="fid">F${k + 1}</span><div><div class="ft">${hl(f.t)}</div>
+          <div class="fs"><span class="fk ${esc(f.k || 'gov')}">${GVK[f.k] || GVK.gov}</span>${src(f.src)}<span class="fc ${esc(f.chk || '')}">${esc(GVC[f.chk] || '')}${f.chk === 'ok' && ck ? ' ' + esc(ck) : ''}</span></div></div></li>`).join('')}</ol></div>
+      <div class="gvsec"><span class="gvh">사실에서 읽히는 판단 <small>「근거」의 F 번호가 이 판단을 받치는 사실입니다</small></span>
+        <ol class="gvr">${(G.reads || []).map((r, k) => `<li><span class="rid">R${k + 1}</span><div><div class="rt">${hl(r.t)}</div><span class="rby">근거 ${(r.by || []).map(n => 'F' + n).join(' · ')}</span></div></li>`).join('')}</ol></div>
+      ${(G.open || []).length ? `<div class="gvsec gvo"><span class="gvh">아직 확인되지 않은 것</span><ul>${G.open.map(x => `<li>${hl(x)}</li>`).join('')}</ul></div>` : ''}
+    </div>`; };
   const actBlock = i => { const a = i.act;
-    const NUMS = (a.nums || []).map(n => ({...n, k: nkind(n)}));
+    const NUMS = i.gv ? [] : (a.nums || []).map(n => ({...n, k: nkind(n)}));
     const pubNums = [...NUMS.filter(n => n.k === 'gov'), ...NUMS.filter(n => n.k === 'market')], ownNums = NUMS.filter(n => n.k === 'w1');
-    return `<p class="verdict">${hl(a.verdict)}</p>
+    return `${i.gv ? gvBlock(i.gv) : `<p class="verdict">${hl(a.verdict)}</p>
     ${pubNums.length ? `<div class="inums" aria-label="정부 정책·나라장터 숫자">${pubNums.map(n => `<div class="nk-${n.k}"><em class="nk">${NK[n.k]}</em><b>${esc(n.v)}</b><span>${esc(n.l)}</span></div>`).join('')}</div>` : ''}
-    <details class="insev"><summary>${i.sec === 'market' ? '시장 근거' : '정책 근거'} 읽기</summary><p>${hl(i.body)}</p></details>
+    <details class="insev"><summary>${i.sec === 'market' ? '시장 근거' : '정책 근거'} 읽기</summary><p>${hl(i.body)}</p></details>`}
     <div class="w1box act"><span class="w1h">웨이즈원 시사점·실행 액션</span>
       ${a.edge ? `<p class="edge"><span class="kl">우리 강점</span>${hl(a.edge)}</p>` : ''}
       ${ownNums.length ? `<div class="ownh"><span class="kl">근거가 되는 웨이즈원 실적</span><button type="button" class="linkish" data-tabgo="track">수행 실적에서 보기 →</button></div><div class="inums own" aria-label="웨이즈원 실적">${ownNums.map(n => `<div><b>${esc(n.v)}</b><span>${esc(n.l)}</span></div>`).join('')}</div>` : ''}

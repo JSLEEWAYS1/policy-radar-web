@@ -861,6 +861,28 @@ details.insev>summary::-webkit-details-marker{display:none}
 details.insev>summary::before{content:"+";flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);font-family:var(--f-mono);font-size:.85rem;color:var(--ink2);background:var(--surface)}
 details.insev[open]>summary::before{content:"−"}
 details.insev[open]>summary{margin-bottom:8px}
+/* 정책 흐름 카드 거버닝 구조 (2026-11-03): 결론 → 확인된 사실(출처) → 사실에서 읽히는 판단(근거 번호) → 확인 안 된 것 */
+.gv{display:grid;gap:10px}
+.gvsec{display:grid;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.gvsec.gvo{background:var(--tint)}
+.gvh{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-size:.8rem;font-weight:700;color:var(--ink2);letter-spacing:.01em}
+.gvh small{font-weight:500;color:var(--ink3);font-size:.74rem}
+ol.gvf,ol.gvr{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+ol.gvf>li,ol.gvr>li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:start}
+.gvf .fid,.gvr .rid{font-family:var(--f-mono);font-size:.72rem;font-weight:700;line-height:1.5;text-align:center;border-radius:6px;padding:1px 0;background:var(--sunk);color:var(--ink2)}
+.gvr .rid{background:var(--mark-soft);color:var(--mark-ink)}
+.gvf .ft,.gvr .rt{font-size:.9rem;line-height:1.62;color:var(--ink)}
+.gvf .fs{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;margin-top:3px;font-size:.74rem;color:var(--ink3)}
+.gvf .fs a{color:var(--ink3)}
+.gvf .fk{font-weight:700;color:var(--ink2)}
+.gvf .fk.market{color:var(--ok)}
+.gvf .fk.w1{color:var(--mark-ink)}
+.gvf .fc{padding:0 6px;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line2)}
+.gvf .fc.ok{color:var(--ok);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ok) 45%,transparent)}
+.gvf .fc.rec{color:var(--warn);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 45%,transparent)}
+.gvr .rby{display:block;margin-top:2px;font-family:var(--f-mono);font-size:.72rem;font-weight:600;color:var(--mark-ink)}
+.gvo ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:.86rem;line-height:1.6;color:var(--ink2)}
+@media (max-width:620px){.gvsec{padding:10px 11px}ol.gvf>li,ol.gvr>li{grid-template-columns:24px minmax(0,1fr);gap:7px}.gvf .ft,.gvr .rt{font-size:.88rem}}
 details.insev p{font-size:.92rem!important}
 .w1box.act{gap:12px}
 .w1box .edge{font-size:.9rem;line-height:1.65;color:var(--ink2)}
