@@ -157,6 +157,113 @@ function prevLine(x){
   const prevs = (p.hist||[]).slice(1,4).filter(h=>h.w!==p.winner).map(h => `${h.y} ${esc(h.w)}`);
   return `<div class="evl prv"><span class="kl">전차</span><span class="nmeta"><b class="cw">${esc(p.winner)}</b> · ${p.year?esc(p.year)+'년 ':''}<b class="num">${eokT(p.amt)}</b>${p.streak>=2?` · <b class="streak">${p.streak}년 연속</b>`:''}${p.pattern?' · '+esc(p.pattern):''}${rivals?' · 경쟁 '+rivals:''}${prevs.length?' · 이전 '+prevs.join(', '):''}${p.note?' · '+esc(p.note):''}</span></div>`;
 }
+/* 경쟁강도·적정 투찰가 추정 (2026-11-03)
+   경쟁강도: 전차 응찰 수·유찰/수의계약 이력·같은 분야 수행사 수·사업비·지역제한으로 4단계.
+   투찰가: 기획재정부 「협상에 의한 계약체결기준」 가격평가(입찰가격 ≥ 추정가격 80%: 배점 × 최저입찰가격 ÷ 해당입찰가격)로
+   경쟁사 최저가 가정(전차 투찰가 ÷ 1.1 ÷ 이번 추정가격, 없으면 경쟁강도 기본값)에서 투찰률별 가격점수를 계산한다. 내부 검토용 추정 */
+function wonOf(s){
+  s = String(s||'').replace(/,/g,'');
+  let m = s.match(/(\d+(?:\.\d+)?)\s*억(?:\s*(\d+(?:\.\d+)?)\s*만)?/);
+  if(m) return Math.round(parseFloat(m[1])*1e8 + (m[2] ? parseFloat(m[2])*1e4 : 0));
+  m = s.match(/(\d+(?:\.\d+)?)\s*백만/); if(m) return Math.round(parseFloat(m[1])*1e6);
+  m = s.match(/(\d+(?:\.\d+)?)\s*만/); if(m) return Math.round(parseFloat(m[1])*1e4);
+  m = s.match(/(\d{6,})\s*원/); if(m) return +m[1];
+  return 0;
+}
+function basePrice(x){
+  const b = String(x.budget||''); const v = wonOf(b); if(!v) return null;
+  if(/추정가격/.test(b)) return {est: v, src: '추정가격'};
+  return {est: Math.round(v/1.1), src: ((b.match(/^[^\d]+/)||[''])[0].trim() || '사업비') + ' ÷ 1.1(부가세 제외로 환산)'};
+}
+const CLV = ['낮음', '보통', '높음', '매우 높음'];
+function bidEst(x, o){
+  const r = x.rfp || {}; const ev = String(r.evaluation||'') + ' ' + String(r.evalMode||'');
+  const p = x.prev || {}; const why = []; let s;
+  const R = (p.rounds||[]).filter(q => q && (q.n != null || (q.bidders||[]).length));
+  const pat = p.pattern || '';
+  const nLast = R.length ? (R[0].n || (R[0].bidders||[]).length || 0) : 0;
+  if(/유찰|수의계약/.test(pat)){ s = 8; why.push('전차 ' + pat + '(사실상 1개사)'); }
+  else if(nLast){ s = nLast >= 10 ? 75 : nLast >= 5 ? 58 : nLast >= 3 ? 40 : nLast >= 2 ? 26 : 10; why.push(`전차 ${nLast}개사 응찰`); }
+  else { s = 30; why.push('전차 응찰 기록 없음 — 보통으로 가정'); }
+  if(p.winner && p.streak >= 2) why.push(`기존 수행사 ${p.winner} ${p.streak}년 연속`);
+  const comp = ((o && o.competitors && o.competitors.list) || []).length;
+  if(comp >= 5){ s += 8; why.push(`같은 분야 수행사 ${comp}곳`); } else if(comp) why.push(`같은 분야 수행사 ${comp}곳`);
+  const bp = basePrice(x);
+  if(bp && bp.est >= 10e8){ s += 8; why.push('사업비 10억원 이상'); }
+  if(/지역제한|지역 제한|소재 업체|소재지/.test((r.qualification||[]).join(' '))){ s -= 8; why.push('지역제한'); }
+  const lv = s >= 60 ? 3 : s >= 38 ? 2 : s >= 20 ? 1 : 0;
+  const method = /적격심사|최저가|수의견적/.test(ev) ? 'qual' : /협상/.test(ev) ? 'nego' : 'etc';
+  const pm = ev.match(/[:：·,]\s*(?:입찰)?가격(?:평가)?\s*(\d{1,2})\s*(?:%|점)?/) || ev.match(/가격\s*(\d{1,2})\s*(?:%|점)/);
+  const P = pm ? +pm[1] : (method === 'nego' ? 10 : null);
+  let rMin = null, rWin = null;
+  if(bp && R.length){ const bs = (R[0].bidders||[]).map(b => b.amt).filter(Boolean);
+    if(bs.length){ const v = Math.min(...bs)/1.1/bp.est; if(v >= 0.6 && v <= 1.1) rMin = v; } }
+  if(bp && p.amt){ const v = p.amt/1.1/bp.est; if(v >= 0.6 && v <= 1.1) rWin = v; }
+  let L = [0.95, 0.92, 0.89, 0.86][lv], Lwhy = `경쟁강도 「${CLV[lv]}」 기본값(전차 투찰가 비교 불가)`;
+  if(lv === 0 && rWin){ L = rWin; Lwhy = `기존 수행사의 전차 계약가(부가세 제외)가 이번 추정가격의 ${(rWin*100).toFixed(1)}%`; }
+  else if(rMin){ L = rMin; Lwhy = `전차 최저 투찰가(부가세 제외)가 이번 추정가격의 ${(rMin*100).toFixed(1)}%`; }
+  L = Math.min(0.99, Math.max(0.80, L));
+  const lo = lv === 0 ? Math.max(0.80, L - 0.02) : Math.max(0.80, L - 0.01);
+  const hi = lv === 0 ? Math.min(0.99, L) : Math.min(0.99, L + 0.01);
+  const score = rr => P ? P * (rr <= L ? 1 : L / rr) : null;
+  return {lv, why, method, P, L, Lwhy, lo, hi, bp, score};
+}
+const pctT = v => (Math.round(v*1000)/10).toFixed(1).replace(/\.0$/, '') + '%';
+const scT = v => (Math.round(v*100)/100).toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
+var PREQ = {}, PREQ_ON = false, preqDB = null, preqUid = null;
+function bidBox(x, o){
+  if(!x.rfp || x.rfp.error || x.awarded || !['ok', 'gap'].includes((x.elig||{}).verdict)) return '';
+  const E = bidEst(x, o);
+  let price = '';
+  if(E.method === 'nego' && E.bp){
+    const a = v => eokT(E.bp.est * v);
+    const cells = [0.97, 0.95, 0.93, 0.91, 0.89, 0.87, 0.85, 0.80].map(rr => `<td${rr >= E.lo - 1e-9 && rr <= E.hi + 1e-9 ? ' class="me"' : ''}>${Math.round(rr*100)}%<br>${E.P ? scT(E.score(rr)) + '점' : '-'}</td>`).join('');
+    price = `<div class="bl"><span class="kl">적정 투찰</span><span class="nmeta">추정가격 대비 <b class="num">${pctT(E.lo)}~${pctT(E.hi)}</b> → <b class="num">${a(E.lo)}~${a(E.hi)}</b>(부가세 별도 · 포함 시 ${eokT(E.bp.est*E.lo*1.1)}~${eokT(E.bp.est*E.hi*1.1)})${E.P ? ` · 가격 <b class="num">${E.P}</b>점 중 예상 <b class="num">${E.score(E.hi) >= E.P - 0.005 ? E.P : scT(E.score(E.hi)) + '~' + E.P}</b>점` : ''}</span></div>
+      <details class="rfp"><summary>투찰가 산정 근거</summary><dl>
+        <dt>기준 금액</dt><dd>${esc(E.bp.src)} <b class="num">${eokT(E.bp.est)}</b></dd>
+        <dt>경쟁사 최저가</dt><dd>추정가격의 <b class="num">${pctT(E.L)}</b>로 가정 — ${esc(E.Lwhy)}</dd>
+        <dt>투찰률별 점수</dt><dd>경쟁사 최저가가 가정대로일 때 웨이즈원 가격점수(색칠한 칸이 권장 범위)<div class="tbx"><table><tr>${cells}</tr></table></div></dd>
+        <dt>산식</dt><dd>입찰가격이 추정가격의 80% 이상이면 가격점수 = 배점 × 최저입찰가격 ÷ 해당입찰가격. 80% 미만은 다른 산식으로 점수가 깎이고 60% 미만은 배점의 30%만 받습니다(기획재정부 「협상에 의한 계약체결기준」). 그래서 권장 범위의 아래 끝은 80%입니다.</dd></dl>
+        <span class="nmeta">내부 검토용 추정입니다. 전차 투찰가는 부가세 포함으로 보고 1.1로 나눴으며 과업 범위가 바뀐 해에는 맞지 않을 수 있습니다. 지자체 발주는 공고문의 가격평가 기준을 확인하세요.</span></details>`;
+  } else if(E.method === 'qual'){
+    price = `<div class="bl"><span class="kl">적정 투찰</span><span class="nmeta">적격심사(낙찰하한율 이상 최저가) — 공고문의 낙찰하한율과 예정가격 범위를 확인해 하한율 바로 위로 투찰합니다.</span></div>`;
+  }
+  const st = PREQ[x.no];
+  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(md(st.at||''))} — 평일 9~18시 매시 PC 작업이 만듭니다</span>` :
+    st.state === 'working' ? '<span class="mkst">만드는 중…</span>' :
+    st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
+    st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}</span>` : '';
+  const busy = st && (st.state === 'queued' || st.state === 'working');
+  const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
+  return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
+    ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}</div>`;
+}
+(async () => {
+  const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
+  if(!RT) return;
+  try {
+    const [db, user] = await Promise.all([RT.use('db').catch(() => null), RT.use('user').catch(() => null)]);
+    if(!db) return;
+    preqDB = db; PREQ_ON = true;
+    if(user){ try { preqUid = await user.id(); } catch(e){} }
+    db.collection('proposalReq').limit(200).onSnapshot(snap => {
+      PREQ = {}; snap.docs.forEach(d => { const v = d.data(); if(v && v.no) PREQ[v.no] = {id: d.id, ...v}; });
+      if(READY.has('g2b')) renderPipe();
+    }, () => {});
+    if(READY.has('g2b')) renderPipe();
+  } catch(e){}
+})();
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-mkprop]'); if(!b || !preqDB) return; e.preventDefault();
+  const no = b.dataset.mkprop; let it = null, op = null;
+  (D.opportunities||[]).forEach(o => items(o).forEach(x => { if(x.no === no){ it = x; op = o; } }));
+  if(!it) return;
+  b.disabled = true; b.textContent = '요청 중…';
+  try {
+    await preqDB.collection('proposalReq').doc(no).set({no, title: it.title, org: it.org || '', opp: op.id, stage: it.stage || '', budget: it.budget || '',
+      deadline: it.deadline || it.opinionDeadline || '', state: 'queued', at: NOWK, by: preqUid || ''});
+  } catch(err){ b.disabled = false; b.textContent = '요청 실패 — 다시 누르기'; }
+});
 const docBtns = (x, label) => `<div class="docs">${(x.docs||[]).map(d=>`<a class="dbtn" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>`).join('')}<a class="dbtn pg" href="${esc(x.url)}" target="_blank" rel="noopener">${label}</a></div>`;
 const chain = x => { const s = []; if(x.planNo) s.push('발주계획 ' + x.planNo); if(x.preNo) s.push('사전규격 ' + x.preNo); return s.length ? `<div class="nmeta">이어진 단계 · ${esc(s.join(' → '))}</div>` : ''; };
 function rfpBlock(x){
@@ -227,11 +334,11 @@ function renderPipe(){
     pre: ({o,x,st}) => `<li><div class="st">${itemNew(x)}${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)} · ${opp(o)}</span>
-      ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
+      ${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
     bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span>${itemNew(x)}<span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
-      ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
+      ${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
   };
   const TAB = [['plan','발주계획','발주기관이 올해 발주하겠다고 등록한 계획. 담당부서를 미리 만나 사업 범위를 파악하는 단계'],['pre','사전규격','본공고 전에 제안요청서 초안을 공개하고 의견을 받는 단계. 과업 범위에 의견을 내고 협력사를 정하는 단계'],['bid','입찰공고','제안서·입찰서를 내는 본공고. 제출 마감 전에 응찰 여부를 정하는 단계']];
   if(!rows[pipeTab]) pipeTab = 'pre';

@@ -417,6 +417,26 @@ section.view{gap:34px}
 .evl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
 .evl .nmeta{min-width:0}
 .evl .kl{flex:none}
+/* 경쟁강도·적정 투찰가·제안서 만들기 (2026-11-03) */
+.bidbox{display:grid;gap:6px;margin-top:2px;padding:10px 12px;border-radius:10px;background:var(--tint);box-shadow:inset 0 0 0 1px var(--line)}
+.bidbox .bl{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-size:.86rem}
+.bidbox .bl .kl{flex:none;min-width:58px}
+b.clv{font-weight:700;padding:0 8px;border-radius:999px;font-size:.78rem;line-height:1.6}
+b.clv.l0{background:color-mix(in srgb,var(--ok) 14%,var(--surface));color:var(--ok)}
+b.clv.l1{background:var(--sunk);color:var(--ink2)}
+b.clv.l2{background:color-mix(in srgb,var(--warn) 16%,var(--surface));color:var(--warn)}
+b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(--mark-ink)}
+.bidbox table{border-collapse:collapse;font-size:.8rem;margin:6px 0;max-width:100%}
+.bidbox th,.bidbox td{border:1px solid var(--line);padding:2px 7px;text-align:center;font-variant-numeric:tabular-nums}
+.bidbox td.me{background:var(--mark-soft);color:var(--mark-ink);font-weight:700}
+.bidbox .tbx{overflow-x:auto}
+.mkrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.btn.mk{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn.mk:hover{background:var(--ink2);border-color:var(--ink2)}
+.btn.mk[disabled]{opacity:.55;cursor:default}
+.mkst{font-size:.82rem;color:var(--ink2)}
+.mkst.done{color:var(--ok);font-weight:600}
+.mkst.err{color:var(--mark-ink)}
 b.pt{font-weight:700;white-space:nowrap}
 b.pt.yes{color:var(--mark-ink)}
 b.pt.no{color:var(--ink)}
