@@ -211,6 +211,41 @@ function bidEst(x, o){
 const pctT = v => (Math.round(v*1000)/10).toFixed(1).replace(/\.0$/, '') + '%';
 const scT = v => (Math.round(v*100)/100).toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
 var PREQ = {}, PREQ_ON = false, PREQ_SRC = '', preqSet = null, preqUid = null, preqUrl = null;
+// 제안서 제작 예상 완료 시각: 최근 완료 소요시간(중앙값, 없으면 25분)과 대기 순서·다음 PC 실행 시각(평일 9~18시 매시 7분)으로 어림한다
+const KSTms = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || '')); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], m[4] - 9, +m[5]) : NaN; };
+function preqDur(){
+  const ds = Object.values(PREQ).map(r => {
+    if(!r || r.state !== 'done' || !r.startedAt || !r.doneAt) return null;
+    const s0 = KSTms(r.startedAt), d = KSTms(String(r.startedAt).slice(0, 5) + String(r.doneAt).replace('/', '-'));
+    const m = (d - s0) / 60000; return m > 3 && m < 240 ? m : null;
+  }).filter(v => v).sort((a, b) => a - b);
+  return ds.length ? Math.min(90, Math.max(10, Math.round(ds[ds.length >> 1]))) : 25;
+}
+function nextRun(t){
+  for(let i = 0; i < 24 * 9; i++){
+    const k = new Date(t + 9 * 3600e3), c = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate(), k.getUTCHours() + i, 7);
+    const cd = new Date(c), wd = cd.getUTCDay(), h = cd.getUTCHours();
+    if(c >= t + 9 * 3600e3 && wd >= 1 && wd <= 5 && h >= 9 && h <= 18) return c - 9 * 3600e3;
+  }
+  return t + 3600e3;
+}
+function preqEta(no){
+  const st = PREQ[no]; if(!st || (st.state !== 'queued' && st.state !== 'working')) return null;
+  const dur = preqDur() * 60e3, now = Date.now();
+  const fmt = t => { const k = new Date(t + 9 * 3600e3), n = new Date(now + 9 * 3600e3), p = v => String(v).padStart(2, '0');
+    return (k.getUTCDate() !== n.getUTCDate() ? `${k.getUTCMonth() + 1}/${k.getUTCDate()} ` : '') + `${p(k.getUTCHours())}:${p(k.getUTCMinutes())}`; };
+  const rows = Object.values(PREQ).filter(r => r && r.no);
+  if(st.state === 'working'){
+    const s0 = KSTms(st.startedAt); if(isNaN(s0)) return null;
+    const same = rows.filter(r => r.state === 'working' && r.startedAt === st.startedAt).sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    const t = s0 + (Math.max(0, same.findIndex(r => r.no === no)) + 1) * dur;
+    return t < now - 60e3 ? {late: true} : {t: fmt(t)};
+  }
+  const q = rows.filter(r => r.state === 'queued').sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const i = Math.max(0, q.findIndex(r => r.no === no));
+  const t = nextRun(now) + Math.floor(i / 2) * 3600e3 + ((i % 2) + 1) * dur + 3 * 60e3;
+  return {t: fmt(t), upper: true};
+}
 function bidBox(x, o){
   if(!x.rfp || x.rfp.error || x.awarded || !['ok', 'gap'].includes((x.elig||{}).verdict)) return '';
   const E = bidEst(x, o);
@@ -229,8 +264,10 @@ function bidBox(x, o){
     price = `<div class="bl"><span class="kl">적정 투찰</span><span class="nmeta">적격심사(낙찰하한율 이상 최저가) — 공고문의 낙찰하한율과 예정가격 범위를 확인해 하한율 바로 위로 투찰합니다.</span></div>`;
   }
   const st = PREQ[x.no];
-  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 곧 시작합니다(보통 20~30분 뒤 여기서 내려받기. PC가 꺼져 있으면 평일 9~18시 매시 차례로)' : '평일 9~18시 매시 PC 작업이 만듭니다'}</span>` :
-    st.state === 'working' ? `<span class="mkst">만드는 중…${st.startedAt ? ' ' + esc(String(st.startedAt).slice(11)) + ' 시작' : ''}</span>` :
+  const eta = preqEta(x.no);
+  const etaT = eta ? (eta.late ? ' · 곧 완료(마무리 중)' : ` · <b>${eta.upper ? '늦어도 ' : '예상 완료 '}${esc(eta.t)}쯤</b>${eta.upper ? ' 완료' : ''}`) : '';
+  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))}${etaT} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 시작하면 정확한 완료 시각으로 바뀌고, 끝나면 여기서 내려받습니다' : '평일 9~18시 매시 7분 PC 작업이 차례로 만듭니다'}</span>` :
+    st.state === 'working' ? `<span class="mkst">만드는 중…${st.startedAt ? ' ' + esc(String(st.startedAt).slice(11)) + ' 시작' : ''}${etaT}</span>` :
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
     st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}</span>` : '';
   const busy = st && (st.state === 'queued' || st.state === 'working');
