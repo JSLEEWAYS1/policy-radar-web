@@ -210,7 +210,7 @@ function bidEst(x, o){
 }
 const pctT = v => (Math.round(v*1000)/10).toFixed(1).replace(/\.0$/, '') + '%';
 const scT = v => (Math.round(v*100)/100).toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
-var PREQ = {}, PREQ_ON = false, PREQ_SRC = '', preqSet = null, preqUid = null;
+var PREQ = {}, PREQ_ON = false, PREQ_SRC = '', preqSet = null, preqUid = null, preqUrl = null;
 function bidBox(x, o){
   if(!x.rfp || x.rfp.error || x.awarded || !['ok', 'gap'].includes((x.elig||{}).verdict)) return '';
   const E = bidEst(x, o);
@@ -229,14 +229,16 @@ function bidBox(x, o){
     price = `<div class="bl"><span class="kl">적정 투찰</span><span class="nmeta">적격심사(낙찰하한율 이상 최저가) — 공고문의 낙찰하한율과 예정가격 범위를 확인해 하한율 바로 위로 투찰합니다.</span></div>`;
   }
   const st = PREQ[x.no];
-  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))} — ${PREQ_SRC === 'web' ? '매시 57분에 제작 대기열로 넘어가 평일 9~18시 매시 PC 작업이 만듭니다' : '평일 9~18시 매시 PC 작업이 만듭니다'}</span>` :
-    st.state === 'working' ? '<span class="mkst">만드는 중…</span>' :
+  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 곧 시작합니다(보통 20~30분 뒤 여기서 내려받기. PC가 꺼져 있으면 평일 9~18시 매시 차례로)' : '평일 9~18시 매시 PC 작업이 만듭니다'}</span>` :
+    st.state === 'working' ? `<span class="mkst">만드는 중…${st.startedAt ? ' ' + esc(String(st.startedAt).slice(11)) + ' 시작' : ''}</span>` :
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
     st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}</span>` : '';
   const busy = st && (st.state === 'queued' || st.state === 'working');
   const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
+  const DLN = {proposal: '정성제안서', deck: '발표자료', review: '검토표'};
+  const dls = preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')} 받기</button>`).join('')}</div>` : '';
   return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
-    ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}</div>`;
+    ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}${dls}</div>`;
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
@@ -255,8 +257,12 @@ function bidBox(x, o){
       };
       PREQ_SRC = 'web'; PREQ_ON = !!s.canWrite;
       preqSet = async (no, rec) => { await s.request(no, rec); last = ''; await pull(); };
+      if(typeof s.url === 'function') preqUrl = s.url;
       await pull(); redraw();
-      setInterval(() => { if(document.visibilityState === 'visible') pull().catch(() => {}); }, 90000);
+      // 요청됨·만드는 중인 것이 있으면 30초, 아니면 90초마다 다시 읽는다
+      const tick = () => { const busy = Object.values(PREQ).some(r => r && (r.state === 'queued' || r.state === 'working'));
+        setTimeout(() => { (document.visibilityState === 'visible' ? pull() : Promise.resolve()).catch(() => {}).then(tick); }, busy ? 30000 : 90000); };
+      tick();
     } catch(e){}
     return;
   }
@@ -274,6 +280,11 @@ function bidBox(x, o){
   } catch(e){}
 })();
 document.addEventListener('click', async e => {
+  const d = e.target.closest('[data-dlp]');
+  if(d && preqUrl){ e.preventDefault(); const t = d.textContent; d.disabled = true;
+    try { const u = await preqUrl(d.dataset.dlp, d.dataset.dln); const a = document.createElement('a'); a.href = u; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+    catch(err){ d.textContent = '받기 실패 — 다시 누르기'; }
+    finally { d.disabled = false; setTimeout(() => { if(d.textContent !== t && !/실패/.test(d.textContent)) d.textContent = t; }, 1500); } return; }
   const b = e.target.closest('[data-mkprop]'); if(!b || !preqSet) return; e.preventDefault();
   const no = b.dataset.mkprop; let it = null, op = null;
   (D.opportunities||[]).forEach(o => items(o).forEach(x => { if(x.no === no){ it = x; op = o; } }));

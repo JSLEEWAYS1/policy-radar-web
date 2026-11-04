@@ -123,9 +123,14 @@ async function proposalStore() {
   const kst = s => { const t = Date.parse(s); return isNaN(t) ? '' : new Date(t + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' '); };
   return {
     ok: true, canWrite: me?.status === 'approved',
-    list: async () => (chk(await T().select('no, state, at, result').order('at', {ascending: false}).limit(300)) || [])
-      .map(r => Object.assign({}, r.result || {}, {no: r.no, state: r.state, at: kst(r.at)})),
-    request: async (no, req) => chk(await T().upsert({no, req, state: 'queued'}, {onConflict: 'no'}))
+    list: async () => {
+      let r = await T().select('no, state, at, result, dl').order('at', {ascending: false}).limit(300);
+      if (r.error) r = await T().select('no, state, at, result').order('at', {ascending: false}).limit(300);  // dl 칸 추가 전(proposal_fast.sql 실행 전)
+      return (chk(r) || []).map(x => Object.assign({}, x.result || {}, {no: x.no, state: x.state, at: kst(x.at), dl: Array.isArray(x.dl) ? x.dl : null}));
+    },
+    request: async (no, req) => chk(await T().upsert({no, req, state: 'queued'}, {onConflict: 'no'})),
+    // 초안 내려받기: 비공개 파일함 proposal-out의 5분짜리 서명 주소(파일 이름은 한글 원래 이름으로 저장되게)
+    url: async (path, name) => chk(await sb.storage.from('proposal-out').createSignedUrl(path, 300, {download: name || true})).signedUrl
   };
 }
 window.W1STORE = {trackManual: trackStore, trackCerts: certStore, proposalReq: proposalStore};
