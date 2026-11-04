@@ -211,7 +211,7 @@ function bidEst(x, o){
 const pctT = v => (Math.round(v*1000)/10).toFixed(1).replace(/\.0$/, '') + '%';
 const scT = v => (Math.round(v*100)/100).toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
 var PREQ = {}, PREQ_ON = false, PREQ_SRC = '', preqSet = null, preqUid = null, preqUrl = null;
-// 제안서 제작 예상 완료 시각: 최근 완료 소요시간(중앙값, 없으면 25분)과 대기 순서·다음 PC 실행 시각(평일 9~18시 매시 7분)으로 어림한다
+// 제안서 제작 예상 완료 시각: 최근 완료 소요시간(중앙값, 없으면 60분 — 11/04부터 지난 제안서 쪽 재사용·고성능 AI 집필로 한 건에 45~90분)과 대기 순서·다음 PC 실행 시각(평일 9~18시 매시 7분)으로 어림한다
 const KSTms = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || '')); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], m[4] - 9, +m[5]) : NaN; };
 function preqDur(){
   const ds = Object.values(PREQ).map(r => {
@@ -219,7 +219,7 @@ function preqDur(){
     const s0 = KSTms(r.startedAt), d = KSTms(String(r.startedAt).slice(0, 5) + String(r.doneAt).replace('/', '-'));
     const m = (d - s0) / 60000; return m > 3 && m < 240 ? m : null;
   }).filter(v => v).sort((a, b) => a - b);
-  return ds.length ? Math.min(90, Math.max(10, Math.round(ds[ds.length >> 1]))) : 25;
+  return ds.length ? Math.min(150, Math.max(45, Math.round(ds[ds.length >> 1]))) : 60;
 }
 function nextRun(t){
   for(let i = 0; i < 24 * 9; i++){
@@ -243,7 +243,7 @@ function preqEta(no){
   }
   const q = rows.filter(r => r.state === 'queued').sort((a, b) => String(a.at).localeCompare(String(b.at)));
   const i = Math.max(0, q.findIndex(r => r.no === no));
-  const t = nextRun(now) + Math.floor(i / 2) * 3600e3 + ((i % 2) + 1) * dur + 3 * 60e3;
+  const t = nextRun(now) + i * Math.max(dur, 3600e3) + dur + 3 * 60e3;   // PC 작업은 한 번에 한 건씩 만든다
   return {t: fmt(t), upper: true};
 }
 function bidBox(x, o){
