@@ -110,7 +110,25 @@ async function certStore() {
     remove: async row => { chk(await B().remove([row.path])); chk(await T().delete().eq('id', row.id)); }
   };
 }
-window.W1STORE = {trackManual: trackStore, trackCerts: certStore};
+// 제안서·발표자료 만들기 요청: 회원 서버의 proposal_req 표(supabase/proposal_req.sql). 회원은 요청만 남기고,
+// 만드는 중·완료·실패 상태는 레이더 쪽 PC 작업 결과를 GitHub Actions가 되돌려 쓴다(서버가 회원 쓰기를 늘 「요청됨」으로 바꾼다).
+async function proposalStore() {
+  const T = () => sb.from('proposal_req');
+  const probe = await T().select('no').limit(1);
+  if (probe.error) {
+    const m = String(probe.error.code || '') + ' ' + String(probe.error.message || '');
+    return {ok: false, why: /42P01|PGRST205|PGRST106|does not exist|schema cache/i.test(m) ? 'setup' : 'error'};
+  }
+  const chk = r => { if (r.error) { const e = new Error(r.error.message); e.code = r.error.code; throw e; } return r.data; };
+  const kst = s => { const t = Date.parse(s); return isNaN(t) ? '' : new Date(t + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' '); };
+  return {
+    ok: true, canWrite: me?.status === 'approved',
+    list: async () => (chk(await T().select('no, state, at, result').order('at', {ascending: false}).limit(300)) || [])
+      .map(r => Object.assign({}, r.result || {}, {no: r.no, state: r.state, at: kst(r.at)})),
+    request: async (no, req) => chk(await T().upsert({no, req, state: 'queued'}, {onConflict: 'no'}))
+  };
+}
+window.W1STORE = {trackManual: trackStore, trackCerts: certStore, proposalReq: proposalStore};
 
 function openApp(D) {
   $('#gate').hidden = true; $('#app').hidden = false;

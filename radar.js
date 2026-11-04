@@ -210,7 +210,7 @@ function bidEst(x, o){
 }
 const pctT = v => (Math.round(v*1000)/10).toFixed(1).replace(/\.0$/, '') + '%';
 const scT = v => (Math.round(v*100)/100).toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
-var PREQ = {}, PREQ_ON = false, preqDB = null, preqUid = null;
+var PREQ = {}, PREQ_ON = false, PREQ_SRC = '', preqSet = null, preqUid = null;
 function bidBox(x, o){
   if(!x.rfp || x.rfp.error || x.awarded || !['ok', 'gap'].includes((x.elig||{}).verdict)) return '';
   const E = bidEst(x, o);
@@ -229,7 +229,7 @@ function bidBox(x, o){
     price = `<div class="bl"><span class="kl">적정 투찰</span><span class="nmeta">적격심사(낙찰하한율 이상 최저가) — 공고문의 낙찰하한율과 예정가격 범위를 확인해 하한율 바로 위로 투찰합니다.</span></div>`;
   }
   const st = PREQ[x.no];
-  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(md(st.at||''))} — 평일 9~18시 매시 PC 작업이 만듭니다</span>` :
+  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))} — ${PREQ_SRC === 'web' ? '매시 57분에 제작 대기열로 넘어가 평일 9~18시 매시 PC 작업이 만듭니다' : '평일 9~18시 매시 PC 작업이 만듭니다'}</span>` :
     st.state === 'working' ? '<span class="mkst">만드는 중…</span>' :
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
     st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}</span>` : '';
@@ -240,28 +240,48 @@ function bidBox(x, o){
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
-  if(!RT) return;
+  const redraw = () => { if(READY.has('g2b')) renderPipe(); };
+  if(!RT){  // 회원 홈페이지: 회원 서버의 proposal_req 표(요청만 남기고, 처리 상태는 레이더 쪽에서 되돌아온다)
+    const W = typeof window !== 'undefined' && window.W1STORE;
+    if(!W || typeof W.proposalReq !== 'function') return;
+    try {
+      const s = await W.proposalReq();
+      if(!s || !s.ok) return;
+      let last = '';
+      const pull = async () => {
+        const rows = await s.list(), M = {};
+        rows.forEach(r => { if(r && r.no) M[r.no] = r; });
+        const k = JSON.stringify(M); if(k === last) return; last = k; PREQ = M; redraw();
+      };
+      PREQ_SRC = 'web'; PREQ_ON = !!s.canWrite;
+      preqSet = async (no, rec) => { await s.request(no, rec); last = ''; await pull(); };
+      await pull(); redraw();
+      setInterval(() => { if(document.visibilityState === 'visible') pull().catch(() => {}); }, 90000);
+    } catch(e){}
+    return;
+  }
   try {
     const [db, user] = await Promise.all([RT.use('db').catch(() => null), RT.use('user').catch(() => null)]);
     if(!db) return;
-    preqDB = db; PREQ_ON = true;
+    PREQ_SRC = 'page'; PREQ_ON = true;
     if(user){ try { preqUid = await user.id(); } catch(e){} }
+    preqSet = (no, rec) => db.collection('proposalReq').doc(no).set(Object.assign({}, rec, {no, state: 'queued', at: NOWK, by: preqUid || ''}));
     db.collection('proposalReq').limit(200).onSnapshot(snap => {
       PREQ = {}; snap.docs.forEach(d => { const v = d.data(); if(v && v.no) PREQ[v.no] = {id: d.id, ...v}; });
-      if(READY.has('g2b')) renderPipe();
+      redraw();
     }, () => {});
-    if(READY.has('g2b')) renderPipe();
+    redraw();
   } catch(e){}
 })();
 document.addEventListener('click', async e => {
-  const b = e.target.closest('[data-mkprop]'); if(!b || !preqDB) return; e.preventDefault();
+  const b = e.target.closest('[data-mkprop]'); if(!b || !preqSet) return; e.preventDefault();
   const no = b.dataset.mkprop; let it = null, op = null;
   (D.opportunities||[]).forEach(o => items(o).forEach(x => { if(x.no === no){ it = x; op = o; } }));
   if(!it) return;
   b.disabled = true; b.textContent = '요청 중…';
   try {
-    await preqDB.collection('proposalReq').doc(no).set({no, title: it.title, org: it.org || '', opp: op.id, stage: it.stage || '', budget: it.budget || '',
-      deadline: it.deadline || it.opinionDeadline || '', state: 'queued', at: NOWK, by: preqUid || ''});
+    await preqSet(no, {title: it.title, org: it.org || '', opp: op.id, stage: it.stage || '', budget: it.budget || '',
+      deadline: it.deadline || it.opinionDeadline || ''});
   } catch(err){ b.disabled = false; b.textContent = '요청 실패 — 다시 누르기'; }
 });
 const docBtns = (x, label) => `<div class="docs">${(x.docs||[]).map(d=>`<a class="dbtn" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>`).join('')}<a class="dbtn pg" href="${esc(x.url)}" target="_blank" rel="noopener">${label}</a></div>`;
