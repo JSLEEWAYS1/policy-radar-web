@@ -272,7 +272,7 @@ function bidBox(x, o){
     st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}</span>` : '';
   const busy = st && (st.state === 'queued' || st.state === 'working');
   const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
-  const DLN = {proposal: '정성제안서', deck: '발표자료', review: '검토표'};
+  const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
   const dls = preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')} 받기</button>`).join('')}</div>` : '';
   return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
     ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}${dls}</div>`;
