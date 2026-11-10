@@ -207,6 +207,24 @@ details.rfp .docs{margin-top:6px}
 details.bmore>summary{cursor:pointer;font-size:.8rem;color:var(--ink2)}
 details.bmore[open]>summary{margin-bottom:6px}
 @media (max-width:560px){.brow>li{grid-template-columns:minmax(0,1fr)}}
+details.toxic{border:1px solid color-mix(in srgb,var(--mark) 55%,transparent);border-radius:8px;background:var(--mark-soft);padding:6px 10px;margin-bottom:6px}
+details.toxic>summary{cursor:pointer;font-size:.84rem;color:var(--ink)}
+details.toxic .tx-badge{font-weight:700;color:var(--mark-ink)}
+details.toxic .tx-sum{color:var(--ink2);font-size:.8rem}
+details.toxic ol{margin:8px 0 6px;padding-left:18px;display:grid;gap:9px;font-size:.84rem}
+details.toxic li p{margin:2px 0;color:var(--ink2);overflow-wrap:anywhere}
+details.toxic .tx-h{display:flex;flex-wrap:wrap;gap:4px 7px;align-items:baseline;color:var(--ink)}
+details.toxic .tx-lv{font-size:.72rem;font-weight:700;border-radius:4px;padding:0 6px;color:var(--surface);background:var(--mark)}
+details.toxic .tx-lv.l1{background:var(--warn)}
+details.toxic .tx-lv.l2{background:var(--ink3)}
+details.toxic .tx-w,details.toxic .tx-k{font-size:.75rem;color:var(--ink3)}
+details.toxic .tx-k{display:inline-block;min-width:64px;margin-right:6px;font-weight:600}
+.tag.tox{border-color:color-mix(in srgb,var(--mark) 55%,transparent);color:var(--mark-ink);font-weight:600}
+details.toxic>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+details.toxic>summary::-webkit-details-marker{display:none}
+details.toxic>summary::before{content:"+";flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid color-mix(in srgb,var(--mark) 45%,transparent);font-family:var(--f-mono);font-size:.85rem;line-height:1;color:var(--mark-ink);background:var(--surface)}
+details.toxic[open]>summary::before{content:"−"}
+details.toxic[open]>summary{margin-bottom:2px}
 details.rfp{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 10px}
 details.rfp>summary{cursor:pointer;font-size:.84rem;font-weight:600;color:var(--ink)}
 details.rfp dl{display:grid;grid-template-columns:86px minmax(0,1fr);gap:5px 12px;margin:8px 0 6px;font-size:.84rem}
@@ -408,6 +426,7 @@ section.view{gap:34px}
 .tag.plan{background:color-mix(in srgb,var(--plan) 13%,var(--surface));color:var(--plan)}
 .tag.gap{background:color-mix(in srgb,var(--warn) 14%,var(--surface));color:var(--warn)}
 .tag.out{background:transparent;color:var(--ink3);text-decoration:line-through;box-shadow:inset 0 0 0 1px var(--line2)}
+.tag.tox{background:var(--mark-soft);color:var(--mark-ink)}
 .tag.new{background:transparent;color:var(--mark-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mark) 45%,transparent)}
 .tag.hi{background:var(--mark-soft);color:var(--mark-ink)}
 .tag.rnd{background:color-mix(in srgb,var(--rnd) 13%,var(--surface));color:var(--rnd)}

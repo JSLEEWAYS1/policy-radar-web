@@ -120,6 +120,12 @@ function noticeTag(o){
   return t.join('');
 }
 function eligLine(x){
+  const s = eligLine0(x), n = ((x.rfp && !x.rfp.error && x.rfp.toxic) || []).length;
+  if(!n) return s;
+  const t = `<span class="tag tox">독소조항 ${n}</span>`;
+  return s ? s.replace('</span>', '</span>' + t) : `<div class="elig">${t}</div>`;
+}
+function eligLine0(x){
   const e = x.elig;
   if(!e) return isPlan(x) ? '' : '<div class="elig"><span class="tag">참가자격 판정 전</span></div>';
   if(e.verdict === 'ok') return '<div class="elig"><span class="tag ok">참여 가능</span><span class="nmeta">보유 자격으로 참가자격 충족</span></div>';
@@ -272,7 +278,7 @@ function bidBox(x, o){
     st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}</span>` : '';
   const busy = st && (st.state === 'queued' || st.state === 'working');
   const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
-  const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
+  const DLN = {proposal: '정성제안서', deck: '발표자료', review: '검토표'};
   const dls = preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')} 받기</button>`).join('')}</div>` : '';
   return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
     ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}${dls}</div>`;
@@ -334,12 +340,18 @@ document.addEventListener('click', async e => {
 });
 const docBtns = (x, label) => `<div class="docs">${(x.docs||[]).map(d=>`<a class="dbtn" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.name)}</a>`).join('')}<a class="dbtn pg" href="${esc(x.url)}" target="_blank" rel="noopener">${label}</a></div>`;
 const chain = x => { const s = []; if(x.planNo) s.push('발주계획 ' + x.planNo); if(x.preNo) s.push('사전규격 ' + x.preNo); return s.length ? `<div class="nmeta">이어진 단계 · ${esc(s.join(' → '))}</div>` : ''; };
+const TXL = ['상','중','하'];
+function toxicBlock(r){
+  const t = (r && r.toxic) || []; if(!t.length) return '';
+  const cnt = TXL.map(l => [l, t.filter(c => c.level === l).length]).filter(v => v[1]).map(v => `${v[0]} <b class="num">${v[1]}</b>`).join(' · ');
+  return `<details class="toxic"><summary><span class="tx-badge">독소조항 <b class="num">${t.length}</b>건</span><span class="tx-sum">${cnt} — ${esc(t[0].title)}${t.length > 1 ? ' 외' : ''}</span></summary><ol>${t.map(c => `<li><div class="tx-h"><span class="tx-lv l${TXL.indexOf(c.level)}">${esc(c.level)}</span><b>${esc(c.title)}</b>${c.where ? `<span class="tx-w">${esc(c.where)}</span>` : ''}</div>${c.text ? `<p class="tx-t">${hl(c.text)}</p>` : ''}<p><span class="tx-k">불리한 이유</span>${hl(c.why)}</p><p><span class="tx-k">의견·대응</span>${hl(c.ask)}</p></li>`).join('')}</ol><span class="nmeta">제안요청서에서 웨이즈원에 불리한 조항을 골라 적었습니다. 사전규격 의견 등록은 팀이 나라장터에서 직접 합니다.</span></details>`;
+}
 function rfpBlock(x){
   const r = x.rfp; if(!r || r.error) return '';
   const li = a => (a||[]).filter(Boolean).map(v=>`<li>${hl(v)}</li>`).join('');
   const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
   const e = x.elig;
-  return `<details class="rfp"><summary>제안요청서 요약 — 사업내용·참가자격</summary><dl>
+  return toxicBlock(r) + `<details class="rfp"><summary>제안요청서 요약 — 사업내용·참가자격</summary><dl>
     ${e?row('참여 판정', `<b>${esc(VERD[e.verdict]||'')}</b>${(e.gaps||[]).length?' — 부족: '+e.gaps.map(esc).join(' · '):''}${e.note?'<br>'+esc(e.note):''}`):''}
     ${row('사업 개요', hl(r.overview||''))}${row('사업기간', esc(r.period||''))}${row('사업비', hl(r.budget||''))}
     ${(r.scope||[]).length?`<dt>주요 과업</dt><dd><ul>${li(r.scope)}</ul></dd>`:''}
