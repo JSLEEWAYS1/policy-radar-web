@@ -453,6 +453,98 @@ function vrbItem(no){
   for(const o of (D.opportunities || [])) for(const x of items(o)) if(x.no === no) return {o, x};
   return null;
 }
+/* 비고 → 산정근거: 사용자가 비고에 쓴 계산식(예: 「월 60만원 × 9개월 × 2대」「개발 4M, 교통 4M」「2명 × 9개월」「매출의 6%」)을 읽어
+   금액(원) 또는 M/M을 셈하고, 그 식과 결과를 산정근거로 적는다. 계산식이 없으면 글만 남기고 금액은 그대로 둔다. */
+const VRB_XC = {out: '외주비', buy: '구매비', rent: '임차료', adv: '자문비', trip: '회의비/출장비', print: '인쇄비', common: '직접 참여인원 공통비', etc: '숙박/주유/주차/기타'};
+const VRB_MD = 21;   // 사용자 VRB 양식의 MM 기준일(1 M/M = 21일)
+const VRB_MONEY = {'억': 1e8, '천만': 1e7, '백만': 1e6, '십만': 1e5, '만': 1e4, '천': 1e3, '': 1};
+function vrbParse(text, kind, V){
+  let s = String(text || '').replace(/(\d),(?=\d{3}(?!\d))/g, '$1').replace(/[＊*✕✖]/g, '×').replace(/(\d)\s*[xX]\s*(?=\d)/g, '$1×').replace(/\s[xX]\s/g, ' × ')
+    .replace(/[mM]\s*\/\s*[mM]/g, 'MM').replace(/[mM]\s*\/\s*[dD]/g, 'MD').replace(/(\d)\s*\/\s*(?=\d)/g, '$1÷');
+  // 「1억 2천만원」처럼 붙은 금액은 하나로 합친다
+  s = s.replace(/(\d+(?:\.\d+)?)\s*억\s*(\d+(?:\.\d+)?)\s*(천만|백만|십만|만|천)\s*원?/g, (m, a, b, u) => String(+a * 1e8 + +b * VRB_MONEY[u]) + '원');
+  const TOK = /(\d+(?:\.\d+)?)\s*(억\s*원?|천만\s*원?|백만\s*원?|십만\s*원?|만\s*원?|천\s*원|원|%|MM(?![A-Za-z])|M(?![A-Za-z가-힣])|MD(?![A-Za-z])|명|인(?![가-힣])|회|개월|달|주|일|시간|대|식|개|건|박|종|차|부|권|매|EA|ea|set|SET|M\b)?/g;
+  const parseTerm = t => {
+    const toks = []; let m; TOK.lastIndex = 0;
+    while((m = TOK.exec(t))){
+      const raw = m[0].trim(), n = +m[1], u = (m[2] || '').replace(/\s+/g, '');
+      const before = t.slice(0, m.index).replace(/\s+$/, ''), after = t.slice(m.index + m[0].length).replace(/^\s+/, '');
+      const div = /÷$/.test(before), opNear = /[×÷]$/.test(before) || /^[×÷]/.test(after);
+      let type = 'cnt';
+      if(/^(억|천만|백만|십만|만|천)원?$/.test(u) || u === '원') type = 'won';
+      else if(u === '%') type = 'pct';
+      else if(u === 'MM' || u === 'M') type = 'mm';
+      else if(u === 'MD' || u === '일') type = 'md';
+      else if(u === '명' || u === '인') type = 'ppl';
+      else if(u === '개월' || u === '달') type = 'mon';
+      else if(!u){ if(!opNear) continue; type = 'num'; }   // 단위 없는 숫자는 × 옆일 때만(모델 번호 등은 빼고)
+      const mul = type === 'won' ? VRB_MONEY[u.replace(/원$/, '')] || 1 : 1;
+      toks.push({raw, n: n * mul, type, div, u});
+    }
+    return toks;
+  };
+  // 금액: 「원·만원·억」이나 %가 있거나, 엑셀처럼 단위 없이 쓴 큰 수(1,000 이상)를 ×·÷로 이은 식
+  const isPrim = toks => kind === 'won' ? toks.some(k => k.type === 'won' || k.type === 'pct' || (k.type === 'num' && k.n >= 1000)) : toks.some(k => ['mm', 'md', 'ppl', 'mon'].includes(k.type));
+  const show = k => /^\d{4,}/.test(k.raw) ? k.raw.replace(/^\d+/, d => (+d).toLocaleString()) : k.raw;
+  let parts = s.split('+');
+  if(parts.length === 1){ const sp = s.split(/[,;·]/); if(sp.length > 1 && sp.every(p => isPrim(parseTerm(p)))) parts = sp; }
+  const out = [];
+  for(const part of parts){
+    const toks = parseTerm(part); if(!isPrim(toks)) continue;
+    let v = 1; const ex = [];
+    const lab = part.replace(/[\d.]+\s*(억\s*원?|천만\s*원?|백만\s*원?|십만\s*원?|만\s*원?|천\s*원|원|%|MM|M|MD|명|인|회|개월|달|주|일|시간|대|식|개|건|박|종|차|부|권|매|EA|ea|set|SET)?/g, ' ').replace(/[×÷()（）:=]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 16);
+    if(kind === 'won'){
+      for(const k of toks){
+        if(k.type === 'pct'){ const base = /인건비/.test(part) ? V.labor : V.A; v *= base * k.n / 100; ex.push(`${/인건비/.test(part) ? '인건비' : '웨이즈원 몫'} ${Math.round(base).toLocaleString()}원 × ${k.raw}`); }
+        else if(['won', 'cnt', 'num', 'ppl', 'mon', 'md', 'mm'].includes(k.type)){ v = k.div ? v / k.n : v * k.n; ex.push((k.div ? '÷ ' : '') + show(k)); }
+      }
+    } else {
+      const mm = toks.filter(k => k.type === 'mm'), md = toks.filter(k => k.type === 'md'), pp = toks.filter(k => k.type === 'ppl'), mo = toks.filter(k => k.type === 'mon'), nm = toks.filter(k => k.type === 'num');
+      if(mm.length){ v = mm.reduce((a, k) => a * k.n, 1); ex.push(...mm.map(k => k.raw)); pp.concat(nm).forEach(k => { v = k.div ? v / k.n : v * k.n; ex.push((k.div ? '÷ ' : '') + k.raw); }); }
+      else if(md.length){ const d = md.reduce((a, k) => a * k.n, 1) * pp.reduce((a, k) => a * k.n, 1); v = d / VRB_MD; ex.push(...md.map(k => k.raw), ...pp.map(k => k.raw), `÷ ${VRB_MD}일`); }
+      else if(mo.length){ v = mo.reduce((a, k) => a * k.n, 1) * pp.reduce((a, k) => a * k.n, 1) * nm.reduce((a, k) => k.div ? a / k.n : a * k.n, 1); ex.push(...pp.map(k => k.raw), ...mo.map(k => k.raw), ...nm.map(k => (k.div ? '÷ ' : '') + k.raw)); }
+      else continue;
+    }
+    if(!isFinite(v)) continue;
+    out.push({v, ex: (lab && parts.length > 1 ? lab + ' ' : '') + ex.join(' × ').replace(/× ÷/g, '÷')});
+  }
+  if(!out.length) return null;
+  const val = out.reduce((a, t) => a + t.v, 0);
+  return {val: kind === 'won' ? Math.round(val) : Math.round(val * 100) / 100, expr: out.map(t => t.ex).join(' + '), kind};
+}
+const vrbMM = v => (Math.round(v * 100) / 100).toLocaleString();
+// 산정근거 한 줄: 사용자 비고가 계산되면 그 식, 아니면 자동 추정 근거
+function vrbBasis(V, kind, key, autoNote, cur, rate){
+  const u = ((vrbOv(V.x.no).note) || {})[key];
+  const W = v => Math.round(v).toLocaleString();
+  const tail = kind === 'mm' ? ` × ${W(rate)}원 = <b>${W(cur * rate)}</b>원` : '';
+  if(u){
+    const p = vrbParse(u, kind, V);
+    if(p){
+      const res = kind === 'mm' ? `<b>${vrbMM(p.val)}</b> M/M` : `<b>${W(p.val)}</b>원`;
+      const off = kind === 'mm' ? Math.abs(p.val - cur) > 0.005 : Math.abs(p.val - cur) > 1;
+      return `${esc(p.expr)} = ${res}${kind === 'mm' && !off ? tail : ''}${off ? ` · <span class="vwarn">${kind === 'mm' ? 'M/M' : '금액'} 칸은 직접 고친 ${kind === 'mm' ? vrbMM(cur) + ' M/M' : W(cur) + '원'}</span>` : ''}`;
+    }
+    return `비고에 ${kind === 'mm' ? 'M/M(예: 4M, 2명 × 9개월, 63일)' : '금액(예: 60만원 × 9개월)'} 계산식이 없어 ${kind === 'mm' ? `${vrbMM(cur)} M/M${tail}` : `<b>${W(cur)}</b>원`} 그대로 — ${esc(autoNote)}`;
+  }
+  return kind === 'mm' ? `${vrbMM(cur)} M/M${tail} — ${esc(autoNote)}` : `${esc(autoNote)} = <b>${W(cur)}</b>원`;
+}
+function vrbBasisList(V){
+  const W = v => Math.round(v).toLocaleString();
+  const sub = a => a.length ? `<ul>${a.join('')}</ul>` : '';
+  const out = [];
+  out.push(`<li><b>1. 인건비</b> <b class="num">${W(V.labor)}</b>원 (${vrbMM(V.MM)} M/M)${sub(V.S.map(s2 => `<li>${esc(s2.role)}(${esc(s2.g)}) — ${vrbBasis(V, 'mm', 'st.' + s2.k, s2.note || '', s2.mm, s2.rate)}</li>`))}</li>`);
+  V.COST.slice(1).forEach(c => { const rows = (V.C[c[0]] || {}).rows || []; if(!c[2] && !rows.length) return;
+    out.push(`<li><b>${esc(c[1])}</b> <b class="num">${W(c[2])}</b>원${sub(rows.map(r2 => `<li>${esc(r2.label)} — ${vrbBasis(V, 'won', 'c.' + r2.key, r2.note.split(' — ').slice(1).join(' — ') || r2.note, r2.v)}</li>`))}</li>`); });
+  out.push(`<li><b>영업/마케팅비</b> <b class="num">${W(V.Ssum)}</b>원${sub(V.SM.filter(c => c[2] || ((vrbOv(V.x.no).note || {})['c.s_' + c[0]])).map(c => `<li>${esc(c[1].replace(/^\d+\.\s*/, ''))} — ${c[0] === 'div' ? `${esc(c[3])} = <b>${W(c[2])}</b>원` : vrbBasis(V, 'won', 'c.s_' + c[0], c[3] || '금액 직접 입력', c[2])}</li>`))}</li>`);
+  out.push(`<li><b>일반관리비</b> <b class="num">${W(V.Gsum)}</b>원${sub(V.GA.filter(c => c[2]).map(c => `<li>${esc(c[1].replace(/^\d+\.\s*/, ''))} — ${esc(c[3])} = <b>${W(c[2])}</b>원</li>`))}</li>`);
+  return `<ol class="vblist">${out.join('')}</ol><p class="nmeta">비고에 계산식이 있으면 그 식으로, 없으면 자동 추정 근거로 적습니다. 비고를 지우면 그 줄은 자동 추정으로 돌아갑니다.</p>`;
+}
+const vrbTxt = h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent.replace(/\s+/g, ' ').trim(); };
+function vrbNoteCell(V, kind, key, autoNote, cur, rate){
+  const u = ((vrbOv(V.x.no).note) || {})[key] || '';
+  return `<td class="nt vnc"><input class="vnote" data-vn="${esc(key)}" value="${esc(u)}" placeholder="${esc(autoNote)}" maxlength="200" aria-label="비고(계산식을 쓰면 산정근거·금액에 반영)"><span class="vbasis"><span class="kl">산정근거</span> ${vrbBasis(V, kind, key, autoNote, cur, rate)}</span></td>`;
+}
 function vrbCalc(x, o, ov){
   ov = ov || {};
   const r = x.rfp || {}; const bp = basePrice(x);
@@ -538,7 +630,10 @@ function vrbCalc(x, o, ov){
   if(remote && res) add('etc', '숙박/주유/주차/기타', res * months * 2 * 80000, `상주 인력 귀향 교통비 — 월 2회 × 8만원`);
   if(ty === 'data' && field){ const fd = Math.round(rest * 21 * 0.5); add('etc', '숙박/주유/주차/기타', fd * (remote ? 100000 : 40000), `현장조사 ${fd}인·일 × ${remote ? '숙박·주유 10만원' : '주유·주차 4만원'}`); }
   const CO = ov.cost || {};
-  Object.keys(C).forEach(k => C[k].rows.forEach((row, i) => { const e = CO[k + i]; if(e !== undefined && e !== '' && !isNaN(+e)){ row.v = Math.round(+e); row.edited = true; } }));
+  Object.keys(C).forEach(k => C[k].rows.forEach((row, i) => { row.key = k + i; }));
+  (ov.xc || []).forEach((e, i) => { if(!e || !VRB_XC[e.cat]) return; C[e.cat] = C[e.cat] || {label: VRB_XC[e.cat], rows: []};
+    C[e.cat].rows.push({label: String(e.label || '추가 항목').slice(0, 40), v: 0, note: '직접 추가 — 비고에 계산식을 쓰면 금액이 자동으로 들어갑니다', key: 'x' + i, extra: i}); });
+  Object.keys(C).forEach(k => C[k].rows.forEach(row => { const e = CO[row.key]; if(e !== undefined && e !== '' && !isNaN(+e)){ row.v = Math.round(+e); row.edited = true; } }));
   const csum = k => C[k] ? C[k].rows.reduce((a, r) => a + r.v, 0) : 0;
   const COST = [['labor', '1. 인건비', labor, '직급표준 테이블 적용'], ['out', '2. 외주비', csum('out'), ''], ['buy', '3. 구매비(재료, 전산용품 등)', csum('buy'), ''], ['rent', '4. 임차료', csum('rent'), '전용공간 별도 임차 시'], ['adv', '5. 자문비', csum('adv'), ''], ['trip', '6. 회의비/출장비', csum('trip'), ''], ['print', '7. 인쇄비', csum('print'), ''], ['common', '8. 직접 참여인원 공통비', csum('common'), '인건비의 50%'], ['etc', '9. 숙박/주유/주차/기타(톨비 등)', csum('etc'), '']];
   const B = COST.reduce((a, c) => a + c[2], 0), G = A - B;
@@ -584,7 +679,7 @@ function vrbPoints(V){
   const {x, o, E} = V; const r = x.rfp || {}; const p = x.prev || {};
   const won = v => eokT(v) || '0원';
   const P = [];
-  P.push(`예상 계약 ${won(V.total)}(${esc(V.bp.src)}의 ${pctT(V.ratio)}) 중 웨이즈원 몫 ${won(V.A)}. 매출이익 ${won(V.G)}(${pctT(V.A ? V.G / V.A : 0)}), 영업이익 ${won(V.OP)}(${pctT(V.opr)}).` + (p.amt ? ` 전차 계약 ${won(p.amt)}(${esc(p.winner || '')}, 부가세 포함).` : ''));
+  P.push(`예상 계약 ${won(V.total)}(${esc(V.bp.src)}의 ${pctT(V.ratio)}) 중 웨이즈원 몫 ${won(V.A)}. 매출이익 ${won(V.G)}(${pctT(V.A ? V.G / V.A : 0)}), 영업이익 ${won(V.OP)}(${pctT(V.opr)}).` + (p.amt ? ` 전차 계약 ${won(p.amt)}(${esc(p.winner || '')}, 부가세 포함).` : '') + (Object.keys(vrbOv(V.x.no).note || {}).length ? ` 비고에 직접 쓴 산정근거 ${Object.keys(vrbOv(V.x.no).note).length}건을 원가에 반영했습니다.` : ''));
   const prods = (o.products || []).slice(0, 4).join('·');
   P.push(`${prods ? `웨이즈원 ${esc(prods)} 적용. ` : ''}${esc(String(r.fit || '').split(/(?<=다\.)\s/)[0] || '제안요청서 「웨이즈원 관점」 참고.')}`);
   const org = String(x.org || '').replace(/.*수요:\s*/, '').replace(/\)$/, '').split(/\s+/).pop() || '';
@@ -648,8 +743,9 @@ function vrbHtml(V){
   const pc = v => V.A ? (v / V.A * 100).toFixed(1) + '%' : '-';
   const ed = (k, v) => `<input class="vin" inputmode="numeric" data-vc="${k}" value="${Math.round(v)}" aria-label="금액(원)">`;
   const staff = V.S.map(s => `<tr${s.edited ? ' class="ed"' : ''}><td>${esc(s.role)}</td><td><select data-vsg="${s.k}" aria-label="직급">${VRB_GR.map(g => `<option${g === s.g ? ' selected' : ''}>${g}</option>`).join('')}</select></td>
-    <td><input class="vin sm" inputmode="decimal" data-vsm="${s.k}" value="${s.mm}" aria-label="M/M"></td><td class="n">${W(s.rate)}</td><td class="n">${W(s.amt)}</td><td class="n">${pc(s.amt)}</td><td class="nt">${esc(s.note || '')}${s.mm && V.months ? ` · 약 ${Math.round(s.mm / V.months * 10) / 10}명` : ''}</td></tr>`).join('');
-  const crow = (k) => (V.C[k] ? V.C[k].rows : []).map((row, i) => `<tr${row.edited ? ' class="ed"' : ''}><td colspan="3">${esc(row.label)}</td><td></td><td class="n">${ed(k + i, row.v)}</td><td class="n">${pc(row.v)}</td><td class="nt">${esc(row.note.split(' — ').slice(1).join(' — ') || row.note)}</td></tr>`).join('');
+    <td><input class="vin sm" inputmode="decimal" data-vsm="${s.k}" value="${s.mm}" aria-label="M/M"></td><td class="n">${W(s.rate)}</td><td class="n">${W(s.amt)}</td><td class="n">${pc(s.amt)}</td>${vrbNoteCell(V, 'mm', 'st.' + s.k, `${s.note || ''}${s.mm && V.months ? ` · 약 ${Math.round(s.mm / V.months * 10) / 10}명` : ''}`, s.mm, s.rate)}</tr>`).join('');
+  const crow = (k) => (V.C[k] ? V.C[k].rows : []).map(row => `<tr${row.edited || row.extra !== undefined ? ' class="ed"' : ''}><td colspan="3">${row.extra !== undefined ? `<input class="vlab" data-vxl="${row.extra}" value="${esc(row.label)}" maxlength="40" aria-label="항목 이름"> <button type="button" class="linkish" data-vxdel="${row.extra}">삭제</button>` : esc(row.label)}</td><td></td><td class="n">${ed(row.key, row.v)}</td><td class="n">${pc(row.v)}</td>${vrbNoteCell(V, 'won', 'c.' + row.key, row.note.split(' — ').slice(1).join(' — ') || row.note, row.v)}</tr>`).join('');
+  const nNote = Object.keys(vrbOv(x.no).note || {}).length;
   const DEC = ['go', 'chk', 'cond', 'stop'][V.dlv];
   const P = vrbPoints(V);
   return `<div class="vrbsheet">
@@ -674,10 +770,11 @@ function vrbHtml(V){
     <tbody>
       <tr class="hd"><td colspan="2">PJT 전체 매출액</td><td class="n">${W(V.total)}</td><td class="n">100%</td><td></td></tr>
       <tr class="hd"><td colspan="2">PJT 당사 지분 (A)</td><td class="n"><b>${W(V.A)}</b></td><td class="n">${Math.round(V.share * 100)}%</td><td class="nt">아래 비율은 (A) 대비</td></tr>
-      ${V.COST.map((c, i) => `<tr>${i === 0 ? `<th rowspan="${V.COST.length + 1}" class="vg">1. 프로젝트<br>수행 원가</th>` : ''}<td>${c[1]}</td><td class="n">${W(c[2])}</td><td class="n">${pc(c[2])}</td><td class="nt">${esc(c[3])}</td></tr>`).join('')}
+      ${V.COST.map((c, i) => { const nk = c[0] === 'labor' ? V.S.filter(s2 => (vrbOv(x.no).note || {})['st.' + s2.k]).length : ((V.C[c[0]] || {}).rows || []).filter(r2 => (vrbOv(x.no).note || {})['c.' + r2.key]).length;
+        return `<tr>${i === 0 ? `<th rowspan="${V.COST.length + 1}" class="vg">1. 프로젝트<br>수행 원가</th>` : ''}<td>${c[1]}</td><td class="n">${W(c[2])}</td><td class="n">${pc(c[2])}</td><td class="nt">${esc(c[3])}${nk ? ` · <b>비고 산정 ${nk}건</b>` : ''}</td></tr>`; }).join('')}
       <tr class="sub"><td>소계 (B)</td><td class="n">${W(V.B)}</td><td class="n">${pc(V.B)}</td><td></td></tr>
       <tr class="hd"><td colspan="2">매출 이익</td><td class="n"><b>${W(V.G)}</b></td><td class="n">${pc(V.G)}</td><td class="nt">=(A)-(B)</td></tr>
-      ${V.SM.map((c, i) => `<tr>${i === 0 ? `<th rowspan="${V.SM.length + 1}" class="vg">2. 영업/<br>마케팅비</th>` : ''}<td>${c[1]}</td><td class="n">${c[0] === 'div' ? W(c[2]) : ed('s_' + c[0], c[2])}</td><td class="n">${pc(c[2])}</td><td class="nt">${esc(c[3])}</td></tr>`).join('')}
+      ${V.SM.map((c, i) => `<tr>${i === 0 ? `<th rowspan="${V.SM.length + 1}" class="vg">2. 영업/<br>마케팅비</th>` : ''}<td>${c[1]}</td><td class="n">${c[0] === 'div' ? W(c[2]) : ed('s_' + c[0], c[2])}</td><td class="n">${pc(c[2])}</td>${c[0] === 'div' ? `<td class="nt">${esc(c[3])}</td>` : vrbNoteCell(V, 'won', 'c.s_' + c[0], c[3] || '금액 직접 입력', c[2])}</tr>`).join('')}
       <tr class="sub"><td>소계 (C)</td><td class="n">${W(V.Ssum)}</td><td class="n">${pc(V.Ssum)}</td><td></td></tr>
       ${V.GA.map((c, i) => `<tr>${i === 0 ? `<th rowspan="${V.GA.length + 1}" class="vg">3. 일반<br>관리비</th>` : ''}<td>${c[1]}</td><td class="n">${W(c[2])}</td><td class="n">${pc(c[2])}</td><td class="nt">${esc(c[3])}</td></tr>`).join('')}
       <tr class="sub"><td>소계 (D)</td><td class="n">${W(V.Gsum)}</td><td class="n">${pc(V.Gsum)}</td><td></td></tr>
@@ -685,12 +782,14 @@ function vrbHtml(V){
       <tr class="hd op ${V.OP < 0 ? 'neg' : ''}"><td colspan="2">영업 이익</td><td class="n"><b>${W(V.OP)}</b></td><td class="n"><b>${pc(V.OP)}</b></td><td class="nt">=(A)-(E)</td></tr>
     </tbody></table></div>
   <details class="rfp" open><summary>상세 원가 — 적정 참여인원 ${Math.round(V.MM * 10) / 10} M/M(약 ${Math.round(V.MM / V.months * 10) / 10}명 × ${V.months}개월)·부대비용</summary>
-    <p class="nmeta">사업 유형 「${esc(V.T.n)}」: 사업비가 감당하는 인력은 웨이즈원 몫 × 인력 비중 ${Math.round(V.lab * 100)}% ÷ 매출 ${W(V.T.rpm)}원/MM = <b class="num">${Math.round(V.mmBudget * 10) / 10}</b> M/M.웨이즈원 상주 인원 <input class="vin sm" inputmode="numeric" data-vk="res" value="${V.res}" aria-label="웨이즈원 상주 인원(명)">명${V.res ? `(${esc(V.resWhy)})` : ''}.${V.h24 ? ' 24시간 운영.' : ''}${V.field ? ' 현장설비 포함.' : ''}${V.remote ? ' 비수도권 — 출장·숙박 반영(본사 수도권 가정).' : ' 수도권 — 당일 출장(본사 수도권 가정).'} M/M·직급·금액을 고치면 바로 다시 계산합니다.</p>
+    <p class="nmeta">사업 유형 「${esc(V.T.n)}」: 사업비가 감당하는 인력은 웨이즈원 몫 × 인력 비중 ${Math.round(V.lab * 100)}% ÷ 매출 ${W(V.T.rpm)}원/MM = <b class="num">${Math.round(V.mmBudget * 10) / 10}</b> M/M.웨이즈원 상주 인원 <input class="vin sm" inputmode="numeric" data-vk="res" value="${V.res}" aria-label="웨이즈원 상주 인원(명)">명${V.res ? `(${esc(V.resWhy)})` : ''}.${V.h24 ? ' 24시간 운영.' : ''}${V.field ? ' 현장설비 포함.' : ''}${V.remote ? ' 비수도권 — 출장·숙박 반영(본사 수도권 가정).' : ' 수도권 — 당일 출장(본사 수도권 가정).'} M/M·직급·금액을 고치거나 <b>비고에 계산식</b>(예: 「개발 4M, 교통 4M」「2명 × 9개월」「월 60만원 × 9개월 × 2대」「매출의 6%」)을 쓰면 M/M·금액과 산정근거가 바로 다시 계산합니다.</p>
     <div class="vtbx"><table class="vtab det"><thead><tr><th>역할</th><th>직급</th><th>M/M</th><th>단가(월)</th><th>금액</th><th>비율</th><th>비고</th></tr></thead><tbody>
       <tr class="sec"><td colspan="7">1. 인건비 (실투입 인력)</td></tr>${staff}
       <tr class="sub"><td colspan="2">소계</td><td class="n">${Math.round(V.MM * 100) / 100}</td><td></td><td class="n">${W(V.labor)}</td><td class="n">${pc(V.labor)}</td><td><button type="button" class="linkish" data-vaddstaff>+ 인력 추가</button></td></tr>
       ${['out', 'buy', 'rent', 'adv', 'trip', 'print', 'common', 'etc'].filter(k => V.C[k]).map(k => `<tr class="sec"><td colspan="7">${esc(V.COST.find(c => c[0] === k)[1])}</td></tr>${crow(k)}`).join('')}
+      <tr class="sub"><td colspan="7"><select data-vxcat aria-label="추가할 비용 구분">${Object.entries(VRB_XC).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select> <button type="button" class="linkish" data-vaddcost>+ 비용 항목 추가</button> <span class="nt">— 비고에 「월 60만원 × 9개월」처럼 쓰면 금액과 산정근거가 자동으로 채워집니다</span></td></tr>
     </tbody></table></div>
+    <details class="rfp vbas"${nNote ? ' open' : ''}><summary>산정 근거${nNote ? ` — 비고로 쓴 ${nNote}건 반영` : ' — 자동 추정'}</summary>${vrbBasisList(V)}</details>
     <p class="nmeta">직급표준 단가(월): ${VRB_GR.map(g => `${g} ${W(VRB_RATE[g])}`).join(' · ')}. 양식대로 퇴직금·4대보험은 단가에 없고 「직접 참여인원 공통비(인건비의 50%)」로 봅니다.</p>
   </details>
   <div class="vchk"><table><thead><tr><th>의사결정을 위한 점검 포인트</th><th>점검 포인트를 고려한 의견</th></tr></thead><tbody>
@@ -715,7 +814,12 @@ function vrbOpen(no){
   if(!dlg){ dlg = document.createElement('dialog'); dlg.id = 'vrbdlg'; dlg.className = 'vrbdlg'; dlg.setAttribute('aria-label', 'VRB 수주가치평가'); document.body.appendChild(dlg);
     dlg.addEventListener('click', e => { if(e.target === dlg) dlg.close(); });
     dlg.addEventListener('change', e => vrbEdit(e.target));
-    dlg.addEventListener('click', e => { const b = e.target.closest('[data-vact],[data-vaddstaff],[data-vcadd],[data-vcdel]'); if(!b) return;
+    dlg.addEventListener('click', e => { const b = e.target.closest('[data-vact],[data-vaddstaff],[data-vcadd],[data-vcdel],[data-vaddcost],[data-vxdel]'); if(!b) return;
+      if(b.dataset.vaddcost !== undefined){ const ov = vrbOv(VRB_CUR); const sel = dlg.querySelector('[data-vxcat]'); const cat = sel && VRB_XC[sel.value] ? sel.value : 'etc';
+        const xc = ov.xc = ov.xc || []; xc.push({cat, label: VRB_XC[cat].split('/')[0] + ' 추가'}); store('vrb.' + VRB_CUR, ov); vrbRender();
+        const inp = dlg.querySelector(`[data-vn="c.x${xc.length - 1}"]`); if(inp){ inp.focus(); inp.scrollIntoView({block: 'center'}); } return; }
+      if(b.dataset.vxdel !== undefined){ const ov = vrbOv(VRB_CUR); const i = +b.dataset.vxdel; if(ov.xc && ov.xc[i]){ ov.xc[i] = null; ['cost'].forEach(k => { if(ov[k]) delete ov[k]['x' + i]; }); ['note', 'nv'].forEach(k => { if(ov[k]) delete ov[k]['c.x' + i]; }); if(!ov.xc.some(Boolean)) delete ov.xc; }
+        store('vrb.' + VRB_CUR, ov); vrbRender(); return; }
       if(b.dataset.vcadd !== undefined || b.dataset.vcdel !== undefined){ const f = vrbItem(VRB_CUR); const ov = vrbOv(VRB_CUR); const K = vrbCons(f.x, f.o, ov);
         const c = {mode: K.mode, role: K.role, w: K.w, members: K.members, fieldOut: !!K.fieldOut, fee: K.fee, task: K.task};
         if(b.dataset.vcadd !== undefined){ let rest = Math.max(0, Math.round((100 - K.sum) * 10) / 10); if(!rest){ const big = c.members.reduce((m, x) => x.share > (m ? m.share : 0) ? x : m, null); const from = big && big.share > c.w ? big : null; if(from && from.share > 10){ from.share -= 10; rest = 10; } else if(c.w > 10){ c.w -= 10; rest = 10; } } c.members.push({name: '', share: rest, task: ''}); }
@@ -742,6 +846,25 @@ function vrbRender(){
 function vrbEdit(t){
   if(!VRB_CUR || !t) return;
   const ov = vrbOv(VRB_CUR); const val = String(t.value || '').replace(/,/g, '').trim();
+  if(t.dataset.vn !== undefined){   // 비고: 계산식이면 M/M·금액에 반영하고 산정근거를 다시 쓴다
+    const key = t.dataset.vn, txt = String(t.value || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    ov.note = ov.note || {}; ov.nv = ov.nv || {};
+    if(txt) ov.note[key] = txt; else delete ov.note[key];
+    const f = vrbItem(VRB_CUR); const V = vrbCalc(f.x, f.o, ov);
+    if(V && key.startsWith('st.')){
+      const k = key.slice(3), xi = /^x\d+$/.test(k) ? +k.slice(1) : -1, p = txt ? vrbParse(txt, 'mm', V) : null;
+      const st = () => { ov.staff = ov.staff || {}; return (ov.staff[k] = ov.staff[k] || {}); };
+      if(p){ if(xi >= 0){ if(ov.extra && ov.extra[xi]) ov.extra[xi].mm = p.val; } else st().mm = p.val; ov.nv[key] = p.val; }
+      else if(ov.nv[key] !== undefined){ if(xi < 0 && ov.staff && ov.staff[k] && ov.staff[k].mm === ov.nv[key]){ delete ov.staff[k].mm; if(!Object.keys(ov.staff[k]).length) delete ov.staff[k]; } delete ov.nv[key]; }
+    } else if(V && key.startsWith('c.')){
+      const ck = key.slice(2), p = txt ? vrbParse(txt, 'won', V) : null; ov.cost = ov.cost || {};
+      if(p){ ov.cost[ck] = p.val; ov.nv[key] = p.val; }
+      else if(ov.nv[key] !== undefined){ if(ov.cost[ck] === ov.nv[key]) delete ov.cost[ck]; delete ov.nv[key]; }
+    }
+    ['note', 'nv', 'cost', 'staff'].forEach(k => { if(ov[k] && !Object.keys(ov[k]).length) delete ov[k]; });
+    store('vrb.' + VRB_CUR, ov); vrbRender(); return;
+  }
+  if(t.dataset.vxl !== undefined){ const e = (ov.xc || [])[+t.dataset.vxl]; if(e){ e.label = String(t.value || '').trim().slice(0, 40); store('vrb.' + VRB_CUR, ov); vrbRender(); } return; }
   const CK = ['vcm', 'vcr', 'vcw', 'vcf', 'vct', 'vcmn', 'vcms', 'vcmt', 'vcfo'].find(k => t.dataset[k] !== undefined);
   if(CK){ const f = vrbItem(VRB_CUR); const K = vrbCons(f.x, f.o, ov); const c = {mode: K.mode, role: K.role, w: K.w, members: K.members, fieldOut: !!K.fieldOut, fee: K.fee, task: K.task};
     const one = () => { if(c.members.length === 1) c.members[0].share = Math.max(0, Math.round((100 - c.w) * 10) / 10); };
@@ -764,13 +887,18 @@ function vrbEdit(t){
 function vrbCsv(){
   const f = vrbItem(VRB_CUR); if(!f) return; const V = vrbCalc(f.x, f.o, vrbOv(VRB_CUR)); if(!V) return;
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const NT = vrbOv(VRB_CUR).note || {};
   const rows = [['(수주 전) 프로젝트 가치평가'], ['사업명', V.x.title], ['발주처', V.x.org || ''], ['사업기간', (V.x.rfp || {}).period || '', V.months + '개월'], ['계약금액(VAT 별도)', V.total], ['참여 방식', VRB_MODE[V.K.mode], V.cons ? (V.lead ? '대표사' : '구성원') : ''], ['웨이즈원 지분', V.A, Math.round(V.share * 100) + '%', V.K.task], ...V.K.members.map(m => ['구성원', Math.round(V.total * m.share / 100), m.share + '%', m.name, m.task]), [],
     ['구분', '항목', '금액(원)', '비율', '비고'], ['', 'PJT 당사 지분 (A)', V.A, '100%'],
     ...V.COST.map(c => ['1. 프로젝트 수행 원가', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (B)', V.B], ['', '매출 이익', V.G, (V.G / V.A * 100).toFixed(1) + '%'],
     ...V.SM.map(c => ['2. 영업/마케팅비', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (C)', V.Ssum],
     ...V.GA.map(c => ['3. 일반관리비', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (D)', V.Gsum],
     ['', '총 실행비용 (E)', V.TOT, (V.TOT / V.A * 100).toFixed(1) + '%'], ['', '영업 이익', V.OP, (V.opr * 100).toFixed(1) + '%'], ['', '의결 권고', V.dec], [],
-    ['인건비 상세', '역할', '직급', 'M/M', '단가', '금액'], ...V.S.map(s => ['', s.role, s.g, s.mm, s.rate, s.amt])];
+    ['인건비 상세', '역할', '직급', 'M/M', '단가', '금액'], ...V.S.map(s => ['', s.role, s.g, s.mm, s.rate, s.amt]), [],
+    ['산정 근거', '항목', '금액(원)', '비고(직접 입력)', '산정근거'],
+    ...V.S.map(s => ['1. 인건비', `${s.role}(${s.g})`, s.amt, NT['st.' + s.k] || '', vrbTxt(vrbBasis(V, 'mm', 'st.' + s.k, s.note || '', s.mm, s.rate))]),
+    ...V.COST.slice(1).flatMap(c => ((V.C[c[0]] || {}).rows || []).map(r => [c[1], r.label, r.v, NT['c.' + r.key] || '', vrbTxt(vrbBasis(V, 'won', 'c.' + r.key, r.note.split(' — ').slice(1).join(' — ') || r.note, r.v))])),
+    ...V.SM.filter(c => c[0] !== 'div' && (c[2] || NT['c.s_' + c[0]])).map(c => ['2. 영업/마케팅비', c[1], c[2], NT['c.s_' + c[0]] || '', vrbTxt(vrbBasis(V, 'won', 'c.s_' + c[0], c[3] || '금액 직접 입력', c[2]))])];
   const csv = '﻿' + rows.map(r => r.map(q).join(',')).join('\r\n');
   try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'})); a.download = `VRB_${V.x.no}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); } catch(e){}
 }

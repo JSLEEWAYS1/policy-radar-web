@@ -725,6 +725,17 @@ dialog.vrbdlg::backdrop{background:rgba(10,16,22,.55)}
 .vtab tr.ed td{background:color-mix(in srgb,var(--mark) 5%,var(--surface))}
 .vin{width:118px;max-width:100%;border:1px solid var(--line2);border-radius:6px;padding:2px 6px;text-align:right;font-family:var(--f-mono);font-size:.84rem;background:var(--surface)}
 .vin.sm{width:62px}
+.vtab td.vnc{min-width:250px;vertical-align:top}
+.vnote{width:100%;min-width:210px;border:1px solid var(--line2);border-radius:6px;padding:3px 7px;font:inherit;font-size:.8rem;line-height:1.4;background:var(--surface);color:var(--ink)}
+.vnote::placeholder{color:var(--ink3)}
+.vnote:focus{border-color:var(--mark)}
+.vbasis{display:block;margin-top:3px;font-size:.76rem;line-height:1.5;color:var(--ink2);text-align:left}
+.vbasis .kl{font-size:.7rem;margin-right:4px}
+.vbasis b{color:var(--ink);font-weight:600}
+.vwarn{color:var(--mark-ink);font-weight:600}
+.vlab{width:150px;max-width:100%;border:1px solid var(--line2);border-radius:6px;padding:2px 6px;font:inherit;font-size:.84rem;background:var(--surface);color:var(--ink)}
+.vbas .vblist{margin:8px 0 6px;padding-left:18px;display:grid;gap:8px;font-size:.84rem;color:var(--ink2)}
+.vbas .vblist ul{margin:4px 0 0;padding-left:16px;display:grid;gap:2px;font-size:.8rem}
 .vtx{width:100%;min-width:110px;border:1px solid var(--line2);border-radius:6px;padding:2px 6px;font-size:.84rem;background:var(--surface);color:var(--ink)}
 .vcrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:.86rem}
 .vcrow label{display:inline-flex;align-items:center;gap:6px;color:var(--ink2)}
