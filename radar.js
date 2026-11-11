@@ -270,18 +270,26 @@ function bidBox(x, o){
     price = `<div class="bl"><span class="kl">적정 투찰</span><span class="nmeta">적격심사(낙찰하한율 이상 최저가) — 공고문의 낙찰하한율과 예정가격 범위를 확인해 하한율 바로 위로 투찰합니다.</span></div>`;
   }
   const st = PREQ[x.no];
-  const eta = preqEta(x.no);
+  const stTxt = preqStTxt(x.no);
+  const busy = st && (st.state === 'queued' || st.state === 'working');
+  const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
+  const dls = preqDls(x.no);
+  return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
+    ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}${dls}</div>`;
+}
+function preqStTxt(no){
+  const st = PREQ[no];
+  const eta = preqEta(no);
   const etaT = eta ? (eta.late ? ' · 곧 완료(마무리 중)' : ` · <b>${eta.upper ? '늦어도 ' : '예상 완료 '}${esc(eta.t)}쯤</b>${eta.upper ? ' 완료' : ''}`) : '';
-  const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))}${etaT} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 시작하면 정확한 완료 시각으로 바뀌고, 끝나면 여기서 내려받습니다' : '평일 9~18시 매시 7분 PC 작업이 차례로 만듭니다'}</span>` :
+  return !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))}${etaT} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 시작하면 정확한 완료 시각으로 바뀌고, 끝나면 여기서 내려받습니다' : '평일 9~18시 매시 7분 PC 작업이 차례로 만듭니다'}</span>` :
     st.state === 'working' ? `<span class="mkst">만드는 중…${st.startedAt ? ' ' + esc(String(st.startedAt).slice(11)) + ' 시작' : ''}${etaT}</span>` :
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')}${st.ver ? ` · <b>최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : ''} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
     st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
-  const busy = st && (st.state === 'queued' || st.state === 'working');
-  const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
-  const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
-  const dls = preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')} 받기</button>`).join('')}</div>` : '';
-  return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
-    ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}${dls}</div>`;
+}
+const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
+function preqDls(no){
+  const st = PREQ[no]; const busy = st && (st.state === 'queued' || st.state === 'working');
+  return preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')} 받기</button>`).join('')}</div>` : '';
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
@@ -829,14 +837,14 @@ function renderPipe(){
   rows.bid.sort((a,b)=>dlk(a.x.deadline).localeCompare(dlk(b.x.deadline)));
   const opp = o => `<button type="button" class="linkish" data-opp="${esc(o.id)}">${esc(o.title)}</button>`;
   const li = {
-    plan: ({o,x}) => `<li><div class="st"><span class="tag plan">발주계획</span>${itemNew(x)}<span><b>${esc(ym(x.planMonth))}</b> 발주 예정</span></div>
+    plan: ({o,x}) => `<li data-no="${esc(x.no||'')}"><div class="st"><span class="tag plan">발주계획</span>${itemNew(x)}<span><b>${esc(ym(x.planMonth))}</b> 발주 예정</span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${x.method?' · '+esc(x.method):''} · ${opp(o)}</span>${prevLine(x)}</div></li>`,
-    pre: ({o,x,st}) => `<li><div class="st">${itemNew(x)}${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
+    pre: ({o,x,st}) => `<li data-no="${esc(x.no||'')}"><div class="st">${itemNew(x)}${mkTag(x.no)}${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)} · ${opp(o)}</span>
       ${vrbLine(x, o)}${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
-    bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span>${itemNew(x)}<span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
+    bid: ({o,x}) => `<li data-no="${esc(x.no||'')}"><div class="st"><span class="tag ok">입찰공고</span>${itemNew(x)}${mkTag(x.no)}<span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
       ${vrbLine(x, o)}${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
@@ -856,7 +864,81 @@ function renderPipe(){
     <div class="pipe" role="tablist">${TAB.map(([k,l])=>`<button type="button" role="tab" data-pipe="${k}" aria-selected="${String(k===pipeTab)}" class="${k}"><span>${l}</span><b>${rows[k].length}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     <p class="small muted">${esc(cur[2])}</p>${body}${qualBox()}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
+  renderMine();
 }
+/* 제안서 작성 사업: 「제안서·발표자료 만들기」를 누른 사업(PREQ)을 나라장터 탭 맨 위에 따로 모아 진행 상태·마감·최신본 받기를 한곳에서 본다 */
+const MK_LBL = {queued: '요청됨', working: '만드는 중', done: '완료', error: '실패'};
+const mkFail = st => /미통과/.test(String(st.note || '') + String(st.msg || ''));
+function mkTag(no){
+  const st = PREQ[no]; if(!st || !MK_LBL[st.state]) return '';
+  const cls = st.state === 'done' ? (mkFail(st) ? '' : ' done') : st.state === 'error' ? ' err' : '';
+  return `<span class="tag mk${cls}">제안서 ${st.state === 'done' && mkFail(st) ? '검수 미통과본' : MK_LBL[st.state]}</span>`;
+}
+function mineFind(no){
+  let x = null, o = null, nx = null, no2 = null;
+  (D.opportunities || []).forEach(op => items(op).forEach(it => {
+    if(it.no === no){ x = it; o = op; }
+    if(it.preNo === no && isBid(it)){ nx = it; no2 = op; }
+  }));
+  if(nx){ x = nx; o = no2; }   // 사전규격에서 요청했는데 본공고가 나왔으면 본공고를 따른다
+  return {x, o, follow: !!nx};
+}
+function mineStage(r, f){
+  const x = f.x;
+  if(!x) return {live: false, when: `<span class="tag">레이더 목록에서 빠짐</span>${r.deadline ? `<span>마감 ${esc(md(r.deadline))}</span>` : ''}`, key: dlk(r.deadline || '')};
+  if(x.awarded) return {live: false, when: `<span class="tag">선정 완료</span><span>${esc(x.awarded.winner || '')}</span>`, key: ''};
+  if(isBid(x)){
+    const open = !!x.deadline && dlk(x.deadline) >= NOWK;
+    return {live: open && !isOut(x), tab: 'bid', when: `<span class="tag ok">입찰공고${f.follow ? '(본공고)' : ''}</span><span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline) <= 7 ? 'hot' : ''}">${ddTxt(x.deadline)}</span></span>`, key: dlk(x.deadline)};
+  }
+  if(isPre(x)){
+    const ps = preState(x);
+    if(ps === 'opinion') return {live: true, tab: 'pre', when: `<span class="tag pre">사전규격 의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`, key: dlk(x.opinionDeadline)};
+    if(ps === 'waiting') return {live: true, tab: 'pre', when: `<span class="tag">본공고 대기</span><span>사전규격 의견 마감 ${esc(md(x.opinionDeadline))}</span>`, key: '9' + dlk(x.opinionDeadline)};
+    return {live: false, when: `<span class="tag">본공고 없이 종료</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`, key: ''};
+  }
+  return {live: itemLive(x), tab: 'plan', when: `<span class="tag plan">발주계획</span><span><b>${esc(ym(x.planMonth))}</b> 발주 예정</span>`, key: '8' + String(x.planMonth || '')};
+}
+function renderMine(){
+  const el = $('#mypanel'); if(!el) return;
+  const R = Object.values(PREQ).filter(r => r && r.no && MK_LBL[r.state]);
+  if(!R.length){ el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  const rank = {working: 0, queued: 1, done: 2, error: 3};
+  const rows = R.map(r => { const f = mineFind(r.no); return {r, f, g: mineStage(r, f)}; });
+  const act = rows.filter(v => v.g.live || v.r.state === 'queued' || v.r.state === 'working')
+    .sort((a, b) => rank[a.r.state] - rank[b.r.state] || String(a.g.key).localeCompare(String(b.g.key)));
+  const past = rows.filter(v => !act.includes(v)).sort((a, b) => String(b.r.at || '').localeCompare(String(a.r.at || '')));
+  const folder = d => String(d || '').split(/[\\/]/).filter(Boolean).pop() || '';
+  const li = ({r, f, g}) => {
+    const x = f.x, st = r;
+    const title = (x && x.title) || r.title || r.no, org = (x && x.org) || r.org || '', budget = (x && x.budget) || r.budget || '';
+    const ver = st.state === 'done' || st.state === 'error' ? [st.ver ? `최신본 <b>${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : (st.doneAt ? `완료 <b>${esc(st.doneAt)}</b>` : ''),
+      st.pages ? `제안서 <b class="num">${esc(st.pages.proposal || '?')}</b>쪽 · 발표 <b class="num">${esc(st.pages.deck || '?')}</b>쪽` : '', st.flags != null ? `확인할 곳 <b class="num">${esc(st.flags)}</b>곳` : ''].filter(Boolean).join(' · ') : '';
+    const go = g.live && g.tab && x ? `<button type="button" class="linkish" data-mygo="${esc(x.no)}" data-mytab="${g.tab}">아래 목록에서 보기(VRB·투찰가·제안요청서)</button>` : '';
+    return `<li><div class="st">${mkTag(r.no)}${g.when}</div>
+      <div class="bd">${x && x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(title)}</a>` : `<b>${esc(title)}</b>`}
+      <span class="nmeta">${esc(org)}${budget ? ` · <b class="num">${esc(budget)}</b>` : ''} · 공고번호 ${esc(r.no)}${f.follow ? ` → 본공고 ${esc(x.no)}` : ''}${r.at ? ` · 요청 ${esc(String(r.at).slice(5, 16).replace('-', '/'))}` : ''}</span>
+      ${st.state === 'queued' || st.state === 'working' ? `<div>${preqStTxt(r.no)}</div>` : ''}
+      ${st.state === 'error' ? `<span class="nmeta">${esc(st.msg || '')}</span>` : ''}
+      ${ver ? `<span class="myver">${ver}</span>` : ''}${st.note ? `<span class="nmeta">${esc(st.note)}</span>` : ''}
+      ${st.outDir ? `<span class="mydir" title="${esc(st.outDir)}">PC 결과 폴더 · ${esc(folder(st.outDir))}</span>` : ''}
+      ${preqDls(r.no)}${go ? `<div class="myact">${go}</div>` : ''}</div></li>`;
+  };
+  const c = s => R.filter(r => r.state === s).length;
+  el.innerHTML = `<div class="sec-head"><h2>제안서 작성 사업 <em>${R.length}</em>건</h2>
+    <p class="muted">「제안서·발표자료 만들기」를 누른 사업을 따로 모았습니다. 제작 상태·마감·최신본 받기를 여기서 한 번에 봅니다. 대화에서 고친 수정본도 PC 결과 폴더에 저장되면 매시 7분에 최신본으로 바뀝니다.</p></div>
+    <div class="mysum">${['working', 'queued', 'done', 'error'].filter(s => c(s)).map(s => `<span>${MK_LBL[s]} <b class="num">${c(s)}</b>건</span>`).join('')}<span>진행 중 사업 <b class="num">${act.length}</b>건 · 마감·종료 <b class="num">${past.length}</b>건</span></div>
+    ${act.length ? `<ul class="prl">${act.map(li).join('')}</ul>` : '<p class="muted small">마감 전인 제안서 작성 사업이 없습니다.</p>'}
+    ${past.length ? `<details class="prl"><summary>마감·종료된 제안서 작성 사업 ${past.length}건</summary><ul class="prl">${past.map(li).join('')}</ul></details>` : ''}`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-mygo]'); if(!b) return; e.preventDefault();
+  pipeTab = b.dataset.mytab; store('pipe', pipeTab); renderPipe();
+  const li = document.querySelector(`#prepanel li[data-no="${CSS.escape(b.dataset.mygo)}"]`); if(!li) return;
+  const dt = li.closest('details'); if(dt) dt.open = true;
+  li.scrollIntoView({behavior: 'smooth', block: 'start'}); li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash');
+});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-tabgo]'); if(b){e.preventDefault(); if(b.dataset.pipego){ pipeTab = b.dataset.pipego; store('pipe', pipeTab); if(READY.has('g2b')) renderPipe(); } show(b.dataset.tabgo);}});
 /* 한국도로공사(주요 고객): 자체 전자조달 공고가 나라장터에 연계된 것을 공고기관으로 모아 사업 단위(발주계획→사전규격→입찰공고)로 보여 준다 */
 let exTab = load('extab', 'bid');

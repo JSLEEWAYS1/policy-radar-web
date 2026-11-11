@@ -124,9 +124,13 @@ async function proposalStore() {
   return {
     ok: true, canWrite: me?.status === 'approved',
     list: async () => {
-      let r = await T().select('no, state, at, result, dl').order('at', {ascending: false}).limit(300);
+      let r = await T().select('no, state, at, req, result, dl').order('at', {ascending: false}).limit(300);
       if (r.error) r = await T().select('no, state, at, result').order('at', {ascending: false}).limit(300);  // dl 칸 추가 전(proposal_fast.sql 실행 전)
-      return (chk(r) || []).map(x => Object.assign({}, x.result || {}, {no: x.no, state: x.state, at: kst(x.at), dl: Array.isArray(x.dl) ? x.dl : null}));
+      // req(사업명·발주처·마감 — 요청할 때 남긴 값)는 레이더 목록에서 빠진 사업도 「제안서 작성 사업」 칸에 이름이 보이게 함께 읽는다
+      const REQ = ['title', 'org', 'opp', 'stage', 'budget', 'deadline'];
+      return (chk(r) || []).map(x => { const q = x.req && typeof x.req === 'object' ? x.req : {}; const base = {};
+        REQ.forEach(k => { if (typeof q[k] === 'string') base[k] = q[k]; });
+        return Object.assign(base, x.result || {}, {no: x.no, state: x.state, at: kst(x.at), dl: Array.isArray(x.dl) ? x.dl : null}); });
     },
     request: async (no, req) => chk(await T().upsert({no, req, state: 'queued'}, {onConflict: 'no'})),
     // 초안 내려받기: 비공개 파일함 proposal-out의 5분짜리 서명 주소(파일 이름은 한글 원래 이름으로 저장되게)

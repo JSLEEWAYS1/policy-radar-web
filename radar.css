@@ -458,6 +458,19 @@ b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(
 .mkst.err{color:var(--mark-ink)}
 .mkdl{margin-top:2px}
 .mkdl .dbtn{cursor:pointer;font:inherit;font-size:.84rem}
+/* 제안서 작성 사업(2026-11-11): 「제안서·발표자료 만들기」를 누른 사업을 나라장터 탭 맨 위에 따로 모은다 */
+.mypanel{display:grid;gap:14px;border-color:color-mix(in srgb,var(--mark) 35%,var(--line))}
+.mypanel .mysum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.86rem;color:var(--ink2)}
+.mypanel .myver{font-size:.84rem;color:var(--ink2)}
+.mypanel .myver b{color:var(--ink)}
+.mypanel .mydir{font-family:var(--f-mono);font-size:.76rem;color:var(--ink3);overflow-wrap:anywhere}
+.mypanel .myact{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.mypanel .myact .linkish{font-size:.84rem}
+.tag.mk{background:color-mix(in srgb,var(--mark) 12%,var(--surface));color:var(--mark-ink)}
+.tag.mk.done{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
+.tag.mk.err{background:var(--sunk);color:var(--ink2)}
+.prl>li.flash{animation:flash 1.4s ease;border-radius:10px}
+.prl>li{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
 b.pt{font-weight:700;white-space:nowrap}
 b.pt.yes{color:var(--mark-ink)}
 b.pt.no{color:var(--ink)}
