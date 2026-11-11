@@ -346,6 +346,315 @@ function toxicBlock(r){
   const cnt = TXL.map(l => [l, t.filter(c => c.level === l).length]).filter(v => v[1]).map(v => `${v[0]} <b class="num">${v[1]}</b>`).join(' · ');
   return `<details class="toxic"><summary><span class="tx-badge">독소조항 <b class="num">${t.length}</b>건</span><span class="tx-sum">${cnt} — ${esc(t[0].title)}${t.length > 1 ? ' 외' : ''}</span></summary><ol>${t.map(c => `<li><div class="tx-h"><span class="tx-lv l${TXL.indexOf(c.level)}">${esc(c.level)}</span><b>${esc(c.title)}</b>${c.where ? `<span class="tx-w">${esc(c.where)}</span>` : ''}</div>${c.text ? `<p class="tx-t">${hl(c.text)}</p>` : ''}<p><span class="tx-k">불리한 이유</span>${hl(c.why)}</p><p><span class="tx-k">의견·대응</span>${hl(c.ask)}</p></li>`).join('')}</ol><span class="nmeta">제안요청서에서 웨이즈원에 불리한 조항을 골라 적었습니다. 사전규격 의견 등록은 팀이 나라장터에서 직접 합니다.</span></details>`;
 }
+/* VRB(수주 전 가치평가) — 사용자 양식(2026-11-11 「VRB」 엑셀의 「수주 전 가치평가」·「가치평가_상세」 시트)을 그대로 따른다.
+   원가 9항목(인건비=직급표준 단가×M/M, 직접 참여인원 공통비=인건비의 50%) + 영업·마케팅비(부문 공통비=지분의 5%) + 일반관리비(전사공통비=지분의 12%).
+   적정 참여인원: 제안요청서의 상주 인원·관제 시간·현장설비를 먼저 보고, 사업 유형별 「매출/MM」로 사업비가 감당하는 M/M를 셈해 큰 쪽을 쓴다.
+   모든 수치는 내부 검토용 추정이며, 화면에서 M/M·금액·투찰률·지분을 고치면 그 사람의 브라우저에만 저장된다 */
+const VRB_RATE = {임원: 12000000, 수석: 8700000, 책임: 6000000, 주임: 4000000, 연구원: 4000000, 계약직: 3000000, 파견: 3000000, 용역: 4000000};
+const VRB_GR = Object.keys(VRB_RATE);
+const VRB_TYPE = {
+  om: {n: '운영·유지관리', rpm: 8e6, lab: 0.80},
+  si: {n: '구축·개발', rpm: 9e6, lab: 0.65},
+  data: {n: 'DB 구축·조사', rpm: 7.5e6, lab: 0.75},
+  pilot: {n: '실증·서비스 운영', rpm: 8e6, lab: 0.75},
+  study: {n: '연구·계획', rpm: 10e6, lab: 0.85}
+};
+const VRB_METRO = /서울|경기|인천|IFEZ|성남|수원|고양|용인|부천|안산|안양|남양주|화성|평택|의정부|시흥|파주|김포|광명|군포|하남|오산|이천|안성|의왕|양주|구리|포천|여주|동두천|과천|가평|양평|연천|분당|판교/;
+function vrbMonths(p){
+  // 사업기간 글 → 개월. 「N개월」·「N일」·날짜 범위를 모두 보고 가장 긴 것을 쓴다(「(1차분) 2개월」 같은 부분 기간보다 전체 기간)
+  const s = String(p || '').replace(/[～∼〜]/g, '~');
+  if(/목표연도|기준연도/.test(s)) return 12;
+  const C = [];
+  [...s.matchAll(/(\d+(?:\.\d+)?)\s*개월/g)].forEach(m => C.push(+m[1]));
+  [...s.matchAll(/(?:로부터|부터)\s*(\d{2,4})\s*일/g)].forEach(m => C.push(Math.round(+m[1] / 30.4 * 10) / 10));
+  let m = s.match(/\d{4}\s*년\s*(\d)\s*년/) || s.match(/(?:^|[^\d])(\d)\s*년(?:간)?(?:\s|$|\)|,)/);
+  if(m && !/\d{4}\s*[.년]\s*\d{1,2}\s*[.월]/.test(s)) C.push(+m[1] * 12);
+  const ys = s.match(/(\d{4})\s*~\s*(\d{4})/); if(ys) C.push((+ys[2] - +ys[1] + 1) * 12);
+  const DR = /(\d{4})\s*[.년-]\s*(\d{1,2})(?:\s*[.월-]\s*(\d{1,2}))?/g;
+  const dt = (y, mo, d) => Date.UTC(y, mo - 1, d || 1);
+  const ti = s.indexOf('~');
+  if(ti >= 0){
+    const L = [...s.slice(0, ti).matchAll(DR)], R = [...s.slice(ti + 1).matchAll(DR)];
+    const now = Date.now() + 9 * 3600e3;
+    let st = L.length ? dt(+L[L.length - 1][1], +L[L.length - 1][2], L[L.length - 1][3] ? +L[L.length - 1][3] : 1) : now + 45 * 864e5;
+    let en = null;
+    if(R.length) en = dt(+R[0][1], +R[0][2], R[0][3] ? +R[0][3] : 28);
+    else { const e = s.slice(ti + 1).match(/^\s*(\d{1,2})\s*[.월]\s*(\d{1,2})?/); if(e && L.length) en = dt(+L[L.length - 1][1], +e[1], e[2] ? +e[2] : 28); }
+    if(en && en > st) C.push(Math.max(1, Math.round((en - st + 864e5) / 864e5 / 30.4 * 10) / 10));
+  } else if(/까지/.test(s)){
+    const R = [...s.matchAll(DR)]; if(R.length){ const en = dt(+R[R.length - 1][1], +R[R.length - 1][2], R[R.length - 1][3] ? +R[R.length - 1][3] : 28); const st = Date.now() + 9 * 3600e3 + 45 * 864e5; if(en > st) C.push(Math.max(1, Math.round((en - st) / 864e5 / 30.4 * 10) / 10)); }
+  }
+  const v = C.length ? Math.max(...C) : 12;
+  return Math.max(1, Math.min(60, Math.round(v * 10) / 10));
+}
+function vrbType(x){
+  const r = x.rfp || {}; const t = String(x.title || ''); const all = t + ' ' + (r.overview || '');
+  if(/ISP|ISMP|BPR|기본계획|실시설계|연구\s*용역|방안\s*연구|규격.*연구|연구$|전략\s*수립|타당성|계획\s*고도화|토지적성평가|재해취약성|매뉴얼\s*수립|분석\s*용역/.test(t)) return 'study';
+  if(/자율주행.*(운영|실증|서비스)|DRT|실증사업|시범운행|자율주행버스/.test(all) && !/유지\s*[,·]?\s*(보수|관리)/.test(t)) return 'pilot';
+  if(/DB\s*(구축|현행화)|데이터\s*구축|전산화|도로대장|조사|측량|정밀(도로)?지도\s*구축|수치지도|성과품/.test(t) && !/유지\s*[,·]?\s*(보수|관리)/.test(t)) return 'data';
+  if(/유지\s*[,·]?\s*(보수|관리)|운영|위탁|운용/.test(t)) return 'om';
+  if(/구축|개발|고도화|플랫폼|시스템|도입/.test(t)) return 'si';
+  return 'om';
+}
+function vrbItem(no){
+  for(const o of (D.opportunities || [])) for(const x of items(o)) if(x.no === no) return {o, x};
+  return null;
+}
+function vrbCalc(x, o, ov){
+  ov = ov || {};
+  const r = x.rfp || {}; const bp = basePrice(x);
+  if(!bp) return null;
+  const E = bidEst(x, o);
+  const text = [x.title, r.overview, r.budget, (r.scope || []).join(' '), (r.qualification || []).join(' '), (r.toxic || []).map(c => c.title + ' ' + (c.text || '')).join(' ')].join(' ').replace(/상주(시|군)/g, '○○$1');
+  const ty = ov.type && VRB_TYPE[ov.type] ? ov.type : vrbType(x); const T = VRB_TYPE[ty];
+  const months = ov.months > 0 ? +ov.months : vrbMonths(r.period);
+  const why = [];
+  // 매출(웨이즈원 몫, 부가세 별도)
+  let ratio, rWhy;
+  if(E.method === 'nego'){ ratio = (E.lo + E.hi) / 2; rWhy = `협상에 의한 계약 — 「적정 투찰」 범위 가운데(${pctT(ratio)})`; }
+  else if(E.method === 'qual'){ ratio = 0.88; rWhy = '적격심사 — 낙찰하한율 바로 위(88%) 가정'; }
+  else { ratio = 0.95; rWhy = '계약 방식 미확인 — 추정가격의 95% 가정'; }
+  if(ov.ratio > 0) { ratio = ov.ratio / 100; rWhy = '직접 입력'; }
+  const gaps = ((x.elig || {}).gaps || []).join(' ');
+  let share = 1, sWhy = '단독 수행 가정';
+  if(/공동수급|컨소시엄|구성원|분담|협력사/.test(gaps)){ share = /차량|제작자|운수|여객/.test(gaps) ? 0.5 : 0.7; sWhy = `부족 자격을 공동수급으로 보완 — 웨이즈원 지분 ${Math.round(share * 100)}% 가정`; }
+  if(ov.share > 0){ share = ov.share / 100; sWhy = '직접 입력'; }
+  const total = Math.round(bp.est * ratio), A = Math.round(total * share);
+  // 적정 참여인원
+  const remote = !VRB_METRO.test(String(x.org || ''));
+  const h24 = /24\s*시간|24\s*[×x]\s*365|365일\s*24|무중단\s*관제|24시간\s*운영/.test(text);
+  let res = 0, resWhy = '';
+  const tx2 = text.replace(/비상주/g, '');
+  let m = tx2.match(/상주\s*(?:유지보수\s*|기술\s*)?(?:요원|인력|인원|기술요원|기술자|근무자|직원|운영)?\s*(?:을|를|은|는)?\s*[^0-9명인.,]{0,16}?(\d{1,2})\s*(?:명|인)(?!\s*\d)/) || tx2.match(/(\d{1,2})\s*(?:명|인)\s*(?:이상\s*)?[^0-9.,]{0,10}?상주/);
+  if(/\d\s*시간\s*상주|주\s*\d\s*회\s*(?:이상\s*)?[가-힣]{0,6}\s*상주|상주\s*(점검|지원)/.test(tx2) && !(m && +m[1] >= 1 && /상주\s*(?:인력|요원|인원)/.test(m[0]))){ res = 0; resWhy = '부분 상주(시간제·주 1회) — 전일 상주 없음'; }
+  else if(m){ res = +m[1]; resWhy = `제안요청서 「${m[0].replace(/\s+/g, ' ').trim()}」`; }
+  else if(/상주/.test(tx2)){ res = h24 ? 3 : 1; resWhy = h24 ? '상주 인원 미기재 · 24시간 운영 — 3명(교대) 가정' : '상주 인원 미기재 — 1명 가정'; }
+  if(ov.res >= 0 && ov.res !== undefined && ov.res !== '') { res = +ov.res; resWhy = '직접 입력'; }
+  const field = /현장설비|현장\s*설비|CCTV|VMS|RSE|RSU|OBU|CVIB|신호제어기|함체|BIT|검지기|정보통신공사|현장\s*점검|현장\s*조사|MMS|측량/.test(text);
+  const lift = /고소작업차|사다리차|크레인|스카이차/.test(text);
+  const parts = /부품|예비품|예비장비|소모품|워런티|라이선스|H\/?W|서버|스토리지|장비/.test(text);
+  const partsAll = /부품.{0,12}일체|일체.{0,12}부품|라이선스.{0,10}일체/.test(text);
+  const confirm = /확약서|기술지원\s*협약서|기술지원\s*확약/.test(text);
+  const hwBuy = ty === 'si' && /H\/?W|서버|장비\s*(도입|구매|설치)|스토리지|구매\s*설치/.test(text);
+  const lab = ty === 'si' && !hwBuy ? 0.85 : T.lab;   // 장비 도입이 없는 구축은 사업비 대부분이 인력
+  const mmBudget = A * lab / T.rpm;
+  const S = [];
+  const pmG = A >= 10e8 ? '수석' : '책임';
+  const small = A < 1.5e8;
+  const pmF = small ? (ty === 'study' ? 0.3 : 0.1) : {om: 0.25, si: A >= 5e8 ? 1 : 0.5, data: 0.3, pilot: 0.5, study: 0.6}[ty];
+  S.push({k: 'pm', role: '사업관리(PM)', g: ty === 'study' ? '수석' : pmG, mm: pmF * months, note: `${months}개월 × ${pmF} 투입`});
+  if(['om', 'si', 'pilot'].includes(ty) && A >= 3e8) S.push({k: 'sup', role: '기술지원·품질(비상주)', g: '수석', mm: 0.05 * months, note: '월 1일 수준'});
+  for(let i = 0; i < res; i++) S.push({k: 'res' + i, role: res >= 3 && i === 0 ? '상주 책임(현장 총괄)' : `상주 ${ty === 'pilot' ? '관제·운영' : '엔지니어'}`, g: res >= 3 && i === 0 ? '책임' : '주임', mm: months, note: `${months}개월 상주`});
+  const fixed = S.reduce((a, s) => a + s.mm, 0);
+  const minRest = {om: field ? 0.5 * months : (res ? 0 : 0.5 * months), si: 1 * months, data: 1 * months, pilot: 1 * months, study: 0.5 * months}[ty];
+  const rest = Math.max(Math.min(minRest, mmBudget * 0.6), mmBudget - fixed);
+  const SPL = {
+    om: [[field ? '현장 점검·장애출동(2인 1조)' : '유지보수·장애대응 엔지니어', field ? '연구원' : '주임', 1]],
+    si: [['설계·개발', '책임', 0.3], ['개발·시험', '연구원', 0.7]],
+    data: [[field ? '현장조사·데이터 제작' : '데이터 제작', '계약직', 0.6], ['데이터 검수', '연구원', 0.4]],
+    pilot: [['관제·운영요원', '계약직', 0.7], ['플랫폼 운영', '주임', 0.3]],
+    study: [['조사·분석', '책임', 0.5], ['연구 보조', '연구원', 0.5]]
+  }[ty];
+  if(rest > 0.05) SPL.forEach(([role, g, f], i) => S.push({k: 'r' + i, role, g, mm: rest * f, note: i === 0 ? `사업비가 감당하는 M/M에서 위 인력을 뺀 나머지` : ''}));
+  S.forEach(s => { const o2 = (ov.staff || {})[s.k]; if(o2){ if(o2.mm !== undefined && o2.mm !== '') s.mm = +o2.mm; if(o2.g && VRB_RATE[o2.g]) s.g = o2.g; s.edited = true; } s.mm = Math.round(s.mm * 100) / 100; s.rate = VRB_RATE[s.g]; s.amt = Math.round(s.mm * s.rate); });
+  (ov.extra || []).forEach((e, i) => { if(e && e.mm > 0 && VRB_RATE[e.g]) S.push({k: 'x' + i, role: e.role || '추가 인력', g: e.g, mm: +e.mm, rate: VRB_RATE[e.g], amt: Math.round(+e.mm * VRB_RATE[e.g]), note: '직접 추가', edited: true}); });
+  const MM = S.reduce((a, s) => a + s.mm, 0), labor = S.reduce((a, s) => a + s.amt, 0);
+  // 그 밖의 수행원가
+  const visits = res ? 3 + Math.round(months * 0.5) : months + 3, ppl = 2;
+  const C = {};
+  const add = (k, label, v, note) => { C[k] = C[k] || {label, rows: []}; C[k].rows.push({label: note.split(' — ')[0], v: Math.round(v), note}); };
+  if(confirm) add('out', '외주비', A * 0.08, '제조사·공식 파트너 유상 기술지원(확약서 발급 조건) — 매출의 8% 가정');
+  if(field && ty === 'om' && res === 0 && rest > 2 * months) add('out', '외주비', 0, '현장설비 유지보수 일부 외주 시 여기에 입력');
+  if(ty === 'om' && (parts || field)) add('buy', '구매비', A * (partsAll ? 0.12 : 0.06), `부품·소모품·라이선스 갱신 예비비 — 매출의 ${partsAll ? 12 : 6}%${partsAll ? '(「일체 포함」 조항)' : ''} 가정`);
+  if(hwBuy) add('buy', '구매비', A * 0.2, 'HW·SW 도입품 — 매출의 20% 가정(제안요청서 장비 목록 확인)');
+  if(ty === 'data') add('buy', '구매비', A * 0.02, '저장장치·소모품 — 매출의 2% 가정');
+  if(lift) add('rent', '임차료', months * 600000, `고소작업차·사다리차 임차 — 월 1회 × 60만원 × ${months}개월`);
+  if(remote && res) add('rent', '임차료', res * months * 700000, `상주 인력 숙소 — ${res}명 × 월 70만원 × ${months}개월`);
+  if(ty === 'data' && field) add('rent', '임차료', months * 600000, `현장조사 차량 렌트 — 월 60만원 × ${months}개월`);
+  if(ty === 'study') add('adv', '자문비', 3 * 500000, '전문가 자문 3회 × 50만원');
+  add('trip', '회의비/출장비', visits * ppl * 35000 * (remote ? 2 : 1), `출장일비 — ${visits}회 × ${ppl}인 × ${remote ? '2일' : '1일'} × 3.5만원(보고회 3회${res ? '·본사 지원 방문' : '·월 1회 점검·보고'})`);
+  add('trip', '회의비/출장비', 3 * 200000, '착수·중간·완료 보고회 회의비 3회 × 20만원');
+  add('print', '인쇄비', ['si', 'study', 'data'].includes(ty) ? 1000000 : 500000, ['si', 'study', 'data'].includes(ty) ? '착수·중간·완료 보고서 인쇄' : '월간·완료 보고서 인쇄');
+  add('common', '직접 참여인원 공통비', labor * 0.5, '인건비의 50%(양식 고정값)');
+  if(remote) add('etc', '숙박/주유/주차/기타', visits * ppl * 60000, `숙박 — ${visits}회 × ${ppl}인 × 1박 6만원`);
+  add('etc', '숙박/주유/주차/기타', visits * (remote ? 110000 : 50000), `주유·톨비·주차 — ${visits}회 × ${remote ? '11만원' : '5만원'}`);
+  if(remote && res) add('etc', '숙박/주유/주차/기타', res * months * 2 * 80000, `상주 인력 귀향 교통비 — 월 2회 × 8만원`);
+  if(ty === 'data' && field){ const fd = Math.round(rest * 21 * 0.5); add('etc', '숙박/주유/주차/기타', fd * (remote ? 100000 : 40000), `현장조사 ${fd}인·일 × ${remote ? '숙박·주유 10만원' : '주유·주차 4만원'}`); }
+  const CO = ov.cost || {};
+  Object.keys(C).forEach(k => C[k].rows.forEach((row, i) => { const e = CO[k + i]; if(e !== undefined && e !== '' && !isNaN(+e)){ row.v = Math.round(+e); row.edited = true; } }));
+  const csum = k => C[k] ? C[k].rows.reduce((a, r) => a + r.v, 0) : 0;
+  const COST = [['labor', '1. 인건비', labor, '직급표준 테이블 적용'], ['out', '2. 외주비', csum('out'), ''], ['buy', '3. 구매비(재료, 전산용품 등)', csum('buy'), ''], ['rent', '4. 임차료', csum('rent'), '전용공간 별도 임차 시'], ['adv', '5. 자문비', csum('adv'), ''], ['trip', '6. 회의비/출장비', csum('trip'), ''], ['print', '7. 인쇄비', csum('print'), ''], ['common', '8. 직접 참여인원 공통비', csum('common'), '인건비의 50%'], ['etc', '9. 숙박/주유/주차/기타(톨비 등)', csum('etc'), '']];
+  const B = COST.reduce((a, c) => a + c[2], 0), G = A - B;
+  // 영업·마케팅비, 일반관리비
+  const nego = E.method === 'nego' || /협상|제안서|발표/.test(String(r.evaluation || '') + (r.evalMode || ''));
+  const pres = /발표/.test(String(r.evalMode || '') + (r.evalDetail || ''));
+  const SM = [
+    ['pre', '1. 수주 사전 활동(영업/마케팅/기획 등)', nego ? 0.1 * VRB_RATE.임원 + 0.3 * VRB_RATE.책임 : 0.1 * VRB_RATE.책임, nego ? '임원 0.1·책임 0.3 M/M' : '책임 0.1 M/M(가격 입찰)'],
+    ['doc', '2. 제안서/결과보고서 작성비', nego ? 0.3 * VRB_RATE.책임 + 0.5 * VRB_RATE.연구원 : 0, nego ? '책임 0.3·연구원 0.5 M/M(사내 제안서 자동작성 도구 쓰면 줄어듦)' : '가격 입찰 — 없음'],
+    ['dsn', '3. 제안서 디자인비', pres ? 1500000 : 0, pres ? '발표평가 — 외주 디자인 150만원 가정' : ''],
+    ['div', '4. 부문/부서 공통비', A * 0.05, '지분의 5%'],
+    ['oth', '5. 기타', 0, '']
+  ].map(([k, l, v, n]) => { const e = CO['s_' + k]; return [k, l, (e !== undefined && e !== '' && !isNaN(+e)) ? Math.round(+e) : Math.round(v), n]; });
+  const Ssum = SM.reduce((a, c) => a + c[2], 0);
+  const GA = [['corp', '1. 전사공통비 등', Math.round(A * 0.12), '지분의 12%'], ['oth2', '2. 기타', 0, '']];
+  const Gsum = GA.reduce((a, c) => a + c[2], 0);
+  const TOT = B + Ssum + Gsum, OP = A - TOT, opr = A ? OP / A : 0;
+  // 의결 권고
+  const el = (x.elig || {}).verdict;
+  let dec, dlv;
+  if(el === 'no'){ dec = '참가자격 미달 — 공동수급으로도 보완하기 어려움'; dlv = 3; }
+  else if(opr >= 0.10){ dec = '입찰 참여 권고'; dlv = 0; }
+  else if(opr >= 0.03){ dec = '참여 검토 — 원가 관리 조건'; dlv = 1; }
+  else if(opr >= 0){ dec = '조건부 참여 — 전략적 가치가 있을 때만'; dlv = 2; }
+  else { dec = '참여 재검토 — 손실 예상'; dlv = 3; }
+  return {x, o, ty, T, lab, months, ratio, rWhy, share, sWhy, total, A, bp, E, remote, h24, res, resWhy, field, lift, confirm, mmBudget, S, MM, labor, C, COST, B, G, SM, Ssum, GA, Gsum, TOT, OP, opr, dec, dlv, nego, pres};
+}
+function vrbPoints(V){
+  const {x, o, E} = V; const r = x.rfp || {}; const p = x.prev || {};
+  const won = v => eokT(v) || '0원';
+  const P = [];
+  P.push(`예상 계약 ${won(V.total)}(${esc(V.bp.src)}의 ${pctT(V.ratio)}) 중 웨이즈원 몫 ${won(V.A)}. 매출이익 ${won(V.G)}(${pctT(V.A ? V.G / V.A : 0)}), 영업이익 ${won(V.OP)}(${pctT(V.opr)}).` + (p.amt ? ` 전차 계약 ${won(p.amt)}(${esc(p.winner || '')}, 부가세 포함).` : ''));
+  const prods = (o.products || []).slice(0, 4).join('·');
+  P.push(`${prods ? `웨이즈원 ${esc(prods)} 적용. ` : ''}${esc(String(r.fit || '').split(/(?<=다\.)\s/)[0] || '제안요청서 「웨이즈원 관점」 참고.')}`);
+  const org = String(x.org || '').replace(/.*수요:\s*/, '').replace(/\)$/, '').split(/\s+/).pop() || '';
+  const tr = ((D.track || {}).items || []).filter(t => org && String(t.org || '').includes(org)).length;
+  P.push(`${tr ? `기존 고객(같은 기관 수행 실적 ${tr}건)` : '신규 고객'}${p.winner ? ` · 현 수행사 ${esc(p.winner)}${p.streak >= 2 ? ` ${p.streak}년 연속` : ''} — 수주하면 이 분야 진입·레퍼런스 확보` : ''}.`);
+  const tox = r.toxic || []; const hi = tox.filter(c => c.level === '상');
+  const R4 = [];
+  if(tox.length) R4.push(`독소조항 ${tox.length}건(상 ${hi.length}) — ${esc((hi[0] || tox[0]).title)}`);
+  if(((x.elig || {}).gaps || []).length) R4.push('부족 자격: ' + x.elig.gaps.map(esc).join(' · '));
+  R4.push(`경쟁강도 「${CLV[E.lv]}」(${E.why.slice(0, 2).map(esc).join(' · ')})`);
+  if(V.h24) R4.push('24시간·무중단 운영 — 야간·휴일 인력 부담');
+  if(V.res) R4.push(`상주 ${V.res}명(${esc(V.resWhy)})`);
+  P.push(R4.join(' / ') + '.');
+  const R5 = [];
+  ((x.elig || {}).gaps || []).forEach(g => R5.push(esc(g)));
+  if(V.confirm) R5.push('제조사·공식 파트너 기술지원 확약서 사전 확보');
+  if(x.stage === 'pre' && x.opinionDeadline && dlk(x.opinionDeadline) >= NOWK) R5.push(`사전규격 의견 등록(마감 ${esc(md(x.opinionDeadline))})${tox.length ? ' — 독소조항 개선 요청' : ''}`);
+  if(V.nego) R5.push(`제안서${V.pres ? '·발표자료' : ''} 준비${r.evalMode ? `(${esc(r.evalMode)})` : ''}`);
+  R5.push(`투입 인력 ${(Math.round(V.MM * 10) / 10)} M/M 확보(상주·현장 인력 지정)`);
+  P.push(R5.join(' / ') + '.');
+  return P;
+}
+function vrbHtml(V){
+  const {x} = V; const r = x.rfp || {};
+  const W = v => Math.round(v).toLocaleString();
+  const pc = v => V.A ? (v / V.A * 100).toFixed(1) + '%' : '-';
+  const ed = (k, v) => `<input class="vin" inputmode="numeric" data-vc="${k}" value="${Math.round(v)}" aria-label="금액(원)">`;
+  const staff = V.S.map(s => `<tr${s.edited ? ' class="ed"' : ''}><td>${esc(s.role)}</td><td><select data-vsg="${s.k}" aria-label="직급">${VRB_GR.map(g => `<option${g === s.g ? ' selected' : ''}>${g}</option>`).join('')}</select></td>
+    <td><input class="vin sm" inputmode="decimal" data-vsm="${s.k}" value="${s.mm}" aria-label="M/M"></td><td class="n">${W(s.rate)}</td><td class="n">${W(s.amt)}</td><td class="n">${pc(s.amt)}</td><td class="nt">${esc(s.note || '')}${s.mm && V.months ? ` · 약 ${Math.round(s.mm / V.months * 10) / 10}명` : ''}</td></tr>`).join('');
+  const crow = (k) => (V.C[k] ? V.C[k].rows : []).map((row, i) => `<tr${row.edited ? ' class="ed"' : ''}><td colspan="3">${esc(row.label)}</td><td></td><td class="n">${ed(k + i, row.v)}</td><td class="n">${pc(row.v)}</td><td class="nt">${esc(row.note.split(' — ').slice(1).join(' — ') || row.note)}</td></tr>`).join('');
+  const DEC = ['go', 'chk', 'cond', 'stop'][V.dlv];
+  const P = vrbPoints(V);
+  return `<div class="vrbsheet">
+  <div class="vh"><div><span class="eyebrow">VRB · Value Review Board</span><h2>(수주 전) 프로젝트 가치평가</h2></div>
+    <table class="vsign"><tr><th rowspan="2">결재</th><th>PM</th><th>사업본부장</th><th>CEO</th></tr><tr><td></td><td></td><td></td></tr></table></div>
+  <div class="vtop">
+    <dl class="vinfo">
+      <dt>○ 사업명</dt><dd><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a> <span class="tag ${x.stage === 'bid' ? 'ok' : 'pre'}">${x.stage === 'bid' ? '입찰공고' : '사전규격'}</span></dd>
+      <dt>○ 발주처</dt><dd>${esc(x.org || '')}</dd>
+      <dt>○ 내용</dt><dd>${esc(r.overview || '')}</dd>
+      <dt>○ 사업기간</dt><dd>${esc(r.period || '')} → <b class="num">${V.months}</b>개월로 계산 <input class="vin sm" inputmode="decimal" data-vk="months" value="${V.months}" aria-label="사업기간(개월)"></dd>
+      <dt>○ PM</dt><dd>미정 — ${esc(V.S[0].g)}급 지정 필요</dd>
+      <dt>○ 수행팀</dt><dd>${esc((V.o.products || []).slice(0, 3).join('·') || '해당 제품')} 담당 팀 · 사업 유형 <select data-vk="type" aria-label="사업 유형">${Object.entries(VRB_TYPE).map(([k, t]) => `<option value="${k}"${k === V.ty ? ' selected' : ''}>${t.n}</option>`).join('')}</select></dd>
+      <dt>○ 계약금액</dt><dd><b class="num">${W(V.total)}</b>원 (VAT 별도) — ${esc(V.bp.src)} ${W(V.bp.est)}원 × 투찰률 <input class="vin sm" inputmode="decimal" data-vk="ratio" value="${Math.round(V.ratio * 1000) / 10}" aria-label="투찰률(%)">% <span class="nt">(${esc(V.rWhy)})</span></dd>
+    </dl>
+    <div class="vstruct"><span class="kl">[계약 구조]</span><table><tr><th>구분</th><th>금액(원)</th><th>비중</th></tr>
+      <tr><td>총 계약 규모</td><td class="n">${W(V.total)}</td><td class="n">100%</td></tr>
+      <tr><td>웨이즈원</td><td class="n">${W(V.A)}</td><td class="n"><input class="vin sm" inputmode="decimal" data-vk="share" value="${Math.round(V.share * 100)}" aria-label="웨이즈원 지분(%)">%</td></tr></table>
+      <span class="nt">${esc(V.sWhy)}</span></div>
+  </div>
+  <div class="vdec ${DEC}"><span class="kl">의결 권고</span><b>${esc(V.dec)}</b><span>영업이익 <b class="num">${W(V.OP)}</b>원 (<b class="num">${pctT(V.opr)}</b>) · 총 실행비용 ${pctT(V.A ? V.TOT / V.A : 0)}</span></div>
+  <div class="vtbx"><table class="vtab">
+    <caption>(단위: 원 / VAT 별도)</caption>
+    <thead><tr><th colspan="2">구분</th><th>실행계획 금액</th><th>비율</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr class="hd"><td colspan="2">PJT 전체 매출액</td><td class="n">${W(V.total)}</td><td class="n">100%</td><td></td></tr>
+      <tr class="hd"><td colspan="2">PJT 당사 지분 (A)</td><td class="n"><b>${W(V.A)}</b></td><td class="n">${Math.round(V.share * 100)}%</td><td class="nt">아래 비율은 (A) 대비</td></tr>
+      ${V.COST.map((c, i) => `<tr>${i === 0 ? `<th rowspan="${V.COST.length + 1}" class="vg">1. 프로젝트<br>수행 원가</th>` : ''}<td>${c[1]}</td><td class="n">${W(c[2])}</td><td class="n">${pc(c[2])}</td><td class="nt">${esc(c[3])}</td></tr>`).join('')}
+      <tr class="sub"><td>소계 (B)</td><td class="n">${W(V.B)}</td><td class="n">${pc(V.B)}</td><td></td></tr>
+      <tr class="hd"><td colspan="2">매출 이익</td><td class="n"><b>${W(V.G)}</b></td><td class="n">${pc(V.G)}</td><td class="nt">=(A)-(B)</td></tr>
+      ${V.SM.map((c, i) => `<tr>${i === 0 ? `<th rowspan="${V.SM.length + 1}" class="vg">2. 영업/<br>마케팅비</th>` : ''}<td>${c[1]}</td><td class="n">${c[0] === 'div' ? W(c[2]) : ed('s_' + c[0], c[2])}</td><td class="n">${pc(c[2])}</td><td class="nt">${esc(c[3])}</td></tr>`).join('')}
+      <tr class="sub"><td>소계 (C)</td><td class="n">${W(V.Ssum)}</td><td class="n">${pc(V.Ssum)}</td><td></td></tr>
+      ${V.GA.map((c, i) => `<tr>${i === 0 ? `<th rowspan="${V.GA.length + 1}" class="vg">3. 일반<br>관리비</th>` : ''}<td>${c[1]}</td><td class="n">${W(c[2])}</td><td class="n">${pc(c[2])}</td><td class="nt">${esc(c[3])}</td></tr>`).join('')}
+      <tr class="sub"><td>소계 (D)</td><td class="n">${W(V.Gsum)}</td><td class="n">${pc(V.Gsum)}</td><td></td></tr>
+      <tr class="hd"><td colspan="2">총 실행비용 (E)</td><td class="n"><b>${W(V.TOT)}</b></td><td class="n">${pc(V.TOT)}</td><td class="nt">=(B)+(C)+(D)</td></tr>
+      <tr class="hd op ${V.OP < 0 ? 'neg' : ''}"><td colspan="2">영업 이익</td><td class="n"><b>${W(V.OP)}</b></td><td class="n"><b>${pc(V.OP)}</b></td><td class="nt">=(A)-(E)</td></tr>
+    </tbody></table></div>
+  <details class="rfp" open><summary>상세 원가 — 적정 참여인원 ${Math.round(V.MM * 10) / 10} M/M(약 ${Math.round(V.MM / V.months * 10) / 10}명 × ${V.months}개월)·부대비용</summary>
+    <p class="nmeta">사업 유형 「${esc(V.T.n)}」: 사업비가 감당하는 인력은 웨이즈원 몫 × 인력 비중 ${Math.round(V.lab * 100)}% ÷ 매출 ${W(V.T.rpm)}원/MM = <b class="num">${Math.round(V.mmBudget * 10) / 10}</b> M/M.상주 인원 <input class="vin sm" inputmode="numeric" data-vk="res" value="${V.res}" aria-label="상주 인원(명)">명${V.res ? `(${esc(V.resWhy)})` : ''}.${V.h24 ? ' 24시간 운영.' : ''}${V.field ? ' 현장설비 포함.' : ''}${V.remote ? ' 비수도권 — 출장·숙박 반영(본사 수도권 가정).' : ' 수도권 — 당일 출장(본사 수도권 가정).'} M/M·직급·금액을 고치면 바로 다시 계산합니다.</p>
+    <div class="vtbx"><table class="vtab det"><thead><tr><th>역할</th><th>직급</th><th>M/M</th><th>단가(월)</th><th>금액</th><th>비율</th><th>비고</th></tr></thead><tbody>
+      <tr class="sec"><td colspan="7">1. 인건비 (실투입 인력)</td></tr>${staff}
+      <tr class="sub"><td colspan="2">소계</td><td class="n">${Math.round(V.MM * 100) / 100}</td><td></td><td class="n">${W(V.labor)}</td><td class="n">${pc(V.labor)}</td><td><button type="button" class="linkish" data-vaddstaff>+ 인력 추가</button></td></tr>
+      ${['out', 'buy', 'rent', 'adv', 'trip', 'print', 'common', 'etc'].filter(k => V.C[k]).map(k => `<tr class="sec"><td colspan="7">${esc(V.COST.find(c => c[0] === k)[1])}</td></tr>${crow(k)}`).join('')}
+    </tbody></table></div>
+    <p class="nmeta">직급표준 단가(월): ${VRB_GR.map(g => `${g} ${W(VRB_RATE[g])}`).join(' · ')}. 양식대로 퇴직금·4대보험은 단가에 없고 「직접 참여인원 공통비(인건비의 50%)」로 봅니다.</p>
+  </details>
+  <div class="vchk"><table><thead><tr><th>의사결정을 위한 점검 포인트</th><th>점검 포인트를 고려한 의견</th></tr></thead><tbody>
+    ${['1. 재무적 가치는?', '2. 기술적 가치는? (기술확보, 기술개발 기회 등)', '3. 시장을 고려한 정성적 가치는? (고객확보, 협력체계 구성, 초기 시장 진입 등)', '4. 수주 시 고려해야 할 리스크 요소는?', '5. 수주를 위해 준비할 사항은?'].map((q, i) => `<tr><th>${q}</th><td>${P[i]}</td></tr>`).join('')}
+    <tr class="dec"><th>의결사항</th><td><b>${esc(V.dec)}</b></td></tr></tbody></table></div>
+  <p class="nmeta">내부 검토용 추정입니다. 인력·부대비용은 제안요청서 요약과 사업비로 어림했고, 고친 값은 이 브라우저에만 저장됩니다. 제출 전 실제 투입 계획으로 바꿔 넣으세요.</p>
+</div>`;
+}
+const vrbOv = no => load('vrb.' + no, {});
+function vrbLine(x, o){
+  if(!['pre', 'bid'].includes(x.stage) || x.awarded) return '';
+  const V = vrbCalc(x, o, vrbOv(x.no)); if(!V) return '';
+  const C = ['go', 'chk', 'cond', 'stop'][V.dlv];
+  return `<div class="vrbrow"><button type="button" class="btn vrbbtn" data-vrb="${esc(x.no)}">VRB</button><span class="nmeta">수주가치평가 — 영업이익 <b class="num vop ${C}">${pctT(V.opr)}</b>(${eokT(Math.abs(V.OP)) || '0원'}${V.OP < 0 ? ' 손실' : ''}) · 투입 ${Math.round(V.MM * 10) / 10} M/M · <b class="vdl ${C}">${esc(V.dec.split(' — ')[0])}</b></span></div>`;
+}
+let VRB_CUR = null;
+function vrbOpen(no){
+  const f = vrbItem(no); if(!f) return;
+  VRB_CUR = no;
+  let dlg = document.getElementById('vrbdlg');
+  if(!dlg){ dlg = document.createElement('dialog'); dlg.id = 'vrbdlg'; dlg.className = 'vrbdlg'; dlg.setAttribute('aria-label', 'VRB 수주가치평가'); document.body.appendChild(dlg);
+    dlg.addEventListener('click', e => { if(e.target === dlg) dlg.close(); });
+    dlg.addEventListener('change', e => vrbEdit(e.target));
+    dlg.addEventListener('click', e => { const b = e.target.closest('[data-vact],[data-vaddstaff]'); if(!b) return;
+      if(b.dataset.vaddstaff !== undefined){ const ov = vrbOv(VRB_CUR); (ov.extra = ov.extra || []).push({role: '추가 인력', g: '연구원', mm: 1}); store('vrb.' + VRB_CUR, ov); vrbRender(); return; }
+      const a = b.dataset.vact;
+      if(a === 'close') dlg.close();
+      else if(a === 'reset'){ try { localStorage.removeItem('w1radar.vrb.' + VRB_CUR); } catch(e2){} vrbRender(); }
+      else if(a === 'print'){ document.body.classList.add('vrbprint'); try { window.print(); } catch(e2){} setTimeout(() => document.body.classList.remove('vrbprint'), 500); }
+      else if(a === 'csv') vrbCsv(); });
+    dlg.addEventListener('close', () => { if(READY.has('g2b')) renderPipe(); });
+  }
+  vrbRender();
+  if(!dlg.open){ try { dlg.showModal(); } catch(e){ dlg.setAttribute('open', ''); } }
+}
+function vrbRender(){
+  const dlg = document.getElementById('vrbdlg'); const f = vrbItem(VRB_CUR); if(!dlg || !f) return;
+  const ov = vrbOv(VRB_CUR); const V = vrbCalc(f.x, f.o, ov);
+  const edited = Object.keys(ov).length > 0;
+  dlg.innerHTML = `<div class="vbar"><b>VRB 수주가치평가</b><span class="nmeta">${edited ? '고친 값 반영 중' : '자동 추정'}</span><span class="sp"></span>${edited ? '<button type="button" class="btn" data-vact="reset">자동 추정으로 되돌리기</button>' : ''}${window.self === window.top ? '<button type="button" class="btn" data-vact="csv">CSV 내려받기</button><button type="button" class="btn" data-vact="print">인쇄·PDF</button>' : '<span class="nmeta">CSV 내려받기·인쇄는 회원 홈페이지에서</span>'}<button type="button" class="btn" data-vact="close" aria-label="닫기">닫기</button></div>`
+    + (V ? vrbHtml(V) : '<p class="pempty">사업비가 없어 계산할 수 없습니다.</p>');
+}
+function vrbEdit(t){
+  if(!VRB_CUR || !t) return;
+  const ov = vrbOv(VRB_CUR); const val = String(t.value || '').replace(/,/g, '').trim();
+  if(t.dataset.vk){ const k = t.dataset.vk; if(k === 'type') ov.type = val; else if(val === '' || isNaN(+val)) delete ov[k]; else ov[k] = +val; }
+  else if(t.dataset.vsm || t.dataset.vsg){ const k = t.dataset.vsm || t.dataset.vsg; ov.staff = ov.staff || {}; const s = ov.staff[k] = ov.staff[k] || {};
+    if(t.dataset.vsm) s.mm = val === '' ? undefined : +val; else s.g = val;
+    if(/^x\d+$/.test(k)){ const i = +k.slice(1); if(ov.extra && ov.extra[i]){ if(t.dataset.vsm) ov.extra[i].mm = +val; else ov.extra[i].g = val; } delete ov.staff[k]; } }
+  else if(t.dataset.vc){ ov.cost = ov.cost || {}; if(val === '' || isNaN(+val)) delete ov.cost[t.dataset.vc]; else ov.cost[t.dataset.vc] = +val; }
+  else return;
+  store('vrb.' + VRB_CUR, ov); vrbRender();
+}
+function vrbCsv(){
+  const f = vrbItem(VRB_CUR); if(!f) return; const V = vrbCalc(f.x, f.o, vrbOv(VRB_CUR)); if(!V) return;
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = [['(수주 전) 프로젝트 가치평가'], ['사업명', V.x.title], ['발주처', V.x.org || ''], ['사업기간', (V.x.rfp || {}).period || '', V.months + '개월'], ['계약금액(VAT 별도)', V.total], ['웨이즈원 지분', V.A, Math.round(V.share * 100) + '%'], [],
+    ['구분', '항목', '금액(원)', '비율', '비고'], ['', 'PJT 당사 지분 (A)', V.A, '100%'],
+    ...V.COST.map(c => ['1. 프로젝트 수행 원가', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (B)', V.B], ['', '매출 이익', V.G, (V.G / V.A * 100).toFixed(1) + '%'],
+    ...V.SM.map(c => ['2. 영업/마케팅비', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (C)', V.Ssum],
+    ...V.GA.map(c => ['3. 일반관리비', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (D)', V.Gsum],
+    ['', '총 실행비용 (E)', V.TOT, (V.TOT / V.A * 100).toFixed(1) + '%'], ['', '영업 이익', V.OP, (V.opr * 100).toFixed(1) + '%'], ['', '의결 권고', V.dec], [],
+    ['인건비 상세', '역할', '직급', 'M/M', '단가', '금액'], ...V.S.map(s => ['', s.role, s.g, s.mm, s.rate, s.amt])];
+  const csv = '﻿' + rows.map(r => r.map(q).join(',')).join('\r\n');
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'})); a.download = `VRB_${V.x.no}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); } catch(e){}
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-vrb]'); if(b){ e.preventDefault(); vrbOpen(b.dataset.vrb); } });
 function rfpBlock(x){
   const r = x.rfp; if(!r || r.error) return '';
   const li = a => (a||[]).filter(Boolean).map(v=>`<li>${hl(v)}</li>`).join('');
@@ -373,12 +682,12 @@ function noticeBlock(o){
   const PL = livePlans(o), P0 = livePres(o), B0 = liveBids(o); let h = '';
   if(B0.length) h += `<div class="nwrap"><div class="nhead"><span class="nst">입찰공고 ${B0.length}건</span><span>지금 응찰할 수 있는 본공고입니다. 서류 버튼을 누르면 나라장터 원문 파일이 바로 내려받아집니다.</span></div>
     ${B0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
-      <div class="nmeta">${bidMeta(x)}</div>
+      <div class="nmeta">${bidMeta(x)}</div>${vrbLine(x, o)}
       ${x.lic?`<div class="nmeta">참가 업종 · ${esc(x.lic)}</div>`:''}${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
       ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div>`).join('')}</div>`;
   if(P0.length) h += `<div class="nwrap pre"><div class="nhead"><span class="nst pre">사전규격 ${P0.length}건</span><span>본공고 전에 공개된 제안요청서 초안입니다. 의견 마감 전에 과업 범위에 의견을 낼 수 있고, 마감 후에는 본공고가 이어집니다.</span></div>
     ${P0.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
-      <div class="nmeta">${preMeta(x)}</div>${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
+      <div class="nmeta">${preMeta(x)}</div>${vrbLine(x, o)}${chain(x)}${x.note?`<div class="nmeta">${esc(x.note)}</div>`:''}
       ${eligLine(x)}${evLine(x)}${prevLine(x)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div>`).join('')}</div>`;
   if(PL.length) h += `<div class="nwrap planw"><div class="nhead"><span class="nst plan">발주계획 ${PL.length}건</span><span>발주기관이 올해 발주하겠다고 등록한 계획입니다. 사전규격·본공고가 나오기 전 담당부서를 미리 만날 수 있는 단계입니다.</span></div>
     ${PL.map(x=>`<div class="ni"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
@@ -414,11 +723,11 @@ function renderPipe(){
     pre: ({o,x,st}) => `<li><div class="st">${itemNew(x)}${st==='opinion'?`<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(x.opinionDeadline))}</b> <span class="dd pre">${ddTxt(x.opinionDeadline)}</span></span>`:`<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(x.opinionDeadline))}</span>`}</div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)} · ${opp(o)}</span>
-      ${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
+      ${vrbLine(x, o)}${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${docBtns(x,'나라장터에서 보기')}</div></li>`,
     bid: ({o,x}) => `<li><div class="st"><span class="tag ok">입찰공고</span>${itemNew(x)}<span>마감 <b>${esc(md(x.deadline))}</b> <span class="dd ${ddN(x.deadline)<=7?'hot':''}">${ddTxt(x.deadline)}</span></span></div>
       <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
-      ${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
+      ${vrbLine(x, o)}${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
   };
   const TAB = [['plan','발주계획','발주기관이 올해 발주하겠다고 등록한 계획. 담당부서를 미리 만나 사업 범위를 파악하는 단계'],['pre','사전규격','본공고 전에 제안요청서 초안을 공개하고 의견을 받는 단계. 과업 범위에 의견을 내고 협력사를 정하는 단계'],['bid','입찰공고','제안서·입찰서를 내는 본공고. 제출 마감 전에 응찰 여부를 정하는 단계']];
   if(!rows[pipeTab]) pipeTab = 'pre';
