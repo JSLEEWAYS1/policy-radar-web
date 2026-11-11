@@ -274,11 +274,11 @@ function bidBox(x, o){
   const etaT = eta ? (eta.late ? ' · 곧 완료(마무리 중)' : ` · <b>${eta.upper ? '늦어도 ' : '예상 완료 '}${esc(eta.t)}쯤</b>${eta.upper ? ' 완료' : ''}`) : '';
   const stTxt = !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))}${etaT} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 시작하면 정확한 완료 시각으로 바뀌고, 끝나면 여기서 내려받습니다' : '평일 9~18시 매시 7분 PC 작업이 차례로 만듭니다'}</span>` :
     st.state === 'working' ? `<span class="mkst">만드는 중…${st.startedAt ? ' ' + esc(String(st.startedAt).slice(11)) + ' 시작' : ''}${etaT}</span>` :
-    st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
-    st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}</span>` : '';
+    st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')}${st.ver ? ` · <b>최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : ''} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
+    st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
   const busy = st && (st.state === 'queued' || st.state === 'working');
   const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
-  const DLN = {proposal: '정성제안서', deck: '발표자료', review: '검토표'};
+  const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
   const dls = preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')} 받기</button>`).join('')}</div>` : '';
   return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
     ${btn || stTxt ? `<div class="mkrow">${btn}${stTxt}</div>` : ''}${dls}</div>`;
@@ -631,8 +631,8 @@ function vrbScanHtml(V){
   const be = (b, n) => b ? `${n} ${b[0]}%~${b[1]}%` : `${n} 없음`;
   return `<details class="rfp vscan" open><summary>지분별 손익 비교 — 이익이 나는 지분: ${be(S.beL, '대표사')} · ${be(S.beM, '구성원')}</summary>
     <div class="vtbx"><table class="vtab vsc"><thead><tr><th>웨이즈원 지분</th>${S.W.map(w => `<th>${w === 100 ? '100%(단독)' : w + '%'}</th>`).join('')}</tr></thead>
-    <tbody>${S.rows.map(r => `<tr><th>${r.role === 'lead' ? '대표사' : '구성원'}</th>${r.cells.map(c => cell(c, r.role)).join('')}</tr>`).join('')}</tbody></table></div>
-    <p class="nmeta">칸마다 영업이익률과 금액입니다. 투찰률·기간·유형·관리비·분담 방식은 지금 값을 쓰고, 인력과 비용은 자동 추정으로 다시 셉니다(직접 고친 M/M·금액은 비교에 넣지 않음). 지분이 작아도 PM·제안 비용 같은 고정비는 남아 이익률이 떨어지고, 상주 인력이 많으면 지분이 클수록 손실이 커질 수 있습니다.</p></details>`;
+    <tbody><tr class="va"><th>웨이즈원 몫 매출</th>${S.rows[0].cells.map(c => `<td class="n">${c && c.A ? eokT(c.A) : '—'}</td>`).join('')}</tr>${S.rows.map(r => `<tr><th>${r.role === 'lead' ? '대표사' : '구성원'}</th>${r.cells.map(c => cell(c, r.role)).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="nmeta">칸마다 영업이익률과 금액입니다. <b>영업이익률 = 영업이익(손실) ÷ 그 지분의 웨이즈원 몫 매출</b>이라, 지분이 크면 매출이 커져 손실 금액은 커지고, 지분이 작으면 PM·상주 인력·제안 비용 같은 고정비 비중이 커져 이익률(%)이 나빠집니다 — 금액과 %가 반대로 움직일 수 있습니다.${V.K.fee ? ` 관리비 <b>${V.K.fee}%</b>를 넣어 두었습니다: 대표사이면 구성원 몫(전체 계약 − 웨이즈원 몫)의 ${V.K.fee}%를 받고, 구성원이면 웨이즈원 몫 전체의 ${V.K.fee}%를 대표사에 냅니다 — 그래서 같은 지분이라도 대표사·구성원 손익 차이가 크게 벌어집니다. 실제 협약 비율로 고치세요.` : ''} 투찰률·기간·유형·관리비·분담 방식은 지금 값을 쓰고, 인력과 비용은 자동 추정으로 다시 셉니다(직접 고친 M/M·금액은 비교에 넣지 않음).</p></details>`;
 }
 function vrbHtml(V){
   const {x} = V; const r = x.rfp || {};
@@ -696,7 +696,8 @@ function vrbLine(x, o){
   if(!['pre', 'bid'].includes(x.stage) || x.awarded) return '';
   const V = vrbCalc(x, o, vrbOv(x.no)); if(!V) return '';
   const C = ['go', 'chk', 'cond', 'stop'][V.dlv];
-  return `<div class="vrbrow"><button type="button" class="btn vrbbtn" data-vrb="${esc(x.no)}">VRB</button><span class="nmeta">수주가치평가 — 영업이익 <b class="num vop ${C}">${pctT(V.opr)}</b>(${eokT(Math.abs(V.OP)) || '0원'}${V.OP < 0 ? ' 손실' : ''}) · 투입 ${Math.round(V.MM * 10) / 10} M/M${V.cons ? ` · ${V.lead ? '대표사' : '구성원'} ${V.K.w}%` : ''} · <b class="vdl ${C}">${esc(V.dec.split(' — ')[0])}</b></span></div>`;
+  const ed = Object.keys(vrbOv(x.no)).length > 0;
+  return `<div class="vrbrow"><button type="button" class="btn vrbbtn" data-vrb="${esc(x.no)}">VRB</button><span class="nmeta">수주가치평가 — 영업이익 <b class="num vop ${C}">${pctT(V.opr)}</b>(${eokT(Math.abs(V.OP)) || '0원'}${V.OP < 0 ? ' 손실' : ''}) · 투입 ${Math.round(V.MM * 10) / 10} M/M${V.cons ? ` · ${V.lead ? '대표사' : '구성원'} ${V.K.w}%${V.K.fee ? ` · 관리비 ${V.K.fee}%` : ''}` : ''} · <b class="vdl ${C}">${esc(V.dec.split(' — ')[0])}</b>${ed ? ' · <span class="vedit" title="이 브라우저에서 고친 값으로 계산 — VRB 창의 「자동 추정으로 되돌리기」로 되돌림">고친 값 반영</span>' : ''}</span></div>`;
 }
 let VRB_CUR = null;
 function vrbOpen(no){
