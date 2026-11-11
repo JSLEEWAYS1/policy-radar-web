@@ -978,6 +978,12 @@ function renderPipe(){
       <span class="nmeta">${esc(x.org||'')}${x.budget?` · <b class="num">${esc(x.budget)}</b>`:''}${pt(x)}${x.lic?' · '+esc(x.lic):''} · ${opp(o)}</span>
       ${vrbLine(x, o)}${eligLine(x)}${evLine(x)}${prevLine(x)}${bidBox(x, o)}${rfpBlock(x)}${(x.docs||[]).length?docBtns(x,'나라장터 공고 페이지'):''}</div></li>`
   };
+  // 한 사업을 그리다 오류가 나도 목록 전체가 비지 않게 한다(그 줄만 제목·링크로 대신 보여 준다)
+  Object.keys(li).forEach(k => { const f = li[k]; li[k] = r => { try { return f(r); } catch(e){
+    console.error('[레이더] 나라장터 목록 한 줄을 그리지 못함', r && r.x && r.x.no, e);
+    const x = (r && r.x) || {};
+    return `<li data-no="${esc(x.no||'')}"><div class="st"><span class="tag">${k === 'plan' ? '발주계획' : k === 'pre' ? '사전규격' : '입찰공고'}</span></div><div class="bd"><a href="${esc(x.url||'#')}" target="_blank" rel="noopener">${esc(x.title||'')}</a><span class="nmeta">${esc(x.org||'')} · 세부 정보를 불러오지 못했습니다</span></div></li>`;
+  } }; });
   const TAB = [['plan','발주계획','발주기관이 올해 발주하겠다고 등록한 계획. 담당부서를 미리 만나 사업 범위를 파악하는 단계'],['pre','사전규격','본공고 전에 제안요청서 초안을 공개하고 의견을 받는 단계. 과업 범위에 의견을 내고 협력사를 정하는 단계'],['bid','입찰공고','제안서·입찰서를 내는 본공고. 제출 마감 전에 응찰 여부를 정하는 단계']];
   if(!rows[pipeTab]) pipeTab = 'pre';
   const cur = TAB.find(t => t[0] === pipeTab);
@@ -993,11 +999,11 @@ function renderPipe(){
     <div class="pipe" role="tablist">${TAB.map(([k,l])=>`<button type="button" role="tab" data-pipe="${k}" aria-selected="${String(k===pipeTab)}" class="${k}"><span>${l}</span><b>${rows[k].length}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     <p class="small muted">${esc(cur[2])}</p>${body}${qualBox()}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
-  renderMine();
+  try { renderMine(); } catch(e){ console.error('[레이더] 제안서 작성 사업 칸을 그리지 못함', e); const m = $('#mypanel'); if(m){ m.hidden = true; m.innerHTML = ''; } }
 }
 /* 제안서 작성 사업: 「제안서·발표자료 만들기」를 누른 사업(PREQ)을 나라장터 탭 맨 위에 따로 모아 진행 상태·마감·최신본 받기를 한곳에서 본다 */
 const MK_LBL = {queued: '요청됨', working: '만드는 중', done: '완료', error: '실패'};
-const mkFail = st => /미통과/.test(String(st.note || '') + String(st.msg || ''));
+const mkFail = st => !!st && /미통과/.test(String(st.note || '') + String(st.msg || ''));   // 요청이 없는 사업(st 없음)은 거짓
 function mkTag(no){
   const st = PREQ[no]; if(!st || !MK_LBL[st.state]) return '';
   const cls = st.state === 'done' ? (mkFail(st) ? '' : ' done') : st.state === 'error' ? ' err' : '';
