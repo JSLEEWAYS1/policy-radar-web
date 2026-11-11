@@ -284,12 +284,13 @@ function preqStTxt(no){
   return !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))}${etaT} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 시작하면 정확한 완료 시각으로 바뀌고, 끝나면 여기서 내려받습니다' : '평일 9~18시 매시 7분 PC 작업이 차례로 만듭니다'}</span>` :
     st.state === 'working' ? `<span class="mkst">만드는 중…${st.startedAt ? ' ' + esc(String(st.startedAt).slice(11)) + ' 시작' : ''}${etaT}</span>` :
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')}${st.ver ? ` · <b>최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : ''} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
-    st.state === 'error' ? `<span class="mkst err">실패 — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
+    st.state === 'error' ? `<span class="mkst err">${mkFail(st) ? '고도화 중' : '실패'} — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
 }
 const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
 function preqDls(no){
   const st = PREQ[no]; const busy = st && (st.state === 'queued' || st.state === 'working');
-  return preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')} 받기</button>`).join('')}</div>` : '';
+  const mid = mkFail(st);   // 품질검수를 아직 통과하지 못한 중간본은 그렇다고 밝힌다(통과본이 나오면 최신본 맞추기가 바꾼다)
+  return preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')}${mid ? '(중간본)' : ''} 받기</button>`).join('')}${mid ? '<span class="nmeta">품질검수(보성군 수준) 통과 전 중간본 — 통과본이 나오면 자동으로 바뀝니다</span>' : ''}</div>` : '';
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
@@ -1000,7 +1001,7 @@ const mkFail = st => /미통과/.test(String(st.note || '') + String(st.msg || '
 function mkTag(no){
   const st = PREQ[no]; if(!st || !MK_LBL[st.state]) return '';
   const cls = st.state === 'done' ? (mkFail(st) ? '' : ' done') : st.state === 'error' ? ' err' : '';
-  return `<span class="tag mk${cls}">제안서 ${st.state === 'done' && mkFail(st) ? '검수 미통과본' : MK_LBL[st.state]}</span>`;
+  return `<span class="tag mk${cls}">제안서 ${mkFail(st) && (st.state === 'done' || st.state === 'error') ? '고도화 중(검수 미통과)' : MK_LBL[st.state]}</span>`;
 }
 function mineFind(no){
   let x = null, o = null, nx = null, no2 = null;
