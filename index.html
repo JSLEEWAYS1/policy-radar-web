@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=07d71e50">
-<link rel="stylesheet" href="app.css?v=07d71e50">
+<link rel="stylesheet" href="radar.css?v=6dd67cb8">
+<link rel="stylesheet" href="app.css?v=6dd67cb8">
 </head>
 <body>
 
@@ -136,6 +136,7 @@
     <button class="tab" role="tab" data-tab="g2b" id="t-g2b">나라장터 사업</button>
     <button class="tab" role="tab" data-tab="trend" id="t-trend">공공발주 트렌드</button>
     <button class="tab" role="tab" data-tab="rnd" id="t-rnd">연구개발·기업지원</button>
+    <button class="tab" role="tab" data-tab="openinfo" id="t-openinfo">정보공개</button>
     <button class="tab" role="tab" data-tab="ways1" id="t-ways1">웨이즈원 기회</button>
     <button class="tab" role="tab" data-tab="track" id="t-track">수행 실적</button>
     <button class="tab" role="tab" data-tab="idea" id="t-idea">아이디어 검증</button>
@@ -209,6 +210,18 @@
   </div>
   <div id="tdout" class="tdout"></div>
   <div class="panel tdcyc" id="tdcyc" hidden></div>
+</section>
+
+<section class="view" id="v-openinfo" data-view="openinfo" hidden>
+  <div class="sec-head"><h2>정보공개</h2>
+    <p class="muted" id="oiintro"></p></div>
+  <div class="panel oifilt">
+    <div class="oisum" id="oisum" role="group" aria-label="문서 성격"></div>
+    <div class="frow"><div class="seg" id="oidays" role="group" aria-label="기간"></div><div class="seg" id="oise" role="group" aria-label="기관 유형"></div>
+      <input class="search" id="oiq" type="search" placeholder="제목·기관·부서 검색" maxlength="40" aria-label="정보공개 검색"><span class="count" id="oicount"></span></div>
+    <div class="chips" id="oichips" role="group" aria-label="제품"></div>
+  </div>
+  <div class="pnews" id="oilist"></div>
 </section>
 
 <section class="view" id="v-rnd" data-view="rnd" hidden>
@@ -375,8 +388,8 @@
   </div>
 </div>
 
-<script src="config.js?v=07d71e50"></script>
-<script src="radar.js?v=07d71e50"></script>
-<script type="module" src="app.js?v=07d71e50"></script>
+<script src="config.js?v=6dd67cb8"></script>
+<script src="radar.js?v=6dd67cb8"></script>
+<script type="module" src="app.js?v=6dd67cb8"></script>
 </body>
 </html>

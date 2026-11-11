@@ -491,10 +491,10 @@ $('#kpis').innerHTML = [
 ].map(([v,l,c,t,pp])=>`<button type="button" class="kpi ${c||''}" data-tabgo="${t}"${pp?` data-pipego="${pp}"`:''}><b>${v}</b><span><i class="dot" style="--c:${({hot:'var(--ok)',pre:'var(--pre)',plan:'var(--plan)',rnd:'var(--rnd)'})[c]||'var(--ink3)'}"></i>${l}</span></button>`).join('');
 const NEWS = ((D.news||{}).items||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 const _d7 = new Date(Date.now() + 9*3600e3 - 7*864e5).toISOString().slice(0,10);
-[['press', NEWS.filter(x=>String(x.date) >= _d7).length], ['g2b', nPlanItems + nPreItems + nBidItems + exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
+[['openinfo', ((D.openinfo||{}).items||[]).filter(x=>x.sig==='order' && String(x.date) >= _d7).length], ['press', NEWS.filter(x=>String(x.date) >= _d7).length], ['g2b', nPlanItems + nPreItems + nBidItems + exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
-const TABS = ['overview','press','g2b','trend','rnd','ways1','track','idea','catalog','links','timeline','sources'];
+const TABS = ['overview','press','g2b','trend','rnd','openinfo','ways1','track','idea','catalog','links','timeline','sources'];
 let cur = 'overview';
 // 탭 내용은 그 탭을 처음 열 때 그린다(첫 화면을 빨리 띄우기 위해). 다른 탭으로 바로 가는 버튼은 ensure로 그 탭을 먼저 그린다.
 const LAZY = {}, READY = new Set();
@@ -1097,6 +1097,53 @@ function renderPress(){
   let tq; v.addEventListener('input', e => { if(e.target.id !== 'pq') return; clearTimeout(tq); tq = setTimeout(() => { PF.q = e.target.value; renderPress(); }, 150); });
 })();
 lazy('press', renderPress);
+
+/* 정보공개: 정보공개포털(open.go.kr) 정보목록 — 기관 결재문서 제목에 우리 제품 키워드가 든 것. 발주 전 준비 단계(추진계획·과업·예산·연구)를 먼저 본다 */
+const OIS = [['order','발주 준비','추진계획·계약의뢰·과업심의·사전규격·설계·보안성 검토'],['award','계약·선정','계약 체결·우선협상·낙찰·착수'],['plan','계획·예산','기본계획·예산·공모·수요조사'],['rnd','연구·실증','연구·실증·시범사업'],['ops','운영·성과','운영·유지관리·점검·결과'],['etc','기타','그 밖의 문서']];
+const OF = Object.assign({sig:'', days:30, se:'', prod:'', q:''}, load('openinfo', {}));
+function renderOpeninfo(){
+  const O = D.openinfo || {}; const ALL = O.items || [];
+  const kwn = (O.kws||[]).length, rg = O.range||{};
+  const fmt8 = d => /^\d{8}$/.test(String(d||'')) ? `${String(d).slice(0,4)}.${String(d).slice(4,6)}.${String(d).slice(6,8)}` : '';
+  $('#oiintro').innerHTML = `정보공개포털(open.go.kr)에 올라오는 정부·지자체·공공기관의 결재문서 목록 가운데, 웨이즈원 제품 키워드가 <b>제목</b>에 든 문서를 모읍니다. 나라장터에 공고가 나오기 전에 기관이 어떤 사업을 준비하는지(추진계획·계약의뢰·과업심의·예산), 누가 계약했는지(계약·선정) 먼저 볼 수 있습니다. 감리·공사·물품 구매·대금 지급·복무 같은 행정 문서는 뺍니다. 문서 제목·기관·부서·문서번호만 모으며 담당자 이름은 모으지 않습니다. 제목을 누르면 정보공개포털 원문 화면이 열립니다. 원문이 없거나 부분공개·비공개인 문서는 정보공개포털에서 정보공개청구로 받아볼 수 있습니다.${kwn?` 검색어 <b class="num">${kwn}</b>개${fmt8(rg.from)?` · 조회 기간 ${fmt8(rg.from)}~${fmt8(rg.to)}`:''}.`:''}${O.checkedAt?` <span class="asof">마지막 확인 ${esc(O.checkedAt)}</span>`:''}`;
+  const cut = OF.days ? new Date(Date.now() + 9*3600e3 - OF.days*864e5).toISOString().slice(0,10) : '';
+  const q = OF.q.trim().toLowerCase();
+  const base0 = ALL.filter(x => (!cut || String(x.date) >= cut) && (!OF.se || x.se === OF.se) && (!q || [x.title,x.org,x.dept,x.unit,x.docNo,(x.kws||[]).join(' ')].join(' ').toLowerCase().includes(q)));
+  const base1 = base0.filter(x => !OF.prod || (x.products||[]).includes(OF.prod));
+  const L = base1.filter(x => !OF.sig || x.sig === OF.sig);
+  $('#oisum').innerHTML = `<button type="button" data-os="" aria-pressed="${!OF.sig}"><b>${base1.length}</b><span>전체</span></button>` + OIS.map(([k,l,t]) => `<button type="button" class="${k}" data-os="${k}" aria-pressed="${OF.sig===k}" title="${esc(t)}"><b>${base1.filter(x=>x.sig===k).length}</b><span>${l}</span></button>`).join('');
+  $('#oidays').innerHTML = [[7,'7일'],[30,'30일'],[90,'90일'],[0,'전체']].map(([k,l])=>`<button type="button" data-od="${k}" aria-pressed="${OF.days===k}">${l}</button>`).join('');
+  const ses = ['중앙행정기관','광역자치단체','기초자치단체','공공기관','교육청'].filter(s => ALL.some(x=>x.se===s));
+  if(OF.se && !ses.includes(OF.se)) OF.se = '';
+  $('#oise').innerHTML = [['','전체 기관']].concat(ses.map(s=>[s,s.replace('행정기관','').replace('자치단체','')])).map(([k,l])=>`<button type="button" data-oe="${esc(k)}" aria-pressed="${OF.se===k}">${esc(l)}</button>`).join('');
+  const cnt = {}; base0.filter(x => !OF.sig || x.sig === OF.sig).forEach(x => (x.products||[]).forEach(p => cnt[p] = (cnt[p]||0) + 1));
+  const prods = Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]);
+  if(OF.prod && !cnt[OF.prod] && !base1.length) OF.prod = '';
+  $('#oichips').innerHTML = `<button type="button" class="chip" data-op="" aria-pressed="${!OF.prod}">모든 제품</button>` + prods.map(p=>`<button type="button" class="chip" data-op="${esc(p)}" aria-pressed="${OF.prod===p}">${esc(p)} ${cnt[p]}</button>`).join('');
+  $('#oicount').textContent = `${L.length}건`;
+  if(document.activeElement !== $('#oiq')) $('#oiq').value = OF.q;
+  const today = NOWK.slice(0,10), yday = new Date(Date.now() + 9*3600e3 - 864e5).toISOString().slice(0,10);
+  const wd = d => { try { return '일월화수목금토'[new Date(d+'T00:00:00+09:00').getDay()]; } catch(e){ return ''; } };
+  const dayLabel = d => (d===today?'오늘 · ':d===yday?'어제 · ':'') + `${+d.slice(5,7)}월 ${+d.slice(8,10)}일 (${wd(d)})`;
+  const SG = Object.fromEntries(OIS.map(([k,l])=>[k,l]));
+  const groups = []; L.slice(0, 400).forEach(x => { const g = groups[groups.length-1]; if(g && g.d === x.date) g.a.push(x); else groups.push({d:x.date, a:[x]}); });
+  const fresh = x => String(x.addedAt||'').slice(0,10) >= yday;
+  const dept = x => { const d = String(x.dept||''); return d && d !== x.org ? d.replace(new RegExp('^'+String(x.org||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*'),'') : ''; };
+  $('#oilist').innerHTML = groups.length ? groups.map(g => `<div class="pday"><h3>${esc(dayLabel(String(g.d)))}</h3>${g.a.map(x => `<article class="pitem${x.sig==='order'?' oi-o':''}">
+      <div class="pt1"><span class="tag oi-${esc(x.sig)}">${esc(SG[x.sig]||'기타')}</span>${x.url?`<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`:`<b>${esc(x.title)}</b>`}${fresh(x)?'<span class="tag new">새로 반영</span>':''}</div>
+      <span class="oimeta">${esc(x.org||'')}${dept(x)?' · '+esc(dept(x)):''}${x.unit?' · '+esc(x.unit):''}${x.docNo?' · <span class="mono">'+esc(x.docNo)+'</span>':''}${x.se?' · '+esc(x.se):''}</span>
+      <div class="pk">${x.open?`<span class="tag oi-open">${esc(x.open)}</span>`:''}${x.orig?'<span class="tag oi-orig">원문 공개</span>':''}${(x.products||[]).map(p=>`<span class="pc">${esc(p)}</span>`).join('')}${(x.kws||[]).map(k=>`<span class="tag kw">${esc(k)}</span>`).join('')}</div>
+      ${(x.files||[]).length?`<span class="oifiles">첨부: ${x.files.map(esc).join(' · ')}</span>`:''}
+    </article>`).join('')}</div>`).join('') + (L.length > 400 ? `<p class="pempty">최근 400건만 보입니다. 기간·제품·검색어로 좁혀 보세요.</p>` : '') : `<p class="pempty">조건에 맞는 문서가 없습니다.${OF.days?' 기간을 「전체」로 넓혀 보세요.':''}</p>`;
+}
+(() => {
+  const v = document.getElementById('v-openinfo'); if(!v) return;
+  v.addEventListener('click', e => { const b = e.target.closest('[data-os],[data-od],[data-oe],[data-op]'); if(!b) return;
+    if(b.dataset.os !== undefined) OF.sig = b.dataset.os; else if(b.dataset.od !== undefined) OF.days = +b.dataset.od; else if(b.dataset.oe !== undefined) OF.se = b.dataset.oe; else OF.prod = b.dataset.op;
+    store('openinfo', {sig:OF.sig, days:OF.days, se:OF.se, prod:OF.prod}); renderOpeninfo(); });
+  let tq; v.addEventListener('input', e => { if(e.target.id !== 'oiq') return; clearTimeout(tq); tq = setTimeout(() => { OF.q = e.target.value; renderOpeninfo(); }, 150); });
+})();
+lazy('openinfo', renderOpeninfo);
 lazy('overview', renderBoard); lazy('overview', renderInsights); lazy('overview', renderNewFound); lazy('overview', renderHeat); lazy('overview', renderNews);
 lazy('g2b', renderPipe); lazy('g2b', renderEx); lazy('rnd', renderPrograms); lazy('catalog', initCatalog); lazy('links', initLinks);
 lazy('timeline', renderTimeline); lazy('ways1', renderWays1); lazy('sources', renderSources);

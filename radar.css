@@ -673,6 +673,31 @@ details.discard>summary{font-weight:650}
 .tag.kw{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink2);font-weight:500}
 .pempty{color:var(--ink3);padding:18px 0}
 
+/* 정보공개 (2026-11-11) — 정보공개포털 결재문서 목록 */
+.oifilt{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+.oifilt>*,.oifilt .frow>*{min-width:0}
+.oifilt .frow{gap:10px}
+.oisum{display:flex;flex-wrap:wrap;gap:8px}
+.oisum button{appearance:none;display:grid;gap:2px;text-align:left;min-width:118px;padding:10px 14px;border-radius:12px;border:1px solid var(--line2);background:var(--surface);cursor:pointer;color:var(--ink2);font:inherit}
+.oisum button b{font-family:var(--f-mono);font-size:1.25rem;font-weight:600;color:var(--ink);line-height:1.1}
+.oisum button span{font-size:.8rem}
+.oisum button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.oisum button.order b{color:var(--mark)}
+.tag.oi-order{background:var(--mark-soft);color:var(--mark-ink)}
+.tag.oi-award{background:color-mix(in srgb,var(--pre) 12%,var(--surface));color:var(--pre)}
+.tag.oi-plan{background:var(--plan-soft);color:var(--plan)}
+.tag.oi-rnd{background:color-mix(in srgb,var(--rnd) 13%,var(--surface));color:var(--rnd)}
+.tag.oi-ops,.tag.oi-etc{background:var(--sunk);color:var(--ink2)}
+.tag.oi-open{background:transparent;box-shadow:inset 0 0 0 1px var(--line2);color:var(--ink2);font-weight:500}
+.tag.oi-orig{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
+.pitem.oi-o{border-left:3px solid var(--mark)}
+.oimeta{font-size:.86rem;color:var(--ink2);overflow-wrap:anywhere}
+.oifiles{font-size:.8rem;color:var(--ink3);overflow-wrap:anywhere}
+.oifilt .seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
+.oifilt .seg::-webkit-scrollbar{display:none}
+.oifilt .seg button{white-space:nowrap;flex:none}
+@media (max-width:620px){.oisum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.oisum button{min-width:0;padding:8px 9px}.oisum button b{font-size:1.05rem}.oisum button span{font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+
 /* BMC 반영 · 전차 수주사 · 유력 경쟁자 (2026-10-16) */
 .prv .cw{color:var(--ink);font-weight:700}
 b.streak{font-weight:700;color:var(--warn)}
