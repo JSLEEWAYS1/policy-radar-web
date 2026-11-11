@@ -396,6 +396,51 @@ function vrbType(x){
   if(/구축|개발|고도화|플랫폼|시스템|도입/.test(t)) return 'si';
   return 'om';
 }
+/* 컨소시엄(공동수급): 공고 조건을 제안요청서 참가자격에서 읽고, 웨이즈원 역할(대표사·구성원)·지분·구성원을 정한다 */
+function vrbRules(x){
+  const q = ((x.rfp || {}).qualification || []).join(' ') + ' ' + ((x.elig || {}).note || '');
+  const R = {allowed: null, maxN: 0, minShare: 0, modes: '', pmLead: false};
+  if(/공동수급\s*(?:불허|불가|금지|허용\s*안)|공동\s*계약\s*(?:불허|불가)|단독\s*(?:응찰|참가|입찰)만|공동수급[^.]{0,6}(?:불허|불가)/.test(q)) R.allowed = false;
+  else if(/공동수급|공동이행|분담이행|공동\s*계약|컨소시엄/.test(q)) R.allowed = true;
+  let m = q.match(/(\d{1,2})\s*개\s*사\s*(?:이하|이내)/) || q.match(/구성원\s*(?:수\s*)?(?:은\s*)?(?:대표사\s*포함\s*)?(\d{1,2})\s*(?:개사|개|인|社)\s*(?:이하|이내)/); if(m) R.maxN = +m[1];
+  m = q.match(/최소\s*(?:출자\s*)?지분(?:율)?\s*(?:은\s*)?(\d{1,2})\s*%/) || q.match(/지분(?:율)?\s*(?:은\s*)?(\d{1,2})\s*%\s*이상/); if(m) R.minShare = +m[1];
+  const md = []; if(/공동이행/.test(q)) md.push('공동이행'); if(/분담이행/.test(q)) md.push('분담이행'); if(/혼합\s*방식\s*(?:불가|불허)/.test(q)) md.push('혼합방식 불가'); R.modes = md.join('·');
+  R.pmLead = /PM[^.]{0,12}대표사\s*소속|대표사\s*소속[^.]{0,8}PM/.test(q);
+  return R;
+}
+const VRB_MODE = {solo: '단독', joint: '공동이행', split: '분담이행'};
+function vrbCons(x, o, ov){
+  const gaps = ((x.elig || {}).gaps || []).join(' ');
+  const R = vrbRules(x);
+  let C = ov.cons ? JSON.parse(JSON.stringify(ov.cons)) : null, why = '직접 입력';
+  if(!C){
+    if(ov.share > 0 && ov.share < 100){ C = {mode: 'joint', role: 'lead', w: +ov.share, members: [{name: '협력사', share: 100 - ov.share, task: ''}]}; }
+    else if(/공동수급|컨소시엄|구성원|분담|협력사/.test(gaps)){
+      const veh = /차량|제작자|운수|여객/.test(gaps), w = veh ? 50 : 70, reg = gaps.match(/지역제한\(([^)]+)\)/);
+      C = {mode: veh ? 'split' : 'joint', role: 'lead', w, fieldOut: veh, members: [{name: reg ? `${reg[1]} 소재 협력사` : (veh ? '차량·운수 협력사' : '자격 보완 협력사'), share: 100 - w, task: veh ? '차량·운행' : (reg ? '지역 요건·현장 지원' : String(((x.elig || {}).gaps || [])[0] || '').slice(0, 30))}]};
+      why = `부족 자격을 공동수급으로 보완 — 웨이즈원 대표사 ${w}% 가정`;
+    } else { C = {mode: 'solo', role: 'lead', w: 100, members: []}; why = '단독 수행(보유 자격으로 충족) — 컨소시엄으로 바꿔 지분별로 볼 수 있음'; }
+  }
+  if(!VRB_MODE[C.mode]) C.mode = 'solo';
+  if(C.mode === 'solo'){ C.w = 100; C.members = []; C.role = 'lead'; }
+  C.w = Math.max(1, Math.min(100, Math.round((+C.w || 0) * 10) / 10));
+  C.members = (C.members || []).map(m => ({name: String(m.name || '').slice(0, 40), share: Math.max(0, Math.min(100, +m.share || 0)), task: String(m.task || '').slice(0, 40)}));
+  C.fee = Math.max(0, Math.min(10, +C.fee || 0));
+  if(!C.task) C.task = (o.products || []).slice(0, 2).join('·') || '';
+  const sum = Math.round((C.w + C.members.reduce((a, m) => a + m.share, 0)) * 10) / 10;
+  const warn = [];
+  if(C.mode !== 'solo'){
+    if(R.allowed === false) warn.push('공고상 공동수급 불허 — 컨소시엄 참여 불가');
+    if(Math.abs(sum - 100) > 0.05) warn.push(`지분 합계 ${sum}% — 100%가 되어야 합니다`);
+    if(R.maxN && 1 + C.members.length > R.maxN) warn.push(`구성원 ${1 + C.members.length}개사 — 공고 한도 ${R.maxN}개사`);
+    if(R.minShare && [C.w, ...C.members.map(m => m.share)].some(v => v < R.minShare)) warn.push(`최소 지분 ${R.minShare}% 미만인 구성원이 있음`);
+    if(C.role === 'lead' && C.members.some(m => m.share > C.w)) warn.push('대표사 지분이 구성원보다 작음(대표사는 보통 최대 지분)');
+    if(C.role === 'member' && R.pmLead) warn.push('PM은 대표사 소속 조건 — 웨이즈원은 분담 책임자만 둠');
+    if(C.mode === 'split' && /공동이행/.test(R.modes) && !/분담이행/.test(R.modes)) warn.push('공고에는 공동이행만 나옴 — 분담이행 가능 여부 확인');
+    if(C.mode === 'joint' && /분담이행/.test(R.modes) && !/공동이행/.test(R.modes)) warn.push('공고에는 분담이행만 나옴 — 공동이행 가능 여부 확인');
+  }
+  return Object.assign(C, {R, why, sum, warn});
+}
 function vrbItem(no){
   for(const o of (D.opportunities || [])) for(const x of items(o)) if(x.no === no) return {o, x};
   return null;
@@ -415,10 +460,9 @@ function vrbCalc(x, o, ov){
   else if(E.method === 'qual'){ ratio = 0.88; rWhy = '적격심사 — 낙찰하한율 바로 위(88%) 가정'; }
   else { ratio = 0.95; rWhy = '계약 방식 미확인 — 추정가격의 95% 가정'; }
   if(ov.ratio > 0) { ratio = ov.ratio / 100; rWhy = '직접 입력'; }
-  const gaps = ((x.elig || {}).gaps || []).join(' ');
-  let share = 1, sWhy = '단독 수행 가정';
-  if(/공동수급|컨소시엄|구성원|분담|협력사/.test(gaps)){ share = /차량|제작자|운수|여객/.test(gaps) ? 0.5 : 0.7; sWhy = `부족 자격을 공동수급으로 보완 — 웨이즈원 지분 ${Math.round(share * 100)}% 가정`; }
-  if(ov.share > 0){ share = ov.share / 100; sWhy = '직접 입력'; }
+  const K = vrbCons(x, o, ov);
+  const share = K.mode === 'solo' ? 1 : K.w / 100, sWhy = K.why, lead = K.role === 'lead', cons = K.mode !== 'solo';
+  const fieldOut = K.mode === 'split' && !!K.fieldOut;   // 분담이행에서 현장설비·부품을 구성원이 맡음
   const total = Math.round(bp.est * ratio), A = Math.round(total * share);
   // 적정 참여인원
   const remote = !VRB_METRO.test(String(x.org || ''));
@@ -429,10 +473,13 @@ function vrbCalc(x, o, ov){
   if(/\d\s*시간\s*상주|주\s*\d\s*회\s*(?:이상\s*)?[가-힣]{0,6}\s*상주|상주\s*(점검|지원)/.test(tx2) && !(m && +m[1] >= 1 && /상주\s*(?:인력|요원|인원)/.test(m[0]))){ res = 0; resWhy = '부분 상주(시간제·주 1회) — 전일 상주 없음'; }
   else if(m){ res = +m[1]; resWhy = `제안요청서 「${m[0].replace(/\s+/g, ' ').trim()}」`; }
   else if(/상주/.test(tx2)){ res = h24 ? 3 : 1; resWhy = h24 ? '상주 인원 미기재 · 24시간 운영 — 3명(교대) 가정' : '상주 인원 미기재 — 1명 가정'; }
+  const resAll = res;
+  if(cons && res > 0){ res = fieldOut ? (lead ? 1 : 0) : Math.max(lead ? 1 : 0, Math.round(res * share)); resWhy += ` → 웨이즈원 몫 ${res}명(${VRB_MODE[K.mode]} ${K.w}%${fieldOut ? '·현장은 구성원' : ''})`; }
   if(ov.res >= 0 && ov.res !== undefined && ov.res !== '') { res = +ov.res; resWhy = '직접 입력'; }
-  const field = /현장설비|현장\s*설비|CCTV|VMS|RSE|RSU|OBU|CVIB|신호제어기|함체|BIT|검지기|정보통신공사|현장\s*점검|현장\s*조사|MMS|측량/.test(text);
-  const lift = /고소작업차|사다리차|크레인|스카이차/.test(text);
-  const parts = /부품|예비품|예비장비|소모품|워런티|라이선스|H\/?W|서버|스토리지|장비/.test(text);
+  const field0 = /현장설비|현장\s*설비|CCTV|VMS|RSE|RSU|OBU|CVIB|신호제어기|함체|BIT|검지기|정보통신공사|현장\s*점검|현장\s*조사|MMS|측량/.test(text);
+  const field = field0 && !fieldOut;
+  const lift = /고소작업차|사다리차|크레인|스카이차/.test(text) && !fieldOut;
+  const parts = !fieldOut && /부품|예비품|예비장비|소모품|워런티|라이선스|H\/?W|서버|스토리지|장비/.test(text);
   const partsAll = /부품.{0,12}일체|일체.{0,12}부품|라이선스.{0,10}일체/.test(text);
   const confirm = /확약서|기술지원\s*협약서|기술지원\s*확약/.test(text);
   const hwBuy = ty === 'si' && /H\/?W|서버|장비\s*(도입|구매|설치)|스토리지|구매\s*설치/.test(text);
@@ -441,15 +488,17 @@ function vrbCalc(x, o, ov){
   const S = [];
   const pmG = A >= 10e8 ? '수석' : '책임';
   const small = A < 1.5e8;
-  const pmF = small ? (ty === 'study' ? 0.3 : 0.1) : {om: 0.25, si: A >= 5e8 ? 1 : 0.5, data: 0.3, pilot: 0.5, study: 0.6}[ty];
-  S.push({k: 'pm', role: '사업관리(PM)', g: ty === 'study' ? '수석' : pmG, mm: pmF * months, note: `${months}개월 × ${pmF} 투입`});
+  let pmF = small ? (ty === 'study' ? 0.3 : 0.1) : {om: 0.25, si: A >= 5e8 ? 1 : 0.5, data: 0.3, pilot: 0.5, study: 0.6}[ty];
+  if(cons && !lead) pmF = Math.round(pmF * 0.5 * 100) / 100;
+  S.push({k: 'pm', role: cons && !lead ? '분담 책임자(구성원)' : '사업관리(PM)', g: ty === 'study' ? '수석' : pmG, mm: pmF * months, note: `${months}개월 × ${pmF} 투입`});
+  if(cons && lead) S.push({k: 'cm', role: '컨소시엄 관리(대표사)', g: '책임', mm: 0.05 * months, note: '구성원 조율·기성 정산 — 월 1일'});
   if(['om', 'si', 'pilot'].includes(ty) && A >= 3e8) S.push({k: 'sup', role: '기술지원·품질(비상주)', g: '수석', mm: 0.05 * months, note: '월 1일 수준'});
   for(let i = 0; i < res; i++) S.push({k: 'res' + i, role: res >= 3 && i === 0 ? '상주 책임(현장 총괄)' : `상주 ${ty === 'pilot' ? '관제·운영' : '엔지니어'}`, g: res >= 3 && i === 0 ? '책임' : '주임', mm: months, note: `${months}개월 상주`});
   const fixed = S.reduce((a, s) => a + s.mm, 0);
   const minRest = {om: field ? 0.5 * months : (res ? 0 : 0.5 * months), si: 1 * months, data: 1 * months, pilot: 1 * months, study: 0.5 * months}[ty];
   const rest = Math.max(Math.min(minRest, mmBudget * 0.6), mmBudget - fixed);
   const SPL = {
-    om: [[field ? '현장 점검·장애출동(2인 1조)' : '유지보수·장애대응 엔지니어', field ? '연구원' : '주임', 1]],
+    om: [[field ? '현장 점검·장애출동(2인 1조)' : (fieldOut ? '센터·SW 유지보수(분담)' : '유지보수·장애대응 엔지니어'), field ? '연구원' : '주임', 1]],
     si: [['설계·개발', '책임', 0.3], ['개발·시험', '연구원', 0.7]],
     data: [[field ? '현장조사·데이터 제작' : '데이터 제작', '계약직', 0.6], ['데이터 검수', '연구원', 0.4]],
     pilot: [['관제·운영요원', '계약직', 0.7], ['플랫폼 운영', '주임', 0.3]],
@@ -488,26 +537,40 @@ function vrbCalc(x, o, ov){
   // 영업·마케팅비, 일반관리비
   const nego = E.method === 'nego' || /협상|제안서|발표/.test(String(r.evaluation || '') + (r.evalMode || ''));
   const pres = /발표/.test(String(r.evalMode || '') + (r.evalDetail || ''));
+  const sf = cons && !lead ? 0.3 : 1, sfN = cons ? (lead ? ' · 대표사가 제안 주관' : ' · 구성원 몫 30%(제안은 대표사 주관)') : '';
   const SM = [
-    ['pre', '1. 수주 사전 활동(영업/마케팅/기획 등)', nego ? 0.1 * VRB_RATE.임원 + 0.3 * VRB_RATE.책임 : 0.1 * VRB_RATE.책임, nego ? '임원 0.1·책임 0.3 M/M' : '책임 0.1 M/M(가격 입찰)'],
-    ['doc', '2. 제안서/결과보고서 작성비', nego ? 0.3 * VRB_RATE.책임 + 0.5 * VRB_RATE.연구원 : 0, nego ? '책임 0.3·연구원 0.5 M/M(사내 제안서 자동작성 도구 쓰면 줄어듦)' : '가격 입찰 — 없음'],
-    ['dsn', '3. 제안서 디자인비', pres ? 1500000 : 0, pres ? '발표평가 — 외주 디자인 150만원 가정' : ''],
+    ['pre', '1. 수주 사전 활동(영업/마케팅/기획 등)', (nego ? 0.1 * VRB_RATE.임원 + 0.3 * VRB_RATE.책임 : 0.1 * VRB_RATE.책임) * sf, (nego ? '임원 0.1·책임 0.3 M/M' : '책임 0.1 M/M(가격 입찰)') + sfN],
+    ['doc', '2. 제안서/결과보고서 작성비', (nego ? 0.3 * VRB_RATE.책임 + 0.5 * VRB_RATE.연구원 : 0) * sf, (nego ? '책임 0.3·연구원 0.5 M/M(사내 제안서 자동작성 도구 쓰면 줄어듦)' : '가격 입찰 — 없음') + (nego ? sfN : '')],
+    ['dsn', '3. 제안서 디자인비', (pres ? 1500000 : 0) * (cons && !lead ? 0 : 1), pres ? (cons && !lead ? '대표사 부담' : '발표평가 — 외주 디자인 150만원 가정') : ''],
     ['div', '4. 부문/부서 공통비', A * 0.05, '지분의 5%'],
     ['oth', '5. 기타', 0, '']
   ].map(([k, l, v, n]) => { const e = CO['s_' + k]; return [k, l, (e !== undefined && e !== '' && !isNaN(+e)) ? Math.round(+e) : Math.round(v), n]; });
   const Ssum = SM.reduce((a, c) => a + c[2], 0);
-  const GA = [['corp', '1. 전사공통비 등', Math.round(A * 0.12), '지분의 12%'], ['oth2', '2. 기타', 0, '']];
+  const fee = cons && K.fee ? (lead ? -Math.round((total - A) * K.fee / 100) : Math.round(A * K.fee / 100)) : 0;
+  const GA = [['corp', '1. 전사공통비 등', Math.round(A * 0.12), '지분의 12%'], ['oth2', '2. 기타', fee, fee ? (lead ? `구성원 관리비 수입 ${K.fee}%(차감)` : `대표사 관리비 지급 ${K.fee}%`) : '']];
   const Gsum = GA.reduce((a, c) => a + c[2], 0);
   const TOT = B + Ssum + Gsum, OP = A - TOT, opr = A ? OP / A : 0;
   // 의결 권고
   const el = (x.elig || {}).verdict;
   let dec, dlv;
-  if(el === 'no'){ dec = '참가자격 미달 — 공동수급으로도 보완하기 어려움'; dlv = 3; }
+  if(el === 'no' && !cons){ dec = '참가자격 미달 — 공동수급으로도 보완하기 어려움'; dlv = 3; }
+  else if(cons && K.R.allowed === false){ dec = '공동수급 불허 공고 — 컨소시엄 참여 불가'; dlv = 3; }
   else if(opr >= 0.10){ dec = '입찰 참여 권고'; dlv = 0; }
   else if(opr >= 0.03){ dec = '참여 검토 — 원가 관리 조건'; dlv = 1; }
   else if(opr >= 0){ dec = '조건부 참여 — 전략적 가치가 있을 때만'; dlv = 2; }
   else { dec = '참여 재검토 — 손실 예상'; dlv = 3; }
-  return {x, o, ty, T, lab, months, ratio, rWhy, share, sWhy, total, A, bp, E, remote, h24, res, resWhy, field, lift, confirm, mmBudget, S, MM, labor, C, COST, B, G, SM, Ssum, GA, Gsum, TOT, OP, opr, dec, dlv, nego, pres};
+  return {x, o, K, lead, cons, fieldOut, resAll, ty, T, lab, months, ratio, rWhy, share, sWhy, total, A, bp, E, remote, h24, res, resWhy, field, lift, confirm, mmBudget, S, MM, labor, C, COST, B, G, SM, Ssum, GA, Gsum, TOT, OP, opr, dec, dlv, nego, pres};
+}
+function vrbScan(x, o, ov){
+  // 지분·역할을 바꿔 가며 자동 추정으로 다시 계산한다(M/M·금액을 직접 고친 것은 빼고, 투찰률·기간·유형·관리비·분담 방식은 그대로)
+  const K = vrbCons(x, o, ov);
+  const base = {ratio: ov.ratio, months: ov.months, type: ov.type};
+  const calc = (role, w) => { const c = {mode: w >= 100 ? 'solo' : (K.mode === 'solo' ? 'joint' : K.mode), role, w, fieldOut: K.fieldOut, fee: K.fee, task: K.task, members: w >= 100 ? [] : [{name: '구성원', share: 100 - w, task: ''}]};
+    const V = vrbCalc(x, o, Object.assign({}, base, {cons: c})); return V ? {op: V.OP, opr: V.opr, A: V.A} : null; };
+  const W = [100, 80, 70, 60, 51, 49, 40, 30, 20];
+  const rows = ['lead', 'member'].map(role => ({role, cells: W.map(w => role === 'member' && w >= 100 ? null : Object.assign({w}, calc(role, w)))}));
+  const be = role => { const ok = []; for(let w = 5; w <= (role === 'lead' ? 100 : 95); w += 1){ const r = calc(role, w); if(r && r.op >= 0) ok.push(w); } return ok.length ? [Math.min(...ok), Math.max(...ok)] : null; };
+  return {W, rows, beL: be('lead'), beM: be('member')};
 }
 function vrbPoints(V){
   const {x, o, E} = V; const r = x.rfp || {}; const p = x.prev || {};
@@ -536,6 +599,41 @@ function vrbPoints(V){
   P.push(R5.join(' / ') + '.');
   return P;
 }
+function vrbStruct(V){
+  const K = V.K, R = K.R, W = v => Math.round(v).toLocaleString(), cons = V.cons;
+  const pl = [...new Set([...(((V.o.partners || {}).orgs) || []).map(p => p.name), ...((Array.isArray(V.o.competitors) ? V.o.competitors : ((V.o.competitors || {}).items || [])).map(c => typeof c === 'string' ? c : (c || {}).name)), ...(((V.x.prev || {}).winner) ? [V.x.prev.winner] : [])].filter(Boolean))].slice(0, 20);
+  const rule = R.allowed === false ? '<b class="vbad">공동수급 불허</b>' : R.allowed ? `공동수급 허용${R.modes ? '(' + esc(R.modes) + ')' : ''}${R.maxN ? ` · ${R.maxN}개사 이하` : ''}${R.minShare ? ` · 최소 지분 ${R.minShare}%` : ''}${R.pmLead ? ' · PM은 대표사 소속' : ''}` : '제안요청서에 공동수급 조건 기재 없음 — 입찰공고서 확인';
+  const memRole = i => V.lead ? '구성원' : (i === 0 ? '대표사' : '구성원');
+  return `<div class="vstruct"><div class="vcrow"><span class="kl">[계약 구조]</span>
+      <label>참여 방식 <select data-vcm aria-label="참여 방식">${Object.entries(VRB_MODE).map(([k, n]) => `<option value="${k}"${k === K.mode ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      ${cons ? `<label>웨이즈원 <select data-vcr aria-label="웨이즈원 역할"><option value="lead"${V.lead ? ' selected' : ''}>대표사</option><option value="member"${!V.lead ? ' selected' : ''}>구성원</option></select></label>
+      <label>관리비 <input class="vin sm" inputmode="decimal" data-vcf value="${K.fee}" aria-label="관리비(%)">% <span class="nt">${V.lead ? '구성원에게서 받음' : '대표사에 냄'}</span></label>` : ''}
+      <span class="nt">공고 조건: ${rule}</span></div>
+    <div class="vtbx"><table class="vctab"><thead><tr><th>구분</th><th>업체</th><th>담당 업무</th><th>지분</th><th>금액(원, VAT 별도)</th><th></th></tr></thead><tbody>
+      <tr class="hd"><td>총 계약 규모</td><td colspan="2"></td><td class="n">100%</td><td class="n">${W(V.total)}</td><td></td></tr>
+      <tr class="we"><td>${cons ? (V.lead ? '대표사' : '구성원') : '단독'}</td><td><b>웨이즈원</b></td><td><input class="vtx" data-vct value="${esc(K.task)}" aria-label="웨이즈원 담당 업무"></td>
+        <td class="n">${cons ? `<input class="vin sm" inputmode="decimal" data-vcw value="${K.w}" aria-label="웨이즈원 지분(%)">%` : '100%'}</td><td class="n"><b>${W(V.A)}</b></td><td></td></tr>
+      ${K.members.map((m, i) => `<tr><td>${memRole(i)}</td><td><input class="vtx" list="vrbpl" data-vcmn="${i}" value="${esc(m.name)}" aria-label="구성원 업체"></td><td><input class="vtx" data-vcmt="${i}" value="${esc(m.task)}" aria-label="구성원 담당 업무"></td>
+        <td class="n"><input class="vin sm" inputmode="decimal" data-vcms="${i}" value="${m.share}" aria-label="구성원 지분(%)">%</td><td class="n">${W(V.total * m.share / 100)}</td><td><button type="button" class="linkish" data-vcdel="${i}" aria-label="구성원 빼기">빼기</button></td></tr>`).join('')}
+      ${cons ? `<tr class="sub"><td colspan="3">${K.members.length < 9 ? '<button type="button" class="linkish" data-vcadd>+ 구성원 추가</button>' : ''}</td><td class="n${Math.abs(K.sum - 100) > 0.05 ? ' vbad' : ''}">${K.sum}%</td><td colspan="2"></td></tr>` : ''}
+    </tbody></table></div>
+    <datalist id="vrbpl">${pl.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    ${K.mode === 'split' ? `<label class="vchkbox"><input type="checkbox" data-vcfo${K.fieldOut ? ' checked' : ''}> 현장설비 점검·부품·고소작업차는 구성원이 분담(웨이즈원 원가에서 뺌)</label>` : ''}
+    ${K.warn.length ? `<ul class="vwarn">${K.warn.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+    <span class="nt">${esc(V.sWhy)}${cons ? ` · 상주 인원은 지분만큼 나눔(제안요청서 전체 ${V.resAll}명)${V.lead ? ' · 대표사: PM·컨소시엄 관리·제안 주관' : ' · 구성원: 분담 책임자만, 제안 비용 30%'}` : ''}</span>
+  </div>
+  ${vrbScanHtml(V)}`;
+}
+function vrbScanHtml(V){
+  const S = vrbScan(V.x, V.o, vrbOv(V.x.no));
+  const cur = w => V.cons ? Math.abs(w - V.K.w) < 0.5 : w >= 100;
+  const cell = (c, role) => !c ? '<td class="n nt">—</td>' : `<td class="n ${c.op < 0 ? 'neg' : c.opr >= 0.1 ? 'pos' : ''}${cur(c.w) && (V.lead ? 'lead' : 'member') === role ? ' cur' : ''}"><b>${pctT(c.opr)}</b><span>${eokT(Math.abs(c.op)) || '0원'}${c.op < 0 ? ' 손실' : ''}</span></td>`;
+  const be = (b, n) => b ? `${n} ${b[0]}%~${b[1]}%` : `${n} 없음`;
+  return `<details class="rfp vscan" open><summary>지분별 손익 비교 — 이익이 나는 지분: ${be(S.beL, '대표사')} · ${be(S.beM, '구성원')}</summary>
+    <div class="vtbx"><table class="vtab vsc"><thead><tr><th>웨이즈원 지분</th>${S.W.map(w => `<th>${w === 100 ? '100%(단독)' : w + '%'}</th>`).join('')}</tr></thead>
+    <tbody>${S.rows.map(r => `<tr><th>${r.role === 'lead' ? '대표사' : '구성원'}</th>${r.cells.map(c => cell(c, r.role)).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="nmeta">칸마다 영업이익률과 금액입니다. 투찰률·기간·유형·관리비·분담 방식은 지금 값을 쓰고, 인력과 비용은 자동 추정으로 다시 셉니다(직접 고친 M/M·금액은 비교에 넣지 않음). 지분이 작아도 PM·제안 비용 같은 고정비는 남아 이익률이 떨어지고, 상주 인력이 많으면 지분이 클수록 손실이 커질 수 있습니다.</p></details>`;
+}
 function vrbHtml(V){
   const {x} = V; const r = x.rfp || {};
   const W = v => Math.round(v).toLocaleString();
@@ -559,11 +657,8 @@ function vrbHtml(V){
       <dt>○ 수행팀</dt><dd>${esc((V.o.products || []).slice(0, 3).join('·') || '해당 제품')} 담당 팀 · 사업 유형 <select data-vk="type" aria-label="사업 유형">${Object.entries(VRB_TYPE).map(([k, t]) => `<option value="${k}"${k === V.ty ? ' selected' : ''}>${t.n}</option>`).join('')}</select></dd>
       <dt>○ 계약금액</dt><dd><b class="num">${W(V.total)}</b>원 (VAT 별도) — ${esc(V.bp.src)} ${W(V.bp.est)}원 × 투찰률 <input class="vin sm" inputmode="decimal" data-vk="ratio" value="${Math.round(V.ratio * 1000) / 10}" aria-label="투찰률(%)">% <span class="nt">(${esc(V.rWhy)})</span></dd>
     </dl>
-    <div class="vstruct"><span class="kl">[계약 구조]</span><table><tr><th>구분</th><th>금액(원)</th><th>비중</th></tr>
-      <tr><td>총 계약 규모</td><td class="n">${W(V.total)}</td><td class="n">100%</td></tr>
-      <tr><td>웨이즈원</td><td class="n">${W(V.A)}</td><td class="n"><input class="vin sm" inputmode="decimal" data-vk="share" value="${Math.round(V.share * 100)}" aria-label="웨이즈원 지분(%)">%</td></tr></table>
-      <span class="nt">${esc(V.sWhy)}</span></div>
   </div>
+  ${vrbStruct(V)}
   <div class="vdec ${DEC}"><span class="kl">의결 권고</span><b>${esc(V.dec)}</b><span>영업이익 <b class="num">${W(V.OP)}</b>원 (<b class="num">${pctT(V.opr)}</b>) · 총 실행비용 ${pctT(V.A ? V.TOT / V.A : 0)}</span></div>
   <div class="vtbx"><table class="vtab">
     <caption>(단위: 원 / VAT 별도)</caption>
@@ -582,7 +677,7 @@ function vrbHtml(V){
       <tr class="hd op ${V.OP < 0 ? 'neg' : ''}"><td colspan="2">영업 이익</td><td class="n"><b>${W(V.OP)}</b></td><td class="n"><b>${pc(V.OP)}</b></td><td class="nt">=(A)-(E)</td></tr>
     </tbody></table></div>
   <details class="rfp" open><summary>상세 원가 — 적정 참여인원 ${Math.round(V.MM * 10) / 10} M/M(약 ${Math.round(V.MM / V.months * 10) / 10}명 × ${V.months}개월)·부대비용</summary>
-    <p class="nmeta">사업 유형 「${esc(V.T.n)}」: 사업비가 감당하는 인력은 웨이즈원 몫 × 인력 비중 ${Math.round(V.lab * 100)}% ÷ 매출 ${W(V.T.rpm)}원/MM = <b class="num">${Math.round(V.mmBudget * 10) / 10}</b> M/M.상주 인원 <input class="vin sm" inputmode="numeric" data-vk="res" value="${V.res}" aria-label="상주 인원(명)">명${V.res ? `(${esc(V.resWhy)})` : ''}.${V.h24 ? ' 24시간 운영.' : ''}${V.field ? ' 현장설비 포함.' : ''}${V.remote ? ' 비수도권 — 출장·숙박 반영(본사 수도권 가정).' : ' 수도권 — 당일 출장(본사 수도권 가정).'} M/M·직급·금액을 고치면 바로 다시 계산합니다.</p>
+    <p class="nmeta">사업 유형 「${esc(V.T.n)}」: 사업비가 감당하는 인력은 웨이즈원 몫 × 인력 비중 ${Math.round(V.lab * 100)}% ÷ 매출 ${W(V.T.rpm)}원/MM = <b class="num">${Math.round(V.mmBudget * 10) / 10}</b> M/M.웨이즈원 상주 인원 <input class="vin sm" inputmode="numeric" data-vk="res" value="${V.res}" aria-label="웨이즈원 상주 인원(명)">명${V.res ? `(${esc(V.resWhy)})` : ''}.${V.h24 ? ' 24시간 운영.' : ''}${V.field ? ' 현장설비 포함.' : ''}${V.remote ? ' 비수도권 — 출장·숙박 반영(본사 수도권 가정).' : ' 수도권 — 당일 출장(본사 수도권 가정).'} M/M·직급·금액을 고치면 바로 다시 계산합니다.</p>
     <div class="vtbx"><table class="vtab det"><thead><tr><th>역할</th><th>직급</th><th>M/M</th><th>단가(월)</th><th>금액</th><th>비율</th><th>비고</th></tr></thead><tbody>
       <tr class="sec"><td colspan="7">1. 인건비 (실투입 인력)</td></tr>${staff}
       <tr class="sub"><td colspan="2">소계</td><td class="n">${Math.round(V.MM * 100) / 100}</td><td></td><td class="n">${W(V.labor)}</td><td class="n">${pc(V.labor)}</td><td><button type="button" class="linkish" data-vaddstaff>+ 인력 추가</button></td></tr>
@@ -601,7 +696,7 @@ function vrbLine(x, o){
   if(!['pre', 'bid'].includes(x.stage) || x.awarded) return '';
   const V = vrbCalc(x, o, vrbOv(x.no)); if(!V) return '';
   const C = ['go', 'chk', 'cond', 'stop'][V.dlv];
-  return `<div class="vrbrow"><button type="button" class="btn vrbbtn" data-vrb="${esc(x.no)}">VRB</button><span class="nmeta">수주가치평가 — 영업이익 <b class="num vop ${C}">${pctT(V.opr)}</b>(${eokT(Math.abs(V.OP)) || '0원'}${V.OP < 0 ? ' 손실' : ''}) · 투입 ${Math.round(V.MM * 10) / 10} M/M · <b class="vdl ${C}">${esc(V.dec.split(' — ')[0])}</b></span></div>`;
+  return `<div class="vrbrow"><button type="button" class="btn vrbbtn" data-vrb="${esc(x.no)}">VRB</button><span class="nmeta">수주가치평가 — 영업이익 <b class="num vop ${C}">${pctT(V.opr)}</b>(${eokT(Math.abs(V.OP)) || '0원'}${V.OP < 0 ? ' 손실' : ''}) · 투입 ${Math.round(V.MM * 10) / 10} M/M${V.cons ? ` · ${V.lead ? '대표사' : '구성원'} ${V.K.w}%` : ''} · <b class="vdl ${C}">${esc(V.dec.split(' — ')[0])}</b></span></div>`;
 }
 let VRB_CUR = null;
 function vrbOpen(no){
@@ -611,7 +706,12 @@ function vrbOpen(no){
   if(!dlg){ dlg = document.createElement('dialog'); dlg.id = 'vrbdlg'; dlg.className = 'vrbdlg'; dlg.setAttribute('aria-label', 'VRB 수주가치평가'); document.body.appendChild(dlg);
     dlg.addEventListener('click', e => { if(e.target === dlg) dlg.close(); });
     dlg.addEventListener('change', e => vrbEdit(e.target));
-    dlg.addEventListener('click', e => { const b = e.target.closest('[data-vact],[data-vaddstaff]'); if(!b) return;
+    dlg.addEventListener('click', e => { const b = e.target.closest('[data-vact],[data-vaddstaff],[data-vcadd],[data-vcdel]'); if(!b) return;
+      if(b.dataset.vcadd !== undefined || b.dataset.vcdel !== undefined){ const f = vrbItem(VRB_CUR); const ov = vrbOv(VRB_CUR); const K = vrbCons(f.x, f.o, ov);
+        const c = {mode: K.mode, role: K.role, w: K.w, members: K.members, fieldOut: !!K.fieldOut, fee: K.fee, task: K.task};
+        if(b.dataset.vcadd !== undefined){ let rest = Math.max(0, Math.round((100 - K.sum) * 10) / 10); if(!rest){ const big = c.members.reduce((m, x) => x.share > (m ? m.share : 0) ? x : m, null); const from = big && big.share > c.w ? big : null; if(from && from.share > 10){ from.share -= 10; rest = 10; } else if(c.w > 10){ c.w -= 10; rest = 10; } } c.members.push({name: '', share: rest, task: ''}); }
+        else { c.members.splice(+b.dataset.vcdel, 1); if(!c.members.length){ c.mode = 'solo'; } }
+        delete ov.share; ov.cons = c; store('vrb.' + VRB_CUR, ov); vrbRender(); return; }
       if(b.dataset.vaddstaff !== undefined){ const ov = vrbOv(VRB_CUR); (ov.extra = ov.extra || []).push({role: '추가 인력', g: '연구원', mm: 1}); store('vrb.' + VRB_CUR, ov); vrbRender(); return; }
       const a = b.dataset.vact;
       if(a === 'close') dlg.close();
@@ -633,6 +733,17 @@ function vrbRender(){
 function vrbEdit(t){
   if(!VRB_CUR || !t) return;
   const ov = vrbOv(VRB_CUR); const val = String(t.value || '').replace(/,/g, '').trim();
+  const CK = ['vcm', 'vcr', 'vcw', 'vcf', 'vct', 'vcmn', 'vcms', 'vcmt', 'vcfo'].find(k => t.dataset[k] !== undefined);
+  if(CK){ const f = vrbItem(VRB_CUR); const K = vrbCons(f.x, f.o, ov); const c = {mode: K.mode, role: K.role, w: K.w, members: K.members, fieldOut: !!K.fieldOut, fee: K.fee, task: K.task};
+    const one = () => { if(c.members.length === 1) c.members[0].share = Math.max(0, Math.round((100 - c.w) * 10) / 10); };
+    if(CK === 'vcm'){ c.mode = val; if(val !== 'solo' && !c.members.length){ c.w = 70; c.members = [{name: '협력사', share: 30, task: ''}]; } if(val === 'split' && c.fieldOut === undefined) c.fieldOut = false; }
+    else if(CK === 'vcr'){ c.role = val; if(val === 'member' && c.w >= 50 && c.members.length === 1){ c.w = 30; one(); } }
+    else if(CK === 'vcw'){ c.w = +val || 0; one(); }
+    else if(CK === 'vcf') c.fee = +val || 0;
+    else if(CK === 'vct') c.task = val;
+    else if(CK === 'vcfo') c.fieldOut = !!t.checked;
+    else { const i = +t.dataset[CK]; if(c.members[i]){ if(CK === 'vcmn') c.members[i].name = val; else if(CK === 'vcmt') c.members[i].task = val; else c.members[i].share = +val || 0; } }
+    delete ov.share; ov.cons = c; delete ov.res; delete ov.staff; store('vrb.' + VRB_CUR, ov); vrbRender(); return; }
   if(t.dataset.vk){ const k = t.dataset.vk; if(k === 'type') ov.type = val; else if(val === '' || isNaN(+val)) delete ov[k]; else ov[k] = +val; }
   else if(t.dataset.vsm || t.dataset.vsg){ const k = t.dataset.vsm || t.dataset.vsg; ov.staff = ov.staff || {}; const s = ov.staff[k] = ov.staff[k] || {};
     if(t.dataset.vsm) s.mm = val === '' ? undefined : +val; else s.g = val;
@@ -644,7 +755,7 @@ function vrbEdit(t){
 function vrbCsv(){
   const f = vrbItem(VRB_CUR); if(!f) return; const V = vrbCalc(f.x, f.o, vrbOv(VRB_CUR)); if(!V) return;
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const rows = [['(수주 전) 프로젝트 가치평가'], ['사업명', V.x.title], ['발주처', V.x.org || ''], ['사업기간', (V.x.rfp || {}).period || '', V.months + '개월'], ['계약금액(VAT 별도)', V.total], ['웨이즈원 지분', V.A, Math.round(V.share * 100) + '%'], [],
+  const rows = [['(수주 전) 프로젝트 가치평가'], ['사업명', V.x.title], ['발주처', V.x.org || ''], ['사업기간', (V.x.rfp || {}).period || '', V.months + '개월'], ['계약금액(VAT 별도)', V.total], ['참여 방식', VRB_MODE[V.K.mode], V.cons ? (V.lead ? '대표사' : '구성원') : ''], ['웨이즈원 지분', V.A, Math.round(V.share * 100) + '%', V.K.task], ...V.K.members.map(m => ['구성원', Math.round(V.total * m.share / 100), m.share + '%', m.name, m.task]), [],
     ['구분', '항목', '금액(원)', '비율', '비고'], ['', 'PJT 당사 지분 (A)', V.A, '100%'],
     ...V.COST.map(c => ['1. 프로젝트 수행 원가', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (B)', V.B], ['', '매출 이익', V.G, (V.G / V.A * 100).toFixed(1) + '%'],
     ...V.SM.map(c => ['2. 영업/마케팅비', c[1], c[2], (c[2] / V.A * 100).toFixed(1) + '%', c[3]]), ['', '소계 (C)', V.Ssum],
