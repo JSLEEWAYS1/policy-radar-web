@@ -1177,12 +1177,38 @@ function show(t, opt={}){
   $$('.view').forEach(v=>v.hidden = v.dataset.view!==t);
   ensure(t);  // 보이게 한 다음 그린다(트렌드 차트가 화면 폭을 재므로)
   $$('.tab').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t ? 'true':'false'));
+  syncTabs(t);
   if(t==='links') requestAnimationFrame(drawEdges);
   if(!opt.keepScroll) window.scrollTo({top:0});
   try{ if(location.hash !== '#'+t) history.replaceState(null,'','#'+t) }catch(e){}
   store('tab',t);
 }
 $$('.tab').forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));
+// 중분류: 위 줄을 누르면 그 중분류에서 마지막으로 본(없으면 첫) 화면을 연다
+const TGRP = {home: ['overview'], biz: ['g2b', 'rnd', 'openinfo', 'ways1'], mkt: ['trend', 'track', 'idea'], pol: ['catalog', 'links', 'timeline', 'press'], src: ['sources']};
+const grpOf = t => Object.keys(TGRP).find(g => TGRP[g].includes(t)) || 'home';
+const LASTG = {};
+function syncTabs(t){
+  const g = grpOf(t); LASTG[g] = t;
+  $$('.tabs .gtab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.g === g)));
+  $$('.tabs .tab').forEach(b => { b.hidden = grpOf(b.dataset.tab) !== g; });
+  const sub = $('.tabs .subtabs'); if(sub) sub.hidden = TGRP[g].length < 2;
+  requestAnimationFrame(() => { tabArrows();
+    $$('.tabs .tabrow').forEach(sc => { const a = sc.querySelector('[aria-selected="true"]'); if(!a) return;
+      if(a.offsetLeft < sc.scrollLeft || a.offsetLeft + a.offsetWidth > sc.scrollLeft + sc.clientWidth) sc.scrollLeft = Math.max(0, a.offsetLeft - 44); }); });
+}
+// 탭 줄이 화면보다 길면 ‹ › 단추를 보이고, 고정 머리 높이를 --navh로 알려 준다(목록으로 이동할 때 머리 아래로 맞춤)
+function tabArrows(){
+  $$('.tabs .trow').forEach(r => { const sc = r.querySelector('.tabrow'), [l, rt] = r.querySelectorAll('.tscroll'); if(!sc || !l) return;
+    const over = sc.scrollWidth > sc.clientWidth + 2;
+    l.hidden = !over || sc.scrollLeft < 4; rt.hidden = !over || sc.scrollLeft + sc.clientWidth > sc.scrollWidth - 4; });
+  const nav = $('.tabs'); if(nav && nav.offsetHeight) document.documentElement.style.setProperty('--navh', (nav.offsetHeight + 8) + 'px');
+}
+$$('.tabs .gtab').forEach(b => b.addEventListener('click', () => show(LASTG[b.dataset.g] || TGRP[b.dataset.g][0])));
+$$('.tabs .tscroll').forEach(b => b.addEventListener('click', () => { const sc = b.parentElement.querySelector('.tabrow');
+  sc.scrollBy({left: (b.classList.contains('l') ? -1 : 1) * Math.max(160, sc.clientWidth * .6), behavior: 'smooth'}); }));
+$$('.tabs .tabrow').forEach(sc => sc.addEventListener('scroll', tabArrows, {passive: true}));
+window.addEventListener('resize', tabArrows);
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1); if(TABS.includes(h)&&h!==cur) show(h)});
 
 /* overview */

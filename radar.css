@@ -236,7 +236,7 @@ details.rfp ul{margin:0;padding-left:16px;display:grid;gap:2px}
 .discard summary{cursor:pointer;font-weight:600}
 .discard ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.86rem;color:var(--ink2)}
 .discard li b{color:var(--ink);font-weight:600}
-.opp,details.pol{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 60px)}
+.opp,details.pol{scroll-margin-top:calc(env(safe-area-inset-top,0px) + var(--navh))}
 @media (max-width:560px){.kv{grid-template-columns:minmax(0,1fr);gap:2px}}
 .ins{display:grid;gap:8px;align-content:start;padding:16px 18px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
 .ins .k{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;color:var(--mark-ink)}
@@ -283,7 +283,7 @@ svg.edges path.es{stroke-dasharray:4 4}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;color:var(--ink2);align-items:center}
 .legend i{display:inline-block;width:22px;height:0;border-top:1.6px solid var(--ink3);vertical-align:middle;margin-right:5px}
 .legend i.es{border-top-style:dashed}
-.detail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 60px);display:grid;gap:12px}
+.detail{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--navh));display:grid;gap:12px}
 @media (max-width:1060px){.detail{position:static}}
 .detail .empty{color:var(--ink3);font-size:.9rem}
 
@@ -470,7 +470,7 @@ b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(
 .tag.mk.done{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
 .tag.mk.err{background:var(--sunk);color:var(--ink2)}
 .prl>li.flash{animation:flash 1.4s ease;border-radius:10px}
-.prl>li{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
+.prl>li{scroll-margin-top:calc(env(safe-area-inset-top,0px) + var(--navh))}
 b.pt{font-weight:700;white-space:nowrap}
 b.pt.yes{color:var(--mark-ink)}
 b.pt.no{color:var(--ink)}
@@ -524,6 +524,23 @@ button.kpi:hover{background:var(--tint)}
 .tab[aria-selected="true"]{color:var(--ink);font-weight:700;border-bottom-color:var(--mark)}
 .tab .n{font-family:var(--f-mono);font-size:.72rem;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--sunk);color:var(--ink2);line-height:1.2}
 .tab[aria-selected="true"] .n{background:var(--mark-soft);color:var(--mark-ink)}
+/* 두 줄 탭(2026-11-12): 위 줄 중분류 5개, 아래 줄 그 중분류의 하위 화면. 넘치면 ‹ › 단추 */
+:root{--navh:104px}
+.tabs .trow{position:relative}
+.tabs .tabrow{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth}
+.tabs .tabrow::-webkit-scrollbar{display:none}
+.tabs .gtab{appearance:none;border:0;background:none;padding:13px 16px 11px;font:inherit;font-size:1rem;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs .gtab:hover{color:var(--ink)}
+.tabs .gtab[aria-selected="true"]{color:var(--ink);font-weight:750;border-bottom-color:var(--mark)}
+.tabs .subtabs{border-top:1px solid var(--line);background:var(--tint)}
+.tabs .subtabs .tab{padding:9px 13px 8px;font-size:.9rem;border-bottom:2px solid transparent}
+.tabs .subtabs .tab[aria-selected="true"]{border-bottom-color:var(--mark)}
+.tabs .tscroll{position:absolute;top:0;bottom:0;width:40px;border:0;padding:0;display:grid;place-items:center;cursor:pointer;font:inherit;font-size:1.3rem;line-height:1;color:var(--ink);z-index:2}
+.tabs .tscroll.l{left:0;background:linear-gradient(90deg,var(--surface) 60%,transparent)}
+.tabs .tscroll.r{right:0;background:linear-gradient(270deg,var(--surface) 60%,transparent)}
+.tabs .subtabs .tscroll.l{background:linear-gradient(90deg,var(--tint) 60%,transparent)}
+.tabs .subtabs .tscroll.r{background:linear-gradient(270deg,var(--tint) 60%,transparent)}
+@media (max-width:620px){.tabs .gtab{padding:11px 12px 9px;font-size:.93rem}.tabs .subtabs .tab{padding:8px 10px 7px;font-size:.85rem}}
 
 /* 지금 챙길 일 */
 .board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
@@ -942,7 +959,7 @@ details.mkt ul{margin-top:6px}
   .subs li .meter{display:none}
   .ihist li{grid-template-columns:minmax(0,1fr)}
 }
-#idea-out{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
+#idea-out{scroll-margin-top:calc(env(safe-area-inset-top,0px) + var(--navh))}
 .idocs{display:grid;gap:8px}
 .idoclist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .idoclist li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 12px;align-items:center;padding:8px 12px;border-radius:10px;background:var(--tint);box-shadow:inset 0 0 0 1px var(--line);font-size:.88rem}
@@ -998,7 +1015,7 @@ details.ifdict .ilist{margin-top:6px}
 .inums b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1.12rem;font-weight:650;line-height:1.2;color:var(--ink)}
 .inums span{font-size:.76rem;line-height:1.45;color:var(--ink2)}
 /* 한국도로공사(주요 고객) 공고 — 나라장터 연계 공고(2026-10-20) */
-.expanel{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
+.expanel{scroll-margin-top:calc(env(safe-area-inset-top,0px) + var(--navh))}
 .expanel .sec-head h2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .expanel .cust{font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--mark-soft);color:var(--mark-ink);letter-spacing:.01em}
 .exsteps{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.72rem;color:var(--ink3)}
@@ -1081,7 +1098,7 @@ details.actmore>summary::-webkit-details-marker{display:none}
 details.actmore>summary::before{content:"+";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);font-family:var(--f-mono);font-size:.85rem}
 details.actmore[open]>summary::before{content:"−"}
 .ins.flash{animation:flash 1.4s ease}
-.ins{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 64px)}
+.ins{scroll-margin-top:calc(env(safe-area-inset-top,0px) + var(--navh))}
 @media (max-width:760px){ul.actl li{grid-template-columns:minmax(0,1fr)}ul.actl .ad{grid-auto-flow:column;justify-content:start;align-items:center;gap:8px}}
 @media (max-width:620px){ol.acts li{grid-template-columns:minmax(0,1fr)}ol.acts .ad{grid-auto-flow:column;justify-content:start;align-items:center;gap:8px}dl.agr{grid-template-columns:minmax(0,1fr);gap:2px}dl.agr dt{margin-top:6px}}
 

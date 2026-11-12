@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=61cbda6e">
-<link rel="stylesheet" href="app.css?v=61cbda6e">
+<link rel="stylesheet" href="radar.css?v=63a7ca84">
+<link rel="stylesheet" href="app.css?v=63a7ca84">
 </head>
 <body>
 
@@ -130,21 +130,29 @@
 </header>
 
 <nav class="tabs" aria-label="화면 이동">
-  <div class="wrap" role="tablist">
+  <!-- 중분류(위 줄)를 고르면 그 아래 하위 화면(아래 줄)이 보인다. 화면이 좁으면 ‹ › 단추로 옆으로 넘긴다 -->
+  <div class="trow"><div class="wrap tabrow grp" role="tablist" aria-label="분류">
+    <button type="button" class="gtab" role="tab" data-g="home">한눈에 보기</button>
+    <button type="button" class="gtab" role="tab" data-g="biz" title="나라장터 사업 · 연구개발·기업지원 · 정보공개 · 웨이즈원 기회">사업 기회</button>
+    <button type="button" class="gtab" role="tab" data-g="mkt" title="공공발주 트렌드 · 수행 실적 · 아이디어 검증">시장·실적</button>
+    <button type="button" class="gtab" role="tab" data-g="pol" title="정책 카탈로그 · 정책 연계도 · 타임라인 · 최신 뉴스">정책·뉴스</button>
+    <button type="button" class="gtab" role="tab" data-g="src">출처·방법</button>
+  </div><button type="button" class="tscroll l" aria-label="탭 왼쪽으로" hidden>‹</button><button type="button" class="tscroll r" aria-label="탭 오른쪽으로" hidden>›</button></div>
+  <div class="subtabs"><div class="trow"><div class="wrap tabrow" role="tablist" aria-label="화면">
     <button class="tab" role="tab" data-tab="overview" id="t-overview">한눈에 보기</button>
-    <button class="tab" role="tab" data-tab="press" id="t-press">최신 뉴스</button>
     <button class="tab" role="tab" data-tab="g2b" id="t-g2b">나라장터 사업</button>
-    <button class="tab" role="tab" data-tab="trend" id="t-trend">공공발주 트렌드</button>
     <button class="tab" role="tab" data-tab="rnd" id="t-rnd">연구개발·기업지원</button>
     <button class="tab" role="tab" data-tab="openinfo" id="t-openinfo">정보공개</button>
     <button class="tab" role="tab" data-tab="ways1" id="t-ways1">웨이즈원 기회</button>
+    <button class="tab" role="tab" data-tab="trend" id="t-trend">공공발주 트렌드</button>
     <button class="tab" role="tab" data-tab="track" id="t-track">수행 실적</button>
     <button class="tab" role="tab" data-tab="idea" id="t-idea">아이디어 검증</button>
     <button class="tab" role="tab" data-tab="catalog" id="t-catalog">정책 카탈로그</button>
     <button class="tab" role="tab" data-tab="links" id="t-links">정책 연계도</button>
     <button class="tab" role="tab" data-tab="timeline" id="t-timeline">타임라인</button>
+    <button class="tab" role="tab" data-tab="press" id="t-press">최신 뉴스</button>
     <button class="tab" role="tab" data-tab="sources" id="t-sources">출처·방법</button>
-  </div>
+  </div><button type="button" class="tscroll l" aria-label="탭 왼쪽으로" hidden>‹</button><button type="button" class="tscroll r" aria-label="탭 오른쪽으로" hidden>›</button></div></div>
 </nav>
 
 <main><div class="wrap">
@@ -389,8 +397,8 @@
   </div>
 </div>
 
-<script src="config.js?v=61cbda6e"></script>
-<script src="radar.js?v=61cbda6e"></script>
-<script type="module" src="app.js?v=61cbda6e"></script>
+<script src="config.js?v=63a7ca84"></script>
+<script src="radar.js?v=63a7ca84"></script>
+<script type="module" src="app.js?v=63a7ca84"></script>
 </body>
 </html>
