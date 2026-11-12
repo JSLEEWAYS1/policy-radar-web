@@ -1120,14 +1120,17 @@ function renderEx(){
     return `<span class="tag plan">발주계획</span><span><b>${esc(ym(g.plan.planMonth))}</b> 발주 예정</span>`; };
   const isNew = g => g.firstSeen && ddN(g.firstSeen) >= -7;
   const steps = g => ['plan', 'pre', 'bid'].map(s => `<span class="exs${g[s] ? ' on ' + s : ''}"${g[s] ? ` title="${esc(g[s].no)}"` : ''}>${EXS[s]}${g[s] ? '' : ' 없음'}</span>`).join('<i aria-hidden="true">›</i>');
-  const wait = g => g.stage === 'plan' ? '' : `<div class="elig"><span class="tag">제안요청서 분석 대기</span><span class="nmeta">제안요청서 요약·독소조항·참가자격 판정·전차 수주사는 다음 한국도로공사 수집(평일 08:20·13:20)에서 제안요청서를 읽고 붙습니다. 지금 VRB는 사업비만으로 어림한 값입니다</span></div>`;
+  const wait = g => g.stage === 'plan' ? '' : `<div class="elig"><span class="tag">제안요청서 분석 대기</span><span class="nmeta">제안요청서 요약·독소조항·참가자격 판정·전차 수주사는 한국도로공사 수집(평일 08:20·13:20)이 제안요청서를 읽고 붙입니다. 지금 VRB는 사업비만으로 어림한 값입니다</span></div>`;
+  // 제안서·발표자료 만들기: 나라장터와 같이 제안요청서 요약과 참가자격 판정(참여 가능·보완 필요)이 있어야 만든다 — 그 전에는 단추를 보이되 잠가 두고 이유를 적는다
+  const mkWait = x => !PREQ_ON || x.stage === 'plan' || (x.rfp && ['ok', 'gap'].includes((x.elig || {}).verdict)) || PREQ[x.no] ? '' :
+    `<div class="mkrow"><button type="button" class="btn mk" disabled title="제안요청서 분석 후 사용할 수 있습니다">제안서·발표자료 만들기</button><span class="mkst">${!x.rfp ? '제안요청서 분석이 끝나면 누를 수 있습니다' : '참가자격 확인이 필요해 지금은 만들 수 없습니다 — ' + esc((x.elig || {}).note || '제안요청서에 참가자격 기재 없음')}</span></div>`;
   const L = live.filter(g => g.stage === exTab);
   const li0 = g => { const x = exX(g), o = exO(g), full = g.stage !== 'plan';
     return `<li data-no="${esc(x.no)}"><div class="st">${when(g)}${isNew(g) ? '<span class="tag new">NEW</span>' : ''}${mkTag(x.no)}</div>
     <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(g.title)}</a>
     <span class="nmeta">${esc([g.dept || g.dmst, g.area, g.method].filter(Boolean).join(' · '))}${x.budget ? ` · <b class="num">${esc(x.budget)}</b>` : ''}${pt(x)}${x.lic ? ' · ' + esc(x.lic) : ''} · 공고번호 ${esc(x.no)}</span>
     <div class="exsteps">${steps(g)}</div>
-    ${full ? vrbLine(x, o) : ''}${full && x.rfp ? eligLine(x) + evLine(x) : wait(g)}${prevLine(x)}${full ? bidBox(x, o) + rfpBlock(x) : ''}${(x.docs || []).length ? docBtns(x, '나라장터에서 보기') : ''}</div></li>`; };
+    ${full ? vrbLine(x, o) : ''}${full && x.rfp ? eligLine(x) + evLine(x) : wait(g)}${prevLine(x)}${full ? bidBox(x, o) + mkWait(x) + rfpBlock(x) : ''}${(x.docs || []).length ? docBtns(x, '나라장터에서 보기') : ''}</div></li>`; };
   // 한 사업을 그리다 오류가 나도 목록 전체가 비지 않게 한다
   const li = g => { try { return li0(g); } catch(e){ console.error('[레이더] 한국도로공사 목록 한 줄을 그리지 못함', g && g.key, e);
     return `<li><div class="st"><span class="tag">${esc(EXS[g.stage] || '')}</span></div><div class="bd"><b>${esc(g.title || '')}</b><span class="nmeta">세부 정보를 불러오지 못했습니다</span></div></li>`; } };
