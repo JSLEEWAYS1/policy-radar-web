@@ -294,7 +294,7 @@ function preqDls(no){
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
-  const redraw = () => { if(READY.has('g2b')) renderPipe(); };
+  const redraw = () => { if(READY.has('g2b')){ renderPipe(); try { renderEx(); } catch(e){ console.error(e); } } };
   if(!RT){  // 회원 홈페이지: 회원 서버의 proposal_req 표(요청만 남기고, 처리 상태는 레이더 쪽에서 되돌아온다)
     const W = typeof window !== 'undefined' && window.W1STORE;
     if(!W || typeof W.proposalReq !== 'function') return;
@@ -340,6 +340,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-mkprop]'); if(!b || !preqSet) return; e.preventDefault();
   const no = b.dataset.mkprop; let it = null, op = null;
   (D.opportunities||[]).forEach(o => items(o).forEach(x => { if(x.no === no){ it = x; op = o; } }));
+  if(!it){ const g = exFind(no); if(g && exX(g).no === no){ it = exX(g); op = exO(g); } }   // 한국도로공사 사업
   if(!it) return;
   b.disabled = true; b.textContent = '요청 중…';
   try {
@@ -452,6 +453,7 @@ function vrbCons(x, o, ov){
 }
 function vrbItem(no){
   for(const o of (D.opportunities || [])) for(const x of items(o)) if(x.no === no) return {o, x};
+  const g = exFind(no); if(g && exX(g).no === no) return {o: exO(g), x: exX(g)};   // 한국도로공사 사업
   return null;
 }
 /* 비고 → 산정근거: 사용자가 비고에 쓴 계산식(예: 「월 60만원 × 9개월 × 2대」「개발 4M, 교통 4M」「2명 × 9개월」「매출의 6%」)을 읽어
@@ -832,7 +834,7 @@ function vrbOpen(no){
       else if(a === 'reset'){ try { localStorage.removeItem('w1radar.vrb.' + VRB_CUR); } catch(e2){} vrbRender(); }
       else if(a === 'print'){ document.body.classList.add('vrbprint'); try { window.print(); } catch(e2){} setTimeout(() => document.body.classList.remove('vrbprint'), 500); }
       else if(a === 'csv') vrbCsv(); });
-    dlg.addEventListener('close', () => { if(READY.has('g2b')) renderPipe(); });
+    dlg.addEventListener('close', () => { if(READY.has('g2b')){ renderPipe(); try { renderEx(); } catch(e2){ console.error(e2); } } });
   }
   vrbRender();
   if(!dlg.open){ try { dlg.showModal(); } catch(e){ dlg.setAttribute('open', ''); } }
@@ -1016,6 +1018,7 @@ function mineFind(no){
     if(it.preNo === no && isBid(it)){ nx = it; no2 = op; }
   }));
   if(nx){ x = nx; o = no2; }   // 사전규격에서 요청했는데 본공고가 나왔으면 본공고를 따른다
+  if(!x){ const g = exFind(no); if(g){ x = exX(g); o = exO(g); if(x.no !== no) nx = x; } }   // 한국도로공사 사업(단계가 바뀌었으면 지금 단계를 따른다)
   return {x, o, follow: !!nx};
 }
 function mineStage(r, f){
@@ -1050,7 +1053,7 @@ function renderMine(){
     const title = (x && x.title) || r.title || r.no, org = (x && x.org) || r.org || '', budget = (x && x.budget) || r.budget || '';
     const ver = st.state === 'done' || st.state === 'error' ? [st.ver ? `최신본 <b>${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : (st.doneAt ? `완료 <b>${esc(st.doneAt)}</b>` : ''),
       st.pages ? `제안서 <b class="num">${esc(st.pages.proposal || '?')}</b>쪽 · 발표 <b class="num">${esc(st.pages.deck || '?')}</b>쪽` : '', st.flags != null ? `확인할 곳 <b class="num">${esc(st.flags)}</b>곳` : ''].filter(Boolean).join(' · ') : '';
-    const go = g.live && g.tab && x ? `<button type="button" class="linkish" data-mygo="${esc(x.no)}" data-mytab="${g.tab}">아래 목록에서 보기(VRB·투찰가·제안요청서)</button>` : '';
+    const go = g.live && g.tab && x ? `<button type="button" class="linkish" data-mygo="${esc(x.no)}" data-mytab="${x.ex ? 'ex-' : ''}${g.tab}">아래 목록에서 보기(VRB·투찰가·제안요청서)</button>` : '';
     return `<li><div class="st">${mkTag(r.no)}${g.when}</div>
       <div class="bd">${x && x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(title)}</a>` : `<b>${esc(title)}</b>`}
       <span class="nmeta">${esc(org)}${budget ? ` · <b class="num">${esc(budget)}</b>` : ''} · 공고번호 ${esc(r.no)}${f.follow ? ` → 본공고 ${esc(x.no)}` : ''}${r.at ? ` · 요청 ${esc(String(r.at).slice(5, 16).replace('-', '/'))}` : ''}</span>
@@ -1069,44 +1072,71 @@ function renderMine(){
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-mygo]'); if(!b) return; e.preventDefault();
-  pipeTab = b.dataset.mytab; store('pipe', pipeTab); renderPipe();
-  const li = document.querySelector(`#prepanel li[data-no="${CSS.escape(b.dataset.mygo)}"]`); if(!li) return;
+  const exT = /^ex-/.test(b.dataset.mytab);   // 한국도로공사 사업은 아래 한국도로공사 칸에서 찾는다
+  if(exT){ exTab = b.dataset.mytab.slice(3); store('extab', exTab); renderEx(); } else { pipeTab = b.dataset.mytab; store('pipe', pipeTab); renderPipe(); }
+  const li = document.querySelector(`${exT ? '#expanel' : '#prepanel'} li[data-no="${CSS.escape(b.dataset.mygo)}"]`); if(!li) return;
   const dt = li.closest('details'); if(dt) dt.open = true;
   li.scrollIntoView({behavior: 'smooth', block: 'start'}); li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash');
 });
 document.addEventListener('click',e=>{const b=e.target.closest('[data-tabgo]'); if(b){e.preventDefault(); if(b.dataset.pipego){ pipeTab = b.dataset.pipego; store('pipe', pipeTab); if(READY.has('g2b')) renderPipe(); } show(b.dataset.tabgo);}});
 /* 한국도로공사(주요 고객): 자체 전자조달 공고가 나라장터에 연계된 것을 공고기관으로 모아 사업 단위(발주계획→사전규격→입찰공고)로 보여 준다 */
+const EXS = {plan: '발주계획', pre: '사전규격', bid: '입찰공고'};
+const EXSR = 'https://www.g2b.go.kr/link/FIUA009_01/single/?searchKeyword=';
+const exOpen = g => g.stage !== 'bid' || !(g.bid && g.bid.deadline) || dlk(g.bid.deadline) >= NOWK;
+const exLive = () => ((D.ex && D.ex.items) || []).filter(g => exOpen(g) && (g.elig || {}).verdict !== 'no');
+const exOut = () => ((D.ex && D.ex.items) || []).filter(g => exOpen(g) && (g.elig || {}).verdict === 'no');
+/* 한국도로공사 사업 묶음(g)을 나라장터 공고 항목(x)·사업 기회(o) 모양으로 바꿔 나라장터 목록과 같은 줄
+   (VRB·참가자격·독소조항·평가 형태·전차 수주사·경쟁강도·적정 투찰·제안요청서 요약·서류·제안서 만들기)을 그대로 쓴다 */
+const wonT = v => { if(!v) return ''; const e = Math.floor(v / 1e8), m = Math.round((v % 1e8) / 1e4); return e ? `${e}억${m ? ' ' + m.toLocaleString() + '만' : ''}원` : `${m.toLocaleString()}만원`; };
+const EXXC = new WeakMap();
+function exX(g){
+  if(EXXC.has(g)) return EXXC.get(g);
+  const s = g.stage, c = g[s] || {}, pre = g.pre || {}, plan = g.plan || {}, bid = g.bid || {};
+  const v = bid.price || pre.budget || plan.budget;
+  const x = {ex: true, key: g.key, no: c.no || '', stage: s, title: g.title, org: g.dept ? '한국도로공사 ' + g.dept : (g.dmst || '한국도로공사'),
+    posted: c.posted, deadline: bid.deadline, opening: bid.opening, opinionDeadline: pre.opinionDeadline, planMonth: plan.planMonth,
+    budget: v ? `${bid.price ? '추정가격' : pre.budget ? '배정예산' : '예산'} ${wonT(v)}` : '', method: g.method, area: g.area, lic: g.lic,
+    preNo: s === 'bid' ? pre.no : undefined, planNo: s !== 'plan' ? plan.no : undefined,
+    url: g.url || EXSR + encodeURIComponent(s === 'bid' ? String(g.title || '').replace(/\[[^\]]*\]/g, '').trim() : (c.no || '')),
+    docs: g.docs || [], rfp: g.rfp, elig: g.elig, prev: g.prev, rfpNo: g.rfpNo, infoAt: g.infoAt};
+  EXXC.set(g, x); return x;
+}
+const exO = g => ({id: 'ex:' + g.key, title: g.title, buyer: '한국도로공사', products: g.products || [], partners: {tech: [], orgs: []}, competitors: []});
+const exFind = no => { for(const g of ((D.ex && D.ex.items) || [])) if(no && [g.plan, g.pre, g.bid].some(s => s && s.no === no)) return g; return null; };
 let exTab = load('extab', 'bid');
 document.addEventListener('click', e => { const b = e.target.closest('[data-scrollto]'); if(b){ const el = document.getElementById(b.dataset.scrollto); if(el) el.scrollIntoView({behavior: 'smooth', block: 'start'}); } });
-const EXS = {plan: '발주계획', pre: '사전규격', bid: '입찰공고'};
-const exLive = () => ((D.ex && D.ex.items) || []).filter(g => g.stage !== 'bid' || !(g.bid && g.bid.deadline) || dlk(g.bid.deadline) >= NOWK);
 function renderEx(){
   const el = $('#expanel'); if(!el) return;
-  const E = D.ex, live = exLive();
-  if(!E || !live.length){ el.hidden = true; return; }
+  const E = D.ex, live = exLive(), out = exOut();
+  if(!E || !(live.length + out.length)){ el.hidden = true; return; }
   el.hidden = false;
   const cnt = {plan: 0, pre: 0, bid: 0}; live.forEach(g => cnt[g.stage]++);
   if(!cnt[exTab]) exTab = ['bid', 'pre', 'plan'].find(s => cnt[s]) || 'bid';
-  const SR = 'https://www.g2b.go.kr/link/FIUA009_01/single/?searchKeyword=';
-  const link = g => g.stage === 'bid' ? SR + encodeURIComponent(g.title.replace(/\[[^\]]*\]/g, '').trim()) : SR + encodeURIComponent(g[g.stage].no);
   const when = g => {
     if(g.stage === 'bid') return `<span class="tag ok">입찰공고</span><span>마감 <b>${esc(md(g.bid.deadline))}</b> <span class="dd ${ddN(g.bid.deadline) <= 7 ? 'hot' : ''}">${ddTxt(g.bid.deadline)}</span></span>`;
     if(g.stage === 'pre') return g.pre.opinionDeadline && dlk(g.pre.opinionDeadline) >= NOWK
       ? `<span class="tag pre">의견 접수 중</span><span>마감 <b>${esc(md(g.pre.opinionDeadline))}</b> <span class="dd pre">${ddTxt(g.pre.opinionDeadline)}</span></span>`
       : `<span class="tag">본공고 대기</span><span>의견 마감 ${esc(md(g.pre.opinionDeadline))}</span>`;
     return `<span class="tag plan">발주계획</span><span><b>${esc(ym(g.plan.planMonth))}</b> 발주 예정</span>`; };
-  const money = g => { const v = (g.pre && g.pre.budget) || (g.plan && g.plan.budget) || (g.bid && g.bid.price); return v ? ` · <b class="num">${eokT(v)}</b>${g.pre && g.pre.budget ? ' 배정예산' : g.plan && g.plan.budget ? ' 예산' : ''}` : ''; };
   const isNew = g => g.firstSeen && ddN(g.firstSeen) >= -7;
   const steps = g => ['plan', 'pre', 'bid'].map(s => `<span class="exs${g[s] ? ' on ' + s : ''}"${g[s] ? ` title="${esc(g[s].no)}"` : ''}>${EXS[s]}${g[s] ? '' : ' 없음'}</span>`).join('<i aria-hidden="true">›</i>');
+  const wait = g => g.stage === 'plan' ? '' : `<div class="elig"><span class="tag">제안요청서 분석 대기</span><span class="nmeta">제안요청서 요약·독소조항·참가자격 판정·전차 수주사는 다음 한국도로공사 수집(평일 08:20·13:20)에서 제안요청서를 읽고 붙습니다. 지금 VRB는 사업비만으로 어림한 값입니다</span></div>`;
   const L = live.filter(g => g.stage === exTab);
-  const li = g => `<li><div class="st">${when(g)}${isNew(g) ? '<span class="tag new">NEW</span>' : ''}</div>
-    <div class="bd"><a href="${esc(link(g))}" target="_blank" rel="noopener">${esc(g.title)}</a>
-    <span class="nmeta">${esc([g.dept || g.dmst, g.area, g.method].filter(Boolean).join(' · '))}${money(g)} · 공고번호 ${esc(g[g.stage].no)}</span>
-    <div class="exsteps">${steps(g)}</div></div></li>`;
+  const li0 = g => { const x = exX(g), o = exO(g), full = g.stage !== 'plan';
+    return `<li data-no="${esc(x.no)}"><div class="st">${when(g)}${isNew(g) ? '<span class="tag new">NEW</span>' : ''}${mkTag(x.no)}</div>
+    <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(g.title)}</a>
+    <span class="nmeta">${esc([g.dept || g.dmst, g.area, g.method].filter(Boolean).join(' · '))}${x.budget ? ` · <b class="num">${esc(x.budget)}</b>` : ''}${pt(x)}${x.lic ? ' · ' + esc(x.lic) : ''} · 공고번호 ${esc(x.no)}</span>
+    <div class="exsteps">${steps(g)}</div>
+    ${full ? vrbLine(x, o) : ''}${full && x.rfp ? eligLine(x) + evLine(x) : wait(g)}${prevLine(x)}${full ? bidBox(x, o) + rfpBlock(x) : ''}${(x.docs || []).length ? docBtns(x, '나라장터에서 보기') : ''}</div></li>`; };
+  // 한 사업을 그리다 오류가 나도 목록 전체가 비지 않게 한다
+  const li = g => { try { return li0(g); } catch(e){ console.error('[레이더] 한국도로공사 목록 한 줄을 그리지 못함', g && g.key, e);
+    return `<li><div class="st"><span class="tag">${esc(EXS[g.stage] || '')}</span></div><div class="bd"><b>${esc(g.title || '')}</b><span class="nmeta">세부 정보를 불러오지 못했습니다</span></div></li>`; } };
+  const nInfo = live.filter(g => g.rfp).length, nTox = live.reduce((a, g) => a + (((g.rfp || {}).toxic) || []).length, 0);
   el.innerHTML = `<div class="sec-head"><h2><span>한국도로공사 <em>${live.length}</em>건</span><span class="cust">주요 고객</span></h2>
-    <p class="muted">한국도로공사는 자체 전자조달로 발주하지만 발주계획·사전규격·입찰공고가 나라장터에도 연계됩니다. 그 연계 공고를 공고기관 「한국도로공사」로 모두 읽어 웨이즈원 사업(공간정보·지도·ITS·교통데이터·AI·시스템 구축)과 관련된 용역만 골랐습니다. 감리·전기·제설·시설관리·드론 용역과 입찰 마감이 지난 사업, 이미 계약한 사업은 뺐습니다.</p></div>
+    <p class="muted">한국도로공사는 자체 전자조달로 발주하지만 발주계획·사전규격·입찰공고가 나라장터에도 연계됩니다. 그 연계 공고를 공고기관 「한국도로공사」로 모두 읽어 웨이즈원 사업(공간정보·지도·ITS·교통데이터·AI·시스템 구축)과 관련된 용역만 골랐습니다. 사전규격·입찰공고는 나라장터 사업과 똑같이 제안요청서를 읽어 사업내용·독소조항·참가자격(보완 필요 사항)·전차 수주사·VRB를 붙였습니다${nInfo ? ` — 지금 <b class="num">${nInfo}</b>건 분석, 독소조항 <b class="num">${nTox}</b>개` : ''}. 감리·전기·제설·시설관리·드론 용역과 입찰 마감이 지난 사업, 이미 계약한 사업은 뺐습니다.</p></div>
     <div class="pipe" role="tablist">${['plan', 'pre', 'bid'].map(k => `<button type="button" role="tab" data-ex="${k}" aria-selected="${String(k === exTab)}" class="${k}"><span>${EXS[k]}</span><b>${cnt[k]}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     ${L.length ? `<ul class="prl">${L.map(li).join('')}</ul>` : '<p class="muted small">해당 단계의 사업이 없습니다.</p>'}
+    ${out.length ? `<details class="qbox"><summary>참가자격이 많이 부족해 뺀 한국도로공사 공고 ${out.length}건</summary><ul class="olist">${out.map(g => { const x = exX(g); return `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(g.title)}</a><span class="nmeta">${esc(EXS[g.stage])} · ${(g.elig.gaps || []).map(esc).join(' · ')}</span></li>`; }).join('')}</ul></details>` : ''}
     <p class="small muted">마지막 확인 ${esc(E.checkedAt || '')} KST · 나라장터 공고기관 한국도로공사 전체 ${['plan', 'pre', 'bid'].map(s => `${EXS[s]} <b class="num">${(E.counts || {})[s] || 0}건</b>`).join(' · ')} 중 관련 용역. 사업명을 누르면 나라장터에서 공고를 찾고, 입찰 참가·제안서 제출은 한국도로공사 전자조달에서 합니다.</p>`;
   $$('#expanel [data-ex]').forEach(b => b.addEventListener('click', () => { exTab = b.dataset.ex; store('extab', exTab); renderEx(); }));
 }
