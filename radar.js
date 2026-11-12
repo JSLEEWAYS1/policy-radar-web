@@ -294,7 +294,7 @@ function preqDls(no){
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
-  const redraw = () => { if(READY.has('g2b')){ renderPipe(); try { renderEx(); } catch(e){ console.error(e); } } };
+  const redraw = () => { if(READY.has('g2b')) renderPipe(); if(READY.has('pub')){ try { renderEx(); } catch(e){ console.error(e); } } };
   if(!RT){  // 회원 홈페이지: 회원 서버의 proposal_req 표(요청만 남기고, 처리 상태는 레이더 쪽에서 되돌아온다)
     const W = typeof window !== 'undefined' && window.W1STORE;
     if(!W || typeof W.proposalReq !== 'function') return;
@@ -834,7 +834,7 @@ function vrbOpen(no){
       else if(a === 'reset'){ try { localStorage.removeItem('w1radar.vrb.' + VRB_CUR); } catch(e2){} vrbRender(); }
       else if(a === 'print'){ document.body.classList.add('vrbprint'); try { window.print(); } catch(e2){} setTimeout(() => document.body.classList.remove('vrbprint'), 500); }
       else if(a === 'csv') vrbCsv(); });
-    dlg.addEventListener('close', () => { if(READY.has('g2b')){ renderPipe(); try { renderEx(); } catch(e2){ console.error(e2); } } });
+    dlg.addEventListener('close', () => { if(READY.has('g2b')) renderPipe(); if(READY.has('pub')){ try { renderEx(); } catch(e2){ console.error(e2); } } });
   }
   vrbRender();
   if(!dlg.open){ try { dlg.showModal(); } catch(e){ dlg.setAttribute('open', ''); } }
@@ -997,7 +997,7 @@ function renderPipe(){
       + (wt.length?`<details class="prl"><summary>의견 마감 후 본공고를 기다리는 사전규격 ${wt.length}건</summary><ul class="prl">${wt.map(li.pre).join('')}</ul></details>`:'');
   } else body = list.length ? `<ul class="prl">${list.map(li[pipeTab]).join('')}</ul>` : '<p class="muted small">해당 단계의 사업이 없습니다.</p>';
   $('#prepanel').innerHTML = `<div class="sec-head"><h2>나라장터에서 잡을 사업 <em>${rows.plan.length + rows.pre.length + rows.bid.length}</em>건</h2>
-    <p class="muted">웨이즈원 제품과 맞는 나라장터 사업을 발주계획 → 사전규격 → 입찰공고 단계별로 모았습니다. 사전규격·입찰공고는 제안요청서를 직접 읽어 사업내용과 참가자격을 정리하고, 보유 자격으로 참여 가능 여부를 판정했습니다.${exLive().length ? ` <button type="button" class="linkish" data-scrollto="expanel">주요 고객 한국도로공사 공고 ${exLive().length}건은 아래에 따로 모았습니다 ↓</button>` : ''}</p></div>
+    <p class="muted">웨이즈원 제품과 맞는 나라장터 사업을 발주계획 → 사전규격 → 입찰공고 단계별로 모았습니다. 사전규격·입찰공고는 제안요청서를 직접 읽어 사업내용과 참가자격을 정리하고, 보유 자격으로 참여 가능 여부를 판정했습니다.${exLive().length ? ` <button type="button" class="linkish" data-tabgo="pub">주요 고객 한국도로공사 공고 ${exLive().length}건은 「기타 공공사업」 탭에 있습니다 →</button>` : ''}</p></div>
     <div class="pipe" role="tablist">${TAB.map(([k,l])=>`<button type="button" role="tab" data-pipe="${k}" aria-selected="${String(k===pipeTab)}" class="${k}"><span>${l}</span><b>${rows[k].length}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     <p class="small muted">${esc(cur[2])}</p>${body}${qualBox()}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
@@ -1072,8 +1072,8 @@ function renderMine(){
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-mygo]'); if(!b) return; e.preventDefault();
-  const exT = /^ex-/.test(b.dataset.mytab);   // 한국도로공사 사업은 아래 한국도로공사 칸에서 찾는다
-  if(exT){ exTab = b.dataset.mytab.slice(3); store('extab', exTab); renderEx(); } else { pipeTab = b.dataset.mytab; store('pipe', pipeTab); renderPipe(); }
+  const exT = /^ex-/.test(b.dataset.mytab);   // 한국도로공사 사업은 「기타 공공사업」 탭의 한국도로공사 칸에서 찾는다
+  if(exT){ exTab = b.dataset.mytab.slice(3); store('extab', exTab); show('pub', {keepScroll: true}); renderEx(); } else { pipeTab = b.dataset.mytab; store('pipe', pipeTab); renderPipe(); }
   const li = document.querySelector(`${exT ? '#expanel' : '#prepanel'} li[data-no="${CSS.escape(b.dataset.mygo)}"]`); if(!li) return;
   const dt = li.closest('details'); if(dt) dt.open = true;
   li.scrollIntoView({behavior: 'smooth', block: 'start'}); li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash');
@@ -1107,9 +1107,9 @@ let exTab = load('extab', 'bid');
 document.addEventListener('click', e => { const b = e.target.closest('[data-scrollto]'); if(b){ const el = document.getElementById(b.dataset.scrollto); if(el) el.scrollIntoView({behavior: 'smooth', block: 'start'}); } });
 function renderEx(){
   const el = $('#expanel'); if(!el) return;
-  const E = D.ex, live = exLive(), out = exOut();
-  if(!E || !(live.length + out.length)){ el.hidden = true; return; }
-  el.hidden = false;
+  const E = D.ex, live = exLive(), out = exOut(), emp = $('#pubempty');
+  if(!E || !(live.length + out.length)){ el.hidden = true; if(emp) emp.hidden = false; return; }
+  el.hidden = false; if(emp) emp.hidden = true;
   const cnt = {plan: 0, pre: 0, bid: 0}; live.forEach(g => cnt[g.stage]++);
   if(!cnt[exTab]) exTab = ['bid', 'pre', 'plan'].find(s => cnt[s]) || 'bid';
   const when = g => {
@@ -1162,10 +1162,10 @@ $('#kpis').innerHTML = [
 ].map(([v,l,c,t,pp])=>`<button type="button" class="kpi ${c||''}" data-tabgo="${t}"${pp?` data-pipego="${pp}"`:''}><b>${v}</b><span><i class="dot" style="--c:${({hot:'var(--ok)',pre:'var(--pre)',plan:'var(--plan)',rnd:'var(--rnd)'})[c]||'var(--ink3)'}"></i>${l}</span></button>`).join('');
 const NEWS = ((D.news||{}).items||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 const _d7 = new Date(Date.now() + 9*3600e3 - 7*864e5).toISOString().slice(0,10);
-[['openinfo', ((D.openinfo||{}).items||[]).filter(x=>x.sig==='order' && String(x.date) >= _d7).length], ['press', NEWS.filter(x=>String(x.date) >= _d7).length], ['g2b', nPlanItems + nPreItems + nBidItems + exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
+[['openinfo', ((D.openinfo||{}).items||[]).filter(x=>x.sig==='order' && String(x.date) >= _d7).length], ['press', NEWS.filter(x=>String(x.date) >= _d7).length], ['g2b', nPlanItems + nPreItems + nBidItems], ['pub', exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
-const TABS = ['overview','press','g2b','trend','rnd','openinfo','ways1','track','idea','catalog','links','timeline','sources'];
+const TABS = ['overview','press','g2b','pub','trend','rnd','openinfo','ways1','track','idea','catalog','links','timeline','sources'];
 let cur = 'overview';
 // 탭 내용은 그 탭을 처음 열 때 그린다(첫 화면을 빨리 띄우기 위해). 다른 탭으로 바로 가는 버튼은 ensure로 그 탭을 먼저 그린다.
 const LAZY = {}, READY = new Set();
@@ -1185,7 +1185,7 @@ function show(t, opt={}){
 }
 $$('.tab').forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));
 // 중분류: 위 줄을 누르면 그 중분류에서 마지막으로 본(없으면 첫) 화면을 연다
-const TGRP = {home: ['overview'], biz: ['g2b', 'rnd', 'openinfo', 'ways1'], mkt: ['trend', 'track', 'idea'], pol: ['catalog', 'links', 'timeline', 'press'], src: ['sources']};
+const TGRP = {home: ['overview'], biz: ['g2b', 'pub', 'rnd', 'openinfo', 'ways1'], mkt: ['trend', 'track', 'idea'], pol: ['catalog', 'links', 'timeline', 'press'], src: ['sources']};
 const grpOf = t => Object.keys(TGRP).find(g => TGRP[g].includes(t)) || 'home';
 const LASTG = {};
 function syncTabs(t){
@@ -1842,7 +1842,7 @@ function renderOpeninfo(){
 })();
 lazy('openinfo', renderOpeninfo);
 lazy('overview', renderBoard); lazy('overview', renderInsights); lazy('overview', renderNewFound); lazy('overview', renderHeat); lazy('overview', renderNews);
-lazy('g2b', renderPipe); lazy('g2b', renderEx); lazy('rnd', renderPrograms); lazy('catalog', initCatalog); lazy('links', initLinks);
+lazy('g2b', renderPipe); lazy('pub', renderEx); lazy('rnd', renderPrograms); lazy('catalog', initCatalog); lazy('links', initLinks);
 lazy('timeline', renderTimeline); lazy('ways1', renderWays1); lazy('sources', renderSources);
 $('#foot').innerHTML = `${esc(D.meta.footer)}`;
 
