@@ -161,7 +161,11 @@ async function rfpStore() {
       if (!/^[A-Za-z0-9-]{5,40}$/.test(String(target || ''))) throw new Error('공고번호가 올바르지 않습니다');
       const k = ['rfp', 'sow', 'notice'].includes(kind) ? kind : 'rfp';
       const path = target + '/' + k + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
-      chk(await B().upload(path, file, {contentType: MIME[ext], upsert: false}));
+      // 한컴오피스가 깔린 PC는 HWP를 application/haansofthwp로 알려 파일함이 거절한다(11/13).
+      // File(Blob)을 그대로 넘기면 그 종류가 쓰이므로, 바이트(ArrayBuffer)로 넘겨 종류를 확장자 값(contentType)으로 고정한다
+      const bytes = await file.arrayBuffer();
+      try { chk(await B().upload(path, bytes, {contentType: MIME[ext], upsert: false})); }
+      catch (e) { throw new Error(/mime type/i.test(e.message) ? '파일 종류를 서버가 받지 않았습니다(' + ext.toUpperCase() + ') — 관리자에게 알려 주세요' : e.message); }
       const r = await T().insert({target, key: key ? String(key).slice(0, 120) : null, org: String(org || '한국도로공사').slice(0, 60), path,
         name: String(file.name || '제안요청서').slice(0, 160), type: MIME[ext], size: file.size});
       if (r.error) { await B().remove([path]); chk(r); }
