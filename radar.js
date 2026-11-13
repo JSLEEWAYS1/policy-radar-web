@@ -1105,6 +1105,55 @@ const exO = g => ({id: 'ex:' + g.key, title: g.title, buyer: '한국도로공사
 const exFind = no => { for(const g of ((D.ex && D.ex.items) || [])) if(no && [g.plan, g.pre, g.bid].some(s => s && s.no === no)) return g; return null; };
 let exTab = load('extab', 'bid');
 document.addEventListener('click', e => { const b = e.target.closest('[data-scrollto]'); if(b){ const el = document.getElementById(b.dataset.scrollto); if(el) el.scrollIntoView({behavior: 'smooth', block: 'start'}); } });
+/* 제안요청서 올리기(2026-11-13): 한국도로공사처럼 나라장터에 제안요청서가 없는 사업은 팀원이 회원 홈페이지에서 올린다.
+   회원 서버 rfp_uploads 표 + rfp-in 파일함 → GitHub Actions 「제안요청서 글 뽑기」(평일 30분마다) → 클라우드 학습 작업(평일 매시 47분)이
+   요약·독소조항·참가자격·평가 형태를 붙여 레이더에 반영한다. 레이더 페이지(회원 서버 없음)에서는 안내만 보인다. */
+let RFPU = null, RFPR = [], RFPWHY = 'none';
+const RFPERR = {};
+const RFPS = {queued: '올림 — 글 뽑는 중(30분 안)', extracted: '글 뽑음 — 분석 대기(평일 매시 47분)', done: '반영 완료', error: '실패'};
+const kstMD = s => { const t = Date.parse(s); return isNaN(t) ? '' : new Date(t + 9 * 3600e3).toISOString().slice(5, 16).replace('-', '/').replace('T', ' '); };
+async function rfpPull(){ if(!RFPU) return; try { RFPR = (await RFPU.list()) || []; } catch(e){ return; } if(READY.has('pub')){ try { renderEx(); } catch(e){ console.error(e); } } }
+(async () => {
+  const W = typeof window !== 'undefined' && window.W1STORE;
+  if(!W || typeof W.rfpUploads !== 'function') return;
+  const s = await W.rfpUploads().catch(() => null);
+  if(!s || !s.ok){ RFPWHY = (s && s.why) || 'error'; if(READY.has('pub')){ try { renderEx(); } catch(e){ console.error(e); } } return; }
+  RFPU = s; RFPWHY = null; await rfpPull();
+  setInterval(() => { if(document.visibilityState === 'visible' && RFPR.some(r => r.state === 'queued' || r.state === 'extracted')) rfpPull(); }, 120000);
+})();
+const rfpRows = g => { const nos = [g.plan, g.pre, g.bid].map(s => s && s.no).filter(Boolean); return RFPR.filter(r => (r.key && r.key === g.key) || nos.includes(r.target)); };
+function rfpUp(g, x){
+  if(RFPWHY === 'none') return x.rfp ? '' : '<div class="rfpup"><span class="nmeta">제안요청서는 회원 홈페이지 「기타 공공사업」 탭의 이 사업 줄에서 팀원이 올리면 자동으로 분석합니다.</span></div>';
+  if(RFPWHY) return x.rfp ? '' : `<div class="rfpup"><span class="nmeta">${RFPWHY === 'setup' ? '제안요청서 올리기는 관리자가 회원 서버 설정(supabase/rfp_upload.sql)을 마치면 쓸 수 있습니다.' : '제안요청서 올리기 목록을 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.'}</span></div>`;
+  const rows = rfpRows(g), can = RFPU && RFPU.canWrite, err = RFPERR[g.key];
+  const li = r => `<li><span class="rfn">${esc(r.name || '')}</span><span class="nmeta">${esc(kstMD(r.created_at))} 올림</span><span class="rfs ${esc(r.state || '')}">${esc(RFPS[r.state] || r.state || '')}${r.state === 'error' && r.msg ? ' — ' + esc(r.msg) : ''}</span>${r.mine && r.state !== 'done' ? `<button type="button" class="linkish" data-rfpdel="${esc(r.id)}">지우기</button>` : ''}</li>`;
+  return `<div class="rfpup">${can ? `<button type="button" class="btn${x.rfp ? '' : ' mk'}" data-rfpup="${esc(g.key)}" data-rfpno="${esc(x.no)}">${x.rfp ? '새 제안요청서 올리기' : '제안요청서 올리기'}</button>` : ''}
+    <span class="nmeta">${x.rfp ? '바뀐 제안요청서(정정 공고 등)가 나오면 다시 올리세요.' : '한국도로공사 전자조달에서 받은 제안요청서·과업지시서(HWP·HWPX·PDF, 50MB 이하)를 올리면 요약·독소조항·참가자격 판정·평가 형태를 붙입니다(보통 1시간 안).'}</span>
+    ${err ? `<span class="mkst err">${esc(err)}</span>` : ''}${rows.length ? `<ul class="rfl">${rows.map(li).join('')}</ul>` : ''}</div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-rfpup]');
+  if(b && RFPU){
+    e.preventDefault();
+    const key = b.dataset.rfpup, no = b.dataset.rfpno;
+    const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.hwp,.hwpx,.pdf';
+    inp.addEventListener('change', async () => {
+      const fs = [...(inp.files || [])]; if(!fs.length) return;
+      b.disabled = true; b.textContent = '올리는 중…'; delete RFPERR[key];
+      try { for(const f of fs) await RFPU.upload(no, key, f, '한국도로공사'); }
+      catch(err){ RFPERR[key] = '올리지 못했습니다 — ' + String((err && err.message) || err).slice(0, 120); }
+      await rfpPull(); if(READY.has('pub')){ try { renderEx(); } catch(e2){ console.error(e2); } }
+    });
+    inp.click(); return;
+  }
+  const d = e.target.closest('[data-rfpdel]');
+  if(d && RFPU){
+    e.preventDefault();
+    const row = RFPR.find(r => String(r.id) === d.dataset.rfpdel); if(!row) return;
+    if(!confirm(`「${row.name}」을(를) 지울까요?`)) return;
+    RFPU.remove(row).then(rfpPull, err => { RFPERR[row.key || row.target] = '지우지 못했습니다 — ' + String((err && err.message) || err).slice(0, 120); rfpPull(); });
+  }
+});
 function renderEx(){
   const el = $('#expanel'); if(!el) return;
   const E = D.ex, live = exLive(), out = exOut(), emp = $('#pubempty');
@@ -1120,23 +1169,23 @@ function renderEx(){
     return `<span class="tag plan">발주계획</span><span><b>${esc(ym(g.plan.planMonth))}</b> 발주 예정</span>`; };
   const isNew = g => g.firstSeen && ddN(g.firstSeen) >= -7;
   const steps = g => ['plan', 'pre', 'bid'].map(s => `<span class="exs${g[s] ? ' on ' + s : ''}"${g[s] ? ` title="${esc(g[s].no)}"` : ''}>${EXS[s]}${g[s] ? '' : ' 없음'}</span>`).join('<i aria-hidden="true">›</i>');
-  const wait = g => g.stage === 'plan' ? '' : `<div class="elig"><span class="tag">제안요청서 분석 대기</span><span class="nmeta">제안요청서 요약·독소조항·참가자격 판정·전차 수주사는 한국도로공사 수집(평일 08:20·13:20)이 제안요청서를 읽고 붙입니다. 지금 VRB는 사업비만으로 어림한 값입니다</span></div>`;
+  const wait = g => g.stage === 'plan' ? '' : `<div class="elig"><span class="tag">제안요청서 분석 대기</span><span class="nmeta">한국도로공사 제안요청서는 나라장터에 첨부되지 않아, 팀원이 올려야 요약·독소조항·참가자격 판정·평가 형태를 붙입니다. 지금 VRB는 사업비만으로 어림한 값입니다</span></div>`;
   // 제안서·발표자료 만들기: 나라장터와 같이 제안요청서 요약과 참가자격 판정(참여 가능·보완 필요)이 있어야 만든다 — 그 전에는 단추를 보이되 잠가 두고 이유를 적는다
   const mkWait = x => !PREQ_ON || x.stage === 'plan' || (x.rfp && ['ok', 'gap'].includes((x.elig || {}).verdict)) || PREQ[x.no] ? '' :
-    `<div class="mkrow"><button type="button" class="btn mk" disabled title="제안요청서 분석 후 사용할 수 있습니다">제안서·발표자료 만들기</button><span class="mkst">${!x.rfp ? '제안요청서 분석이 끝나면 누를 수 있습니다' : '참가자격 확인이 필요해 지금은 만들 수 없습니다 — ' + esc((x.elig || {}).note || '제안요청서에 참가자격 기재 없음')}</span></div>`;
+    `<div class="mkrow"><button type="button" class="btn mk" disabled title="제안요청서 분석 후 사용할 수 있습니다">제안서·발표자료 만들기</button><span class="mkst">${!x.rfp ? '제안요청서를 올려 분석이 끝나면 누를 수 있습니다' : '참가자격 확인이 필요해 지금은 만들 수 없습니다 — ' + esc((x.elig || {}).note || '제안요청서에 참가자격 기재 없음')}</span></div>`;
   const L = live.filter(g => g.stage === exTab);
   const li0 = g => { const x = exX(g), o = exO(g), full = g.stage !== 'plan';
     return `<li data-no="${esc(x.no)}"><div class="st">${when(g)}${isNew(g) ? '<span class="tag new">NEW</span>' : ''}${mkTag(x.no)}</div>
     <div class="bd"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(g.title)}</a>
     <span class="nmeta">${esc([g.dept || g.dmst, g.area, g.method].filter(Boolean).join(' · '))}${x.budget ? ` · <b class="num">${esc(x.budget)}</b>` : ''}${pt(x)}${x.lic ? ' · ' + esc(x.lic) : ''} · 공고번호 ${esc(x.no)}</span>
     <div class="exsteps">${steps(g)}</div>
-    ${full ? vrbLine(x, o) : ''}${full && x.rfp ? eligLine(x) + evLine(x) : wait(g)}${prevLine(x)}${full ? bidBox(x, o) + mkWait(x) + rfpBlock(x) : ''}${(x.docs || []).length ? docBtns(x, '나라장터에서 보기') : ''}</div></li>`; };
+    ${full ? vrbLine(x, o) : ''}${full && x.rfp ? eligLine(x) + evLine(x) : wait(g)}${full ? rfpUp(g, x) : ''}${prevLine(x)}${full ? bidBox(x, o) + mkWait(x) + rfpBlock(x) : ''}${(x.docs || []).length ? docBtns(x, '나라장터에서 보기') : ''}</div></li>`; };
   // 한 사업을 그리다 오류가 나도 목록 전체가 비지 않게 한다
   const li = g => { try { return li0(g); } catch(e){ console.error('[레이더] 한국도로공사 목록 한 줄을 그리지 못함', g && g.key, e);
     return `<li><div class="st"><span class="tag">${esc(EXS[g.stage] || '')}</span></div><div class="bd"><b>${esc(g.title || '')}</b><span class="nmeta">세부 정보를 불러오지 못했습니다</span></div></li>`; } };
   const nInfo = live.filter(g => g.rfp).length, nTox = live.reduce((a, g) => a + (((g.rfp || {}).toxic) || []).length, 0);
   el.innerHTML = `<div class="sec-head"><h2><span>한국도로공사 <em>${live.length}</em>건</span><span class="cust">주요 고객</span></h2>
-    <p class="muted">한국도로공사는 자체 전자조달로 발주하지만 발주계획·사전규격·입찰공고가 나라장터에도 연계됩니다. 그 연계 공고를 공고기관 「한국도로공사」로 모두 읽어 웨이즈원 사업(공간정보·지도·ITS·교통데이터·AI·시스템 구축)과 관련된 용역만 골랐습니다. 사전규격·입찰공고는 나라장터 사업과 똑같이 제안요청서를 읽어 사업내용·독소조항·참가자격(보완 필요 사항)·전차 수주사·VRB를 붙였습니다${nInfo ? ` — 지금 <b class="num">${nInfo}</b>건 분석, 독소조항 <b class="num">${nTox}</b>개` : ''}. 감리·전기·제설·시설관리·드론 용역과 입찰 마감이 지난 사업, 이미 계약한 사업은 뺐습니다.</p></div>
+    <p class="muted">한국도로공사는 자체 전자조달로 발주하지만 발주계획·사전규격·입찰공고가 나라장터에도 연계됩니다. 그 연계 공고를 공고기관 「한국도로공사」로 모두 읽어 웨이즈원 사업(공간정보·지도·ITS·교통데이터·AI·시스템 구축)과 관련된 용역만 골랐습니다. 제안요청서는 나라장터에 첨부되지 않으므로, 팀원이 한국도로공사 전자조달에서 받은 제안요청서를 회원 홈페이지의 사업 줄에서 올리면 나라장터 사업과 똑같이 사업내용·독소조항·참가자격(보완 필요 사항)·평가 형태를 붙입니다(전차 수주사·VRB는 자동)${nInfo ? ` — 지금 <b class="num">${nInfo}</b>건 분석, 독소조항 <b class="num">${nTox}</b>개` : ''}. 감리·전기·제설·시설관리·드론 용역과 입찰 마감이 지난 사업, 이미 계약한 사업은 뺐습니다.</p></div>
     <div class="pipe" role="tablist">${['plan', 'pre', 'bid'].map(k => `<button type="button" role="tab" data-ex="${k}" aria-selected="${String(k === exTab)}" class="${k}"><span>${EXS[k]}</span><b>${cnt[k]}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     ${L.length ? `<ul class="prl">${L.map(li).join('')}</ul>` : '<p class="muted small">해당 단계의 사업이 없습니다.</p>'}
     ${out.length ? `<details class="qbox"><summary>참가자격이 많이 부족해 뺀 한국도로공사 공고 ${out.length}건</summary><ul class="olist">${out.map(g => { const x = exX(g); return `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(g.title)}</a><span class="nmeta">${esc(EXS[g.stage])} · ${(g.elig.gaps || []).map(esc).join(' · ')}</span></li>`; }).join('')}</ul></details>` : ''}

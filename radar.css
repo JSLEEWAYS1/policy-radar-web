@@ -1020,6 +1020,15 @@ details.ifdict .ilist{margin-top:6px}
 .expanel .cust{font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--mark-soft);color:var(--mark-ink);letter-spacing:.01em}
 .exsteps{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.72rem;color:var(--ink3)}
 .exsteps i{font-style:normal;color:var(--line2)}
+/* 제안요청서 올리기(2026-11-13): 나라장터에 제안요청서가 없는 공공사업은 팀원이 회원 홈페이지에서 올린다 */
+.rfpup{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.rfpup .rfl{flex-basis:100%;list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.84rem}
+.rfpup .rfl li{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+.rfpup .rfn{font-weight:600;overflow-wrap:anywhere}
+.rfpup .rfs{font-weight:600;color:var(--ink2)}
+.rfpup .rfs.extracted{color:var(--pre)}
+.rfpup .rfs.done{color:var(--ok)}
+.rfpup .rfs.error{color:var(--mark-ink)}
 .exs{padding:1px 8px;border-radius:999px;border:1px dashed var(--line2);color:var(--ink3);white-space:nowrap}
 .exs.on{border:0;font-weight:700}
 .exs.on.plan{background:var(--plan-soft);color:var(--plan)}
