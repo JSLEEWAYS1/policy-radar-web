@@ -140,6 +140,7 @@ async function proposalStore() {
 // 제안요청서 올리기(2026-11-13): 나라장터에 제안요청서가 첨부되지 않는 공공사업(한국도로공사 등)은 팀원이 그 기관 전자조달에서 받은 파일을
 // 「기타 공공사업」 탭에서 올린다. 비공개 파일함 rfp-in + 목록 표 rfp_uploads(supabase/rfp_upload.sql). 승인된 회원만 올리고 목록을 본다.
 // 올린 뒤 상태(올림 → 글 뽑음 → 반영 완료 / 실패)는 GitHub Actions 「제안요청서 글 뽑기」와 학습 작업이 바꾼다. 지우기는 자기가 올린 것만.
+// 자료 종류(제안요청서 rfp · 과업지시서 sow · 입찰공고문 notice, 11/13)는 파일함 경로 앞머리 「<공고번호>/<종류>-…」에 담는다(표를 고치지 않으려고).
 async function rfpStore() {
   const T = () => sb.from('rfp_uploads'), B = () => sb.storage.from('rfp-in');
   const probe = await T().select('id').limit(1);
@@ -153,12 +154,13 @@ async function rfpStore() {
     ok: true, canWrite: me?.status === 'approved',
     list: async () => (chk(await T().select('id, target, key, org, path, name, state, msg, chars, created_at, created_by').order('created_at', {ascending: false}).limit(500)) || [])
       .map(({created_by, ...r}) => Object.assign(r, {mine: !!me && created_by === me.id})),
-    upload: async (target, key, file, org) => {
+    upload: async (target, key, file, org, kind) => {
       const ext = String((String(file.name || '').match(/\.(hwpx|hwp|pdf)$/i) || [])[1] || '').toLowerCase();
       if (!MIME[ext]) throw new Error('HWP·HWPX·PDF 파일만 올릴 수 있습니다');
       if (file.size > 50 * 1024 * 1024) throw new Error('50MB 이하 파일만 올릴 수 있습니다');
       if (!/^[A-Za-z0-9-]{5,40}$/.test(String(target || ''))) throw new Error('공고번호가 올바르지 않습니다');
-      const path = target + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+      const k = ['rfp', 'sow', 'notice'].includes(kind) ? kind : 'rfp';
+      const path = target + '/' + k + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
       chk(await B().upload(path, file, {contentType: MIME[ext], upsert: false}));
       const r = await T().insert({target, key: key ? String(key).slice(0, 120) : null, org: String(org || '한국도로공사').slice(0, 60), path,
         name: String(file.name || '제안요청서').slice(0, 160), type: MIME[ext], size: file.size});
