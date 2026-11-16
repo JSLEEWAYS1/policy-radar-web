@@ -292,7 +292,7 @@ function preqDls(no){
   const st = PREQ[no]; const busy = st && (st.state === 'queued' || st.state === 'working');
   if(!preqUrl || !st || busy) return '';
   // 품질검수 미통과·중간본은 홈페이지에 올리지 않는다(사업기획팀장 11/16 — 세종 자율주행 최종본 수준부터). 판은 PC 결과 폴더에 있다
-  if(/미통과|중간본/.test(String(st.note || '') + String(st.msg || ''))) return `<div class="docs mkdl"><span class="nmeta">품질검수 통과 전이라 홈페이지에 올리지 않습니다 — 세종 자율주행 최종본 수준에 이르면 받기 단추가 생깁니다${st.outDir ? ' · 지금 판은 PC 결과 폴더에 있습니다' : ''}</span></div>`;
+  if(/미통과|중간본/.test(String(st.note || '') + String(st.msg || ''))) return `<div class="docs mkdl"><span class="nmeta">품질검수 통과 전이라 홈페이지에 올리지 않습니다 — 최종 초안 수준에 이르면 받기 단추가 생깁니다${st.outDir ? ' · 지금 판은 PC 결과 폴더에 있습니다' : ''}</span></div>`;
   return Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => { const v = DLV(String(f.name || '')); return `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}" title="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')}${v ? ` · ${v}` : ''} 받기</button>`; }).join('')}</div>` : '';
 }
 (async () => {
