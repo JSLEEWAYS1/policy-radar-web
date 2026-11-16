@@ -287,10 +287,13 @@ function preqStTxt(no){
     st.state === 'error' ? `<span class="mkst err">${mkFail(st) ? '고도화 중' : '실패'} — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
 }
 const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
+const DLV = n => /미표기/.test(n) ? '기업명 미표기' : /표기본/.test(n) ? '기업명 표기' : '';   // 블라인드 사업은 같은 종류가 두 판
 function preqDls(no){
   const st = PREQ[no]; const busy = st && (st.state === 'queued' || st.state === 'working');
-  const mid = mkFail(st);   // 품질검수를 아직 통과하지 못한 중간본은 그렇다고 밝힌다(통과본이 나오면 최신본 맞추기가 바꾼다)
-  return preqUrl && st && !busy && Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')}${mid ? '(중간본)' : ''} 받기</button>`).join('')}${mid ? '<span class="nmeta">품질검수(보성군 수준) 통과 전 중간본 — 통과본이 나오면 자동으로 바뀝니다</span>' : ''}</div>` : '';
+  if(!preqUrl || !st || busy) return '';
+  // 품질검수 미통과·중간본은 홈페이지에 올리지 않는다(사업기획팀장 11/16 — 세종 자율주행 최종본 수준부터). 판은 PC 결과 폴더에 있다
+  if(/미통과|중간본/.test(String(st.note || '') + String(st.msg || ''))) return `<div class="docs mkdl"><span class="nmeta">품질검수 통과 전이라 홈페이지에 올리지 않습니다 — 세종 자율주행 최종본 수준에 이르면 받기 단추가 생깁니다${st.outDir ? ' · 지금 판은 PC 결과 폴더에 있습니다' : ''}</span></div>`;
+  return Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => { const v = DLV(String(f.name || '')); return `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}" title="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')}${v ? ` · ${v}` : ''} 받기</button>`; }).join('')}</div>` : '';
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
@@ -334,7 +337,12 @@ function preqDls(no){
 document.addEventListener('click', async e => {
   const d = e.target.closest('[data-dlp]');
   if(d && preqUrl){ e.preventDefault(); const t = d.textContent; d.disabled = true;
-    try { const u = await preqUrl(d.dataset.dlp, d.dataset.dln); const a = document.createElement('a'); a.href = u; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+    try { d.textContent = '받는 중…'; const u = await preqUrl(d.dataset.dlp, d.dataset.dln); const a = document.createElement('a'); a.rel = 'noopener';
+      // 내려받은 파일 이름을 한글 원래 이름(…_발표자료_미표기본.pptx)으로: 파일을 받아 이름을 붙여 저장한다(서버 주소 이름은 영문 번호라서)
+      let blobUrl = null;
+      try { const r = await fetch(u); if(r.ok){ blobUrl = URL.createObjectURL(await r.blob()); } } catch(_){}
+      if(blobUrl){ a.href = blobUrl; a.download = d.dataset.dln || ''; setTimeout(() => URL.revokeObjectURL(blobUrl), 60000); } else a.href = u;
+      document.body.appendChild(a); a.click(); a.remove(); d.textContent = t; }
     catch(err){ d.textContent = '받기 실패 — 다시 누르기'; }
     finally { d.disabled = false; setTimeout(() => { if(d.textContent !== t && !/실패/.test(d.textContent)) d.textContent = t; }, 1500); } return; }
   const b = e.target.closest('[data-mkprop]'); if(!b || !preqSet) return; e.preventDefault();
