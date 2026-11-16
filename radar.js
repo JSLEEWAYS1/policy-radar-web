@@ -282,7 +282,7 @@ function preqStTxt(no){
   const eta = preqEta(no);
   const etaT = eta ? (eta.late ? ' · 곧 완료(마무리 중)' : ` · <b>${eta.upper ? '늦어도 ' : '예상 완료 '}${esc(eta.t)}쯤</b>${eta.upper ? ' 완료' : ''}`) : '';
   return !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))}${etaT} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 시작하면 정확한 완료 시각으로 바뀌고, 끝나면 여기서 내려받습니다' : '평일 9~18시 매시 7분 PC 작업이 차례로 만듭니다'}</span>` :
-    st.state === 'working' ? `<span class="mkst">만드는 중…${st.startedAt ? ' ' + esc(String(st.startedAt).slice(11)) + ' 시작' : ''}${etaT}</span>` :
+    st.state === 'working' ? (pc => `<span class="mkst">제작 <b>${pc}%</b><span class="mkbar" aria-hidden="true"><i style="width:${pc}%"></i></span>${etaT}</span>`)(mkPct(st) ?? 10) :
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')}${st.ver ? ` · <b>최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : ''} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
     st.state === 'error' ? `<span class="mkst err">${mkFail(st) ? '고도화 중' : '실패'} — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
 }
@@ -1030,11 +1030,16 @@ function renderPipe(){
 }
 /* 제안서 작성 사업: 「제안서·발표자료 만들기」를 누른 사업(PREQ)을 나라장터 탭 맨 위에 따로 모아 진행 상태·마감·최신본 받기를 한곳에서 본다 */
 const MK_LBL = {queued: '요청됨', working: '만드는 중', done: '완료', error: '실패'};
+// 완성률(사업기획팀장 11/16 «만드는 중 대신 XX%»): 제작 실행이 단계마다 쓰는 progress, 없으면 note로 어림
+const mkPct = st => { if(!st) return null; if(st.state === 'done' && !mkFail(st)) return 100; if(st.state === 'queued') return 0;
+  const p = Number(st.progress); if(isFinite(p) && st.progress !== '' && st.progress != null) return Math.max(0, Math.min(100, Math.round(p)));
+  const n = String(st.note || ''); if(/고도화|검수/.test(n)) return 85; if(/조립/.test(n)) return 70; if(/집필/.test(n)) return 50; return st.state === 'working' ? 10 : null; };
 const mkFail = st => !!st && /미통과/.test(String(st.note || '') + String(st.msg || ''));   // 요청이 없는 사업(st 없음)은 거짓
 function mkTag(no){
   const st = PREQ[no]; if(!st || !MK_LBL[st.state]) return '';
   const cls = st.state === 'done' ? (mkFail(st) ? '' : ' done') : st.state === 'error' ? ' err' : '';
-  return `<span class="tag mk${cls}">제안서 ${mkFail(st) && (st.state === 'done' || st.state === 'error') ? '고도화 중(검수 미통과)' : MK_LBL[st.state]}</span>`;
+  const pc = st.state === 'working' ? mkPct(st) : null;
+  return `<span class="tag mk${cls}">제안서 ${pc != null ? `제작 ${pc}%` : mkFail(st) && (st.state === 'done' || st.state === 'error') ? '고도화 중(검수 미통과)' : MK_LBL[st.state]}</span>`;
 }
 function mineFind(no){
   let x = null, o = null, nx = null, no2 = null;

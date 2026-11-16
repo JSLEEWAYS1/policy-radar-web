@@ -1426,6 +1426,7 @@ details.tdtable tr.fcr td{color:var(--ink2)}
 .tdwin tr.jv td{color:var(--ink3);font-style:normal}
 .tdrep td.n[data-l="발주한 해"]{white-space:normal;max-width:240px}
 .tdrep td.yr{text-align:left;white-space:normal;max-width:220px}
+.mkbar{display:inline-block;vertical-align:middle;width:120px;height:6px;margin:0 8px;border-radius:3px;background:color-mix(in srgb,var(--ink) 12%,transparent);overflow:hidden}.mkbar>i{display:block;height:100%;background:var(--ok,#1a7f45);border-radius:3px}
 /* 사업 기회 목록 접기(사업기획팀장 11/16 «제목과 주요사항만, 누르면 자세히»): 단계·마감·제목·기관·예산만 보이고, 누르면 지금처럼 모두 펼친다 */
 :is(#prepanel,#mypanel,#expanel) .prl>li:not(.open)>.bd>:nth-child(n+3):not(:has(.mkst)){display:none}
 #rndlist article.prg:not(.open) :is(.use,.pchips,dl){display:none}
