@@ -1071,12 +1071,13 @@ function renderMine(){
   const el = $('#mypanel'); if(!el) return;
   const R = Object.values(PREQ).filter(r => r && r.no && MK_LBL[r.state]);
   if(!R.length){ el.hidden = true; el.innerHTML = ''; return; }
-  el.hidden = false;
   const rank = {working: 0, queued: 1, done: 2, error: 3};
   const rows = R.map(r => { const f = mineFind(r.no); return {r, f, g: mineStage(r, f)}; });
   const act = rows.filter(v => v.g.live || v.r.state === 'queued' || v.r.state === 'working')
     .sort((a, b) => rank[a.r.state] - rank[b.r.state] || String(a.g.key).localeCompare(String(b.g.key)));
-  const past = rows.filter(v => !act.includes(v)).sort((a, b) => String(b.r.at || '').localeCompare(String(a.r.at || '')));
+  // 11/16 사업기획팀장 «공고 끝났으면 내려» — 마감·종료된 사업은 홈페이지에 두지 않는다(파일은 PC 결과 폴더에 있음)
+  if(!act.length){ el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
   const folder = d => String(d || '').split(/[\\/]/).filter(Boolean).pop() || '';
   const li = ({r, f, g}) => {
     const x = f.x, st = r;
@@ -1093,12 +1094,11 @@ function renderMine(){
       ${st.outDir ? `<span class="mydir" title="${esc(st.outDir)}">PC 결과 폴더 · ${esc(folder(st.outDir))}</span>` : ''}
       ${preqDls(r.no)}${go ? `<div class="myact">${go}</div>` : ''}</div></li>`;
   };
-  const c = s => R.filter(r => r.state === s).length;
-  el.innerHTML = `<div class="sec-head"><h2>제안서 작성 사업 <em>${R.length}</em>건</h2>
-    <p class="muted">「제안서·발표자료 만들기」를 누른 사업을 따로 모았습니다. 제작 상태·마감·최신본 받기를 여기서 한 번에 봅니다. 대화에서 고친 수정본도 PC 결과 폴더에 저장되면 매시 7분에 최신본으로 바뀝니다.</p></div>
-    <div class="mysum">${['working', 'queued', 'done', 'error'].filter(s => c(s)).map(s => `<span>${MK_LBL[s]} <b class="num">${c(s)}</b>건</span>`).join('')}<span>진행 중 사업 <b class="num">${act.length}</b>건 · 마감·종료 <b class="num">${past.length}</b>건</span></div>
-    ${act.length ? `<ul class="prl">${act.map(li).join('')}</ul>` : '<p class="muted small">마감 전인 제안서 작성 사업이 없습니다.</p>'}
-    ${past.length ? `<details class="prl"><summary>마감·종료된 제안서 작성 사업 ${past.length}건</summary><ul class="prl">${past.map(li).join('')}</ul></details>` : ''}`;
+  const c = s => act.filter(v => v.r.state === s).length;
+  el.innerHTML = `<div class="sec-head"><h2>제안서 작성 사업 <em>${act.length}</em>건</h2>
+    <p class="muted">「제안서·발표자료 만들기」를 누른 사업을 따로 모았습니다. 제작 상태·마감·최신본 받기를 여기서 한 번에 봅니다. 대화에서 고친 수정본도 PC 결과 폴더에 저장되면 매시 7분에 최신본으로 바뀝니다. 공고가 끝난 사업은 내립니다(파일은 PC 결과 폴더에 있음).</p></div>
+    <div class="mysum">${['working', 'queued', 'done', 'error'].filter(s => c(s)).map(s => `<span>${MK_LBL[s]} <b class="num">${c(s)}</b>건</span>`).join('')}</div>
+    <ul class="prl">${act.map(li).join('')}</ul>`;
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-mygo]'); if(!b) return; e.preventDefault();
