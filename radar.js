@@ -286,6 +286,23 @@ function preqStTxt(no){
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')}${st.ver ? ` · <b>최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : ''} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
     st.state === 'error' ? `<span class="mkst err">${mkFail(st) ? '고도화 중' : '실패'} — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
 }
+/* 사업 기회 목록 접기·펼치기(11/16): 접힌 줄은 어디를 눌러도 펼치고(제목 링크도 처음엔 펼치기), 펼친 줄은 왼쪽 단계 칸이나 «접기»를 누르면 접는다. 다시 그려도 펼친 줄은 그대로 */
+const CZ_SEL = '#prepanel .prl>li, #mypanel .prl>li, #expanel .prl>li, #rndlist article.prg';
+const CZ_OPEN = new Set();
+const czKey = it => it.dataset.no || ((it.querySelector('.bd>a, .bd>b, h3') || {}).textContent || '').trim();
+document.addEventListener('click', e => {
+  const it = e.target.closest(CZ_SEL); if(!it) return;
+  const k = czKey(it), ctl = e.target.closest('a,button,input,select,textarea,label,summary,details');
+  const title = ctl && ctl.tagName === 'A' && ctl === it.querySelector('.bd>a, h3 a');
+  if(!it.classList.contains('open')){
+    if(ctl && !title) return;
+    e.preventDefault(); it.classList.add('open'); if(k) CZ_OPEN.add(k); return;
+  }
+  if(ctl) return;
+  if(e.target.closest('.st, .nmeta, .org, .ph .top')){ it.classList.remove('open'); CZ_OPEN.delete(k); }
+});
+new MutationObserver(() => { if(CZ_OPEN.size) document.querySelectorAll(CZ_SEL).forEach(it => { if(!it.classList.contains('open') && CZ_OPEN.has(czKey(it))) it.classList.add('open'); }); })
+  .observe(document.body, {childList: true, subtree: true});
 const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
 const DLV = n => /미표기/.test(n) ? '기업명 미표기' : /표기본/.test(n) ? '기업명 표기' : '';   // 블라인드 사업은 같은 종류가 두 판
 function preqDls(no){
@@ -1084,7 +1101,7 @@ document.addEventListener('click', e => {
   if(exT){ exTab = b.dataset.mytab.slice(3); store('extab', exTab); show('pub', {keepScroll: true}); renderEx(); } else { pipeTab = b.dataset.mytab; store('pipe', pipeTab); renderPipe(); }
   const li = document.querySelector(`${exT ? '#expanel' : '#prepanel'} li[data-no="${CSS.escape(b.dataset.mygo)}"]`); if(!li) return;
   const dt = li.closest('details'); if(dt) dt.open = true;
-  li.scrollIntoView({behavior: 'smooth', block: 'start'}); li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash');
+  li.classList.add('open'); li.scrollIntoView({behavior: 'smooth', block: 'start'}); li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash');
 });
 document.addEventListener('click',e=>{const b=e.target.closest('[data-tabgo]'); if(b){e.preventDefault(); if(b.dataset.pipego){ pipeTab = b.dataset.pipego; store('pipe', pipeTab); if(READY.has('g2b')) renderPipe(); } show(b.dataset.tabgo);}});
 /* 한국도로공사(주요 고객): 자체 전자조달 공고가 나라장터에 연계된 것을 공고기관으로 모아 사업 단위(발주계획→사전규격→입찰공고)로 보여 준다 */
