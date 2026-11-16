@@ -217,6 +217,8 @@ function bidEst(x, o){
 const pctT = v => (Math.round(v*1000)/10).toFixed(1).replace(/\.0$/, '') + '%';
 const scT = v => (Math.round(v*100)/100).toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
 var PREQ = {}, PREQ_ON = false, PREQ_SRC = '', preqSet = null, preqUid = null, preqUrl = null;
+// 11/17 사업기획팀장이 취소한 요청(state error, msg에 «취소»)은 없던 것처럼 — 목록·표시에서 빼고 「만들기」 단추를 다시 보인다
+const preqCancel = r => !!r && r.state === 'error' && /취소/.test(String(r.msg || ''));
 // 제안서 제작 예상 완료 시각: 최근 완료 소요시간(중앙값, 없으면 60분 — 11/04부터 지난 제안서 쪽 재사용·고성능 AI 집필로 한 건에 45~90분)과 대기 순서·다음 PC 실행 시각(평일 9~18시 매시 7분)으로 어림한다
 const KSTms = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || '')); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], m[4] - 9, +m[5]) : NaN; };
 function preqDur(){
@@ -324,7 +326,7 @@ function preqDls(no){
       let last = '';
       const pull = async () => {
         const rows = await s.list(), M = {};
-        rows.forEach(r => { if(r && r.no) M[r.no] = r; });
+        rows.forEach(r => { if(r && r.no && !preqCancel(r)) M[r.no] = r; });
         const k = JSON.stringify(M); if(k === last) return; last = k; PREQ = M; redraw();
       };
       PREQ_SRC = 'web'; PREQ_ON = !!s.canWrite;
@@ -345,7 +347,7 @@ function preqDls(no){
     if(user){ try { preqUid = await user.id(); } catch(e){} }
     preqSet = (no, rec) => db.collection('proposalReq').doc(no).set(Object.assign({}, rec, {no, state: 'queued', at: NOWK, by: preqUid || ''}));
     db.collection('proposalReq').limit(200).onSnapshot(snap => {
-      PREQ = {}; snap.docs.forEach(d => { const v = d.data(); if(v && v.no) PREQ[v.no] = {id: d.id, ...v}; });
+      PREQ = {}; snap.docs.forEach(d => { const v = d.data(); if(v && v.no && !preqCancel(v)) PREQ[v.no] = {id: d.id, ...v}; });
       redraw();
     }, () => {});
     redraw();
