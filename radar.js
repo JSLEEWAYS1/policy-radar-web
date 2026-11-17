@@ -351,7 +351,7 @@ function preqDls(no){
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
-  const redraw = () => { if(READY.has('g2b')) renderPipe(); if(READY.has('pub')){ try { renderEx(); } catch(e){ console.error(e); } } };
+  const redraw = () => { if(READY.has('g2b')) renderPipe(); if(READY.has('pub')){ try { renderEx(); } catch(e){ console.error(e); } } try { renderMine(); } catch(e){ console.error(e); } };
   if(!RT){  // 회원 홈페이지: 회원 서버의 proposal_req 표(요청만 남기고, 처리 상태는 레이더 쪽에서 되돌아온다)
     const W = typeof window !== 'undefined' && window.W1STORE;
     if(!W || typeof W.proposalReq !== 'function') return;
@@ -931,7 +931,7 @@ function vrbOpen(no){
       else if(a === 'reset'){ try { localStorage.removeItem('w1radar.vrb.' + VRB_CUR); } catch(e2){} vrbRender(); }
       else if(a === 'print'){ document.body.classList.add('vrbprint'); try { window.print(); } catch(e2){} setTimeout(() => document.body.classList.remove('vrbprint'), 500); }
       else if(a === 'csv') vrbCsv(); });
-    dlg.addEventListener('close', () => { if(READY.has('g2b')) renderPipe(); if(READY.has('pub')){ try { renderEx(); } catch(e2){ console.error(e2); } } });
+    dlg.addEventListener('close', () => { if(READY.has('g2b')) renderPipe(); if(READY.has('pub')){ try { renderEx(); } catch(e2){ console.error(e2); } } try { renderMine(); } catch(e2){ console.error(e2); } });
   }
   vrbRender();
   if(!dlg.open){ try { dlg.showModal(); } catch(e){ dlg.setAttribute('open', ''); } }
@@ -1098,7 +1098,6 @@ function renderPipe(){
     <div class="pipe" role="tablist">${TAB.map(([k,l])=>`<button type="button" role="tab" data-pipe="${k}" aria-selected="${String(k===pipeTab)}" class="${k}"><span>${l}</span><b>${rows[k].length}</b></button>`).join('<i aria-hidden="true">→</i>')}</div>
     <p class="small muted">${esc(cur[2])}</p>${body}${qualBox()}`;
   $$('#prepanel [data-pipe]').forEach(b => b.addEventListener('click', () => { pipeTab = b.dataset.pipe; store('pipe', pipeTab); renderPipe(); }));
-  try { renderMine(); } catch(e){ console.error('[레이더] 제안서 작성 사업 칸을 그리지 못함', e); const m = $('#mypanel'); if(m){ m.hidden = true; m.innerHTML = ''; } }
 }
 /* 제안서 작성 사업: 「제안서·발표자료 만들기」를 누른 사업(PREQ)을 나라장터 탭 맨 위에 따로 모아 진행 상태·마감·최신본 받기를 한곳에서 본다 */
 const MK_LBL = {queued: '요청됨', working: '만드는 중', done: '완료', error: '실패'};
@@ -1123,7 +1122,15 @@ function mineFind(no){
   if(!x){ const g = exFind(no); if(g){ x = exX(g); o = exO(g); if(x.no !== no) nx = x; } }   // 한국도로공사 사업(단계가 바뀌었으면 지금 단계를 따른다)
   return {x, o, follow: !!nx};
 }
+// 공고가 끝난 시각(ms) — 「공고 마감」 칸에 3일 동안만 둔다(사업기획팀장 11/17)
+const kstMs = s => { const m = String(s || '').match(/(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?/); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], (m[4] != null ? +m[4] : 23) - 9, m[5] != null ? +m[5] : 59) : NaN; };
+const MINE_KEEP = 3;
 function mineStage(r, f){
+  const g = mineStage0(r, f), x = f.x;
+  if(!g.live && g.end == null) g.end = !x ? kstMs(r.deadline) : x.awarded ? kstMs(x.awarded.date) : isBid(x) ? kstMs(x.deadline) : isPre(x) ? kstMs(x.opinionDeadline) + PRE_WAIT * 864e5 : kstMs(r.deadline);
+  return g;
+}
+function mineStage0(r, f){
   const x = f.x;
   if(!x) return {live: false, when: `<span class="tag">레이더 목록에서 빠짐</span>${r.deadline ? `<span>마감 ${esc(md(r.deadline))}</span>` : ''}`, key: dlk(r.deadline || '')};
   if(x.awarded) return {live: false, when: `<span class="tag">선정 완료</span><span>${esc(x.awarded.winner || '')}</span>`, key: ''};
@@ -1141,15 +1148,16 @@ function mineStage(r, f){
 }
 function renderMine(){
   const el = $('#mypanel'); if(!el) return;
-  const R = Object.values(PREQ).filter(r => r && r.no && MK_LBL[r.state]);
-  if(!R.length){ el.hidden = true; el.innerHTML = ''; return; }
-  const rank = {working: 0, queued: 1, done: 2, error: 3};
-  const rows = R.map(r => { const f = mineFind(r.no); return {r, f, g: mineStage(r, f)}; });
-  const act = rows.filter(v => v.g.live || v.r.state === 'queued' || v.r.state === 'working')
-    .sort((a, b) => rank[a.r.state] - rank[b.r.state] || String(a.g.key).localeCompare(String(b.g.key)));
-  // 11/16 사업기획팀장 «공고 끝났으면 내려» — 마감·종료된 사업은 홈페이지에 두지 않는다(파일은 PC 결과 폴더에 있음)
-  if(!act.length){ el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
+  const R = Object.values(PREQ).filter(r => r && r.no && MK_LBL[r.state]);
+  const rows = R.map(r => { const f = mineFind(r.no); return {r, f, g: mineStage(r, f)}; });
+  // 11/17 사업기획팀장 «작업완료·작업진행 중·작업대기·공고 마감으로 구분, 공고 마감 사업은 3일 정도 표시되다가 없어지게»
+  const now = Date.now(), keep = MINE_KEEP * 864e5;
+  const grp = v => !v.g.live ? 'closed' : v.r.state === 'working' ? 'working' : v.r.state === 'done' ? 'done' : 'queued';
+  const G = {working: [], queued: [], done: [], closed: []};
+  rows.forEach(v => { const k = grp(v); if(k === 'closed' && !(now - v.g.end <= keep)) return; G[k].push(v); });
+  const byKey = (a, b) => String(a.g.key).localeCompare(String(b.g.key));
+  G.working.sort(byKey); G.queued.sort((a, b) => String(a.r.at || '').localeCompare(String(b.r.at || ''))); G.done.sort(byKey); G.closed.sort((a, b) => b.g.end - a.g.end);
   const folder = d => String(d || '').split(/[\\/]/).filter(Boolean).pop() || '';
   const li = ({r, f, g}) => {
     const x = f.x, st = r;
@@ -1169,16 +1177,19 @@ function renderMine(){
       ${st.outDir ? `<span class="mydir" title="${esc(st.outDir)}">PC 결과 폴더 · ${esc(folder(st.outDir))}</span>` : ''}
       ${preqDls(r.no)}${go ? `<div class="myact">${go}</div>` : ''}</div></li>`;
   };
-  const c = s => act.filter(v => v.r.state === s).length;
-  el.innerHTML = `<div class="sec-head"><h2>제안서 작성 사업 <em>${act.length}</em>건</h2>
-    <p class="muted">「제안서·발표자료 만들기」를 누른 사업을 따로 모았습니다. 제작 상태·마감·최신본 받기를 여기서 한 번에 봅니다. 대화에서 고친 수정본도 PC 결과 폴더에 저장되면 매시 7분에 최신본으로 바뀝니다. 공고가 끝난 사업은 내립니다(파일은 PC 결과 폴더에 있음).</p></div>
-    <div class="mysum">${['working', 'queued', 'done', 'error'].filter(s => c(s)).map(s => `<span>${MK_LBL[s]} <b class="num">${c(s)}</b>건</span>`).join('')}</div>
-    <ul class="prl">${act.map(li).join('')}</ul>`;
+  const left = v => { const d = Math.ceil((v.g.end + keep - now) / 864e5); return `<span class="nmeta">공고 마감 — ${d <= 1 ? '내일' : d + '일 뒤'} 이 목록에서 빠집니다</span>`; };
+  const GL = [['working', '작업 진행 중', '지금 만들고 있는 사업 — 완성률과 만들기 취소·제안사명 고치기'], ['queued', '작업 대기', '요청 순서대로 차례를 기다리는 사업(실패한 요청 포함)'], ['done', '작업 완료', '완성된 사업 — 최신본 받기'], ['closed', '공고 마감', '공고가 끝난 사업 — 마감 뒤 ' + MINE_KEEP + '일 동안만 보입니다']];
+  const total = GL.reduce((n, [k]) => n + G[k].length, 0);
+  const tb = document.getElementById('t-mine'); if(tb){ let n = tb.querySelector('.n'); if(!n){ tb.insertAdjacentHTML('beforeend', '<span class="n"></span>'); n = tb.querySelector('.n'); } n.textContent = G.working.length + G.queued.length; n.hidden = !(G.working.length + G.queued.length); }
+  el.innerHTML = `<div class="sec-head"><h2>제안서 작성 사업 <em>${total}</em>건</h2>
+    <p class="muted">「나라장터 사업」·「기타 공공사업」 탭에서 「제안서·발표자료 만들기」를 누른 사업을 모두 여기에 모았습니다. 작업 진행 중 → 작업 대기 → 작업 완료 → 공고 마감 순서로 보고, 공고가 끝난 사업은 마감 뒤 ${MINE_KEEP}일 동안만 둡니다(파일은 PC 결과 폴더에 그대로 있음).</p></div>
+    <div class="mysum">${GL.map(([k, l]) => `<span>${l} <b class="num">${G[k].length}</b>건</span>`).join('')}</div>
+    ${total ? GL.filter(([k]) => G[k].length).map(([k, l, d]) => `<div class="mygrp"><h3>${l} <em>${G[k].length}</em></h3><p class="nmeta">${esc(d)}</p><ul class="prl">${G[k].map(v => k === 'closed' ? li(v).replace('<div class="st">', '<div class="st">' + left(v)) : li(v)).join('')}</ul></div>`).join('') : '<p class="muted small">아직 「제안서·발표자료 만들기」를 누른 사업이 없습니다.</p>'}`;
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-mygo]'); if(!b) return; e.preventDefault();
   const exT = /^ex-/.test(b.dataset.mytab);   // 한국도로공사 사업은 「기타 공공사업」 탭의 한국도로공사 칸에서 찾는다
-  if(exT){ exTab = b.dataset.mytab.slice(3); store('extab', exTab); show('pub', {keepScroll: true}); renderEx(); } else { pipeTab = b.dataset.mytab; store('pipe', pipeTab); renderPipe(); }
+  if(exT){ exTab = b.dataset.mytab.slice(3); store('extab', exTab); show('pub', {keepScroll: true}); renderEx(); } else { pipeTab = b.dataset.mytab; store('pipe', pipeTab); show('g2b', {keepScroll: true}); renderPipe(); }
   const li = document.querySelector(`${exT ? '#expanel' : '#prepanel'} li[data-no="${CSS.escape(b.dataset.mygo)}"]`); if(!li) return;
   const dt = li.closest('details'); if(dt) dt.open = true;
   li.classList.add('open'); li.scrollIntoView({behavior: 'smooth', block: 'start'}); li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash');
@@ -1323,7 +1334,7 @@ const _d7 = new Date(Date.now() + 9*3600e3 - 7*864e5).toISOString().slice(0,10);
 [['openinfo', ((D.openinfo||{}).items||[]).filter(x=>x.sig==='order' && String(x.date) >= _d7).length], ['press', NEWS.filter(x=>String(x.date) >= _d7).length], ['g2b', nPlanItems + nPreItems + nBidItems], ['pub', exLive().length], ['rnd', PRG.length], ['catalog', P.length]].forEach(([t, n]) => { const b = document.getElementById('t-' + t); if(b) b.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`); });
 
 /* tabs */
-const TABS = ['overview','press','g2b','pub','trend','rnd','openinfo','ways1','track','idea','catalog','links','timeline','sources'];
+const TABS = ['overview','press','g2b','pub','mine','trend','rnd','openinfo','ways1','track','idea','catalog','links','timeline','sources'];
 let cur = 'overview';
 // 탭 내용은 그 탭을 처음 열 때 그린다(첫 화면을 빨리 띄우기 위해). 다른 탭으로 바로 가는 버튼은 ensure로 그 탭을 먼저 그린다.
 const LAZY = {}, READY = new Set();
@@ -1343,7 +1354,7 @@ function show(t, opt={}){
 }
 $$('.tab').forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));
 // 중분류: 위 줄을 누르면 그 중분류에서 마지막으로 본(없으면 첫) 화면을 연다
-const TGRP = {home: ['overview'], biz: ['g2b', 'pub', 'rnd', 'openinfo', 'ways1'], mkt: ['trend', 'track', 'idea'], pol: ['catalog', 'links', 'timeline', 'press'], src: ['sources']};
+const TGRP = {home: ['overview'], biz: ['g2b', 'pub', 'mine', 'rnd', 'openinfo', 'ways1'], mkt: ['trend', 'track', 'idea'], pol: ['catalog', 'links', 'timeline', 'press'], src: ['sources']};
 const grpOf = t => Object.keys(TGRP).find(g => TGRP[g].includes(t)) || 'home';
 const LASTG = {};
 function syncTabs(t){
@@ -2000,7 +2011,7 @@ function renderOpeninfo(){
 })();
 lazy('openinfo', renderOpeninfo);
 lazy('overview', renderBoard); lazy('overview', renderInsights); lazy('overview', renderNewFound); lazy('overview', renderHeat); lazy('overview', renderNews);
-lazy('g2b', renderPipe); lazy('pub', renderEx); lazy('rnd', renderPrograms); lazy('catalog', initCatalog); lazy('links', initLinks);
+lazy('g2b', renderPipe); lazy('pub', renderEx); lazy('mine', renderMine); lazy('rnd', renderPrograms); lazy('catalog', initCatalog); lazy('links', initLinks);
 lazy('timeline', renderTimeline); lazy('ways1', renderWays1); lazy('sources', renderSources);
 $('#foot').innerHTML = `${esc(D.meta.footer)}`;
 

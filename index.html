@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;650;750&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="radar.css?v=0b167c19">
-<link rel="stylesheet" href="app.css?v=0b167c19">
+<link rel="stylesheet" href="radar.css?v=66fb4f22">
+<link rel="stylesheet" href="app.css?v=66fb4f22">
 </head>
 <body>
 
@@ -142,6 +142,7 @@
     <button class="tab" role="tab" data-tab="overview" id="t-overview">한눈에 보기</button>
     <button class="tab" role="tab" data-tab="g2b" id="t-g2b">나라장터 사업</button>
     <button class="tab" role="tab" data-tab="pub" id="t-pub">기타 공공사업</button>
+    <button class="tab" role="tab" data-tab="mine" id="t-mine">제안서 작성</button>
     <button class="tab" role="tab" data-tab="rnd" id="t-rnd">연구개발·기업지원</button>
     <button class="tab" role="tab" data-tab="openinfo" id="t-openinfo">정보공개</button>
     <button class="tab" role="tab" data-tab="ways1" id="t-ways1">웨이즈원 기회</button>
@@ -200,8 +201,11 @@
 </section>
 
 <section class="view" id="v-g2b" data-view="g2b" hidden>
-  <div class="panel prepanel mypanel" id="mypanel" hidden></div>
   <div class="panel prepanel" id="prepanel"></div>
+</section>
+
+<section class="view" id="v-mine" data-view="mine" hidden>
+  <div class="panel prepanel mypanel" id="mypanel"></div>
 </section>
 
 <section class="view" id="v-pub" data-view="pub" hidden>
@@ -405,8 +409,8 @@
   </div>
 </div>
 
-<script src="config.js?v=0b167c19"></script>
-<script src="radar.js?v=0b167c19"></script>
-<script type="module" src="app.js?v=0b167c19"></script>
+<script src="config.js?v=66fb4f22"></script>
+<script src="radar.js?v=66fb4f22"></script>
+<script type="module" src="app.js?v=66fb4f22"></script>
 </body>
 </html>

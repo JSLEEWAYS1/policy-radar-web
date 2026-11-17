@@ -474,6 +474,8 @@ b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(
 .mypanel .mydir{font-family:var(--f-mono);font-size:.76rem;color:var(--ink3);overflow-wrap:anywhere}
 .mypanel .myact{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .mypanel .myact .linkish{font-size:.84rem}
+.mypanel .mygrp{display:grid;gap:4px;padding-top:12px;border-top:1px solid var(--line)}
+.mypanel .mygrp h3 em{font-style:normal;color:var(--mark);margin-left:4px}
 .tag.mk{background:color-mix(in srgb,var(--mark) 12%,var(--surface));color:var(--mark-ink)}
 .tag.mk.done{background:color-mix(in srgb,var(--ok) 13%,var(--surface));color:var(--ok)}
 .tag.mk.err{background:var(--sunk);color:var(--ink2)}
