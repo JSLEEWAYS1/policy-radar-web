@@ -250,7 +250,7 @@ function mkForm(no){
     <label>주관사 :<input type="text" data-mkf="lead" maxlength="40" value="${esc(f.lead)}" placeholder="웨이즈원" autocomplete="organization"></label>
     <label>컨소사 :<input type="text" data-mkf="cons" maxlength="200" value="${esc(f.cons)}" placeholder="없으면 비움 · 여러 곳은 쉼표로"></label>
     <span class="mkfact"><button type="button" class="btn mk" data-mkgo="${esc(no)}">${f.mode === 'new' ? '이 제안사로 만들기 요청' : '제안사명 저장'}</button><button type="button" class="btn" data-mkclose="${esc(no)}">닫기</button></span>
-    <span class="nmeta">기업명 표기본의 표지·제안사 소개·수행조직에 들어갑니다(블라인드본에는 넣지 않음). 주관사를 비우면 웨이즈원, 컨소사를 비우면 단독입니다. 주관사가 웨이즈원이 아니면 웨이즈원 특장점·기술은 쓰지 않고 일반 내용으로 정성껏 만듭니다.${f.mode === 'draft' ? ' 아직 요청 전이라 이 브라우저에 두었다가 「만들기」를 누를 때 씁니다.' : ''}</span></div>`;
+    <span class="nmeta">기업명 표기본의 표지·제안사 소개·수행조직에 들어갑니다(블라인드본에는 넣지 않음). 주관사를 비우면 웨이즈원, 컨소사를 비우면 단독입니다. 주관사가 웨이즈원이 아니면 웨이즈원 특장점·기술은 쓰지 않고, 입력한 주관사의 공개 자료(홈페이지·보도자료·특허 등)를 찾아 그 회사 기술의 장점을 제안요청서에 맞게 넣습니다.${f.mode === 'draft' ? ' 아직 요청 전이라 이 브라우저에 두었다가 「만들기」를 누를 때 씁니다.' : ''}</span></div>`;
 }
 // 제안서 제작 예상 완료 시각: 최근 완료 소요시간(중앙값, 없으면 60분 — 11/04부터 지난 제안서 쪽 재사용·고성능 AI 집필로 한 건에 45~90분)과 대기 순서·다음 PC 실행 시각(평일 9~18시 매시 7분)으로 어림한다
 const KSTms = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || '')); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], m[4] - 9, +m[5]) : NaN; };
