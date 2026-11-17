@@ -453,6 +453,8 @@ b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(
 .btn.mk{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .btn.mk:hover{background:var(--ink2);border-color:var(--ink2)}
 .btn.mk[disabled]{opacity:.55;cursor:default}
+.btn.mk.lite{background:var(--surface);color:var(--ink);border-color:var(--ink)}
+.btn.mk.lite:hover{background:var(--surface2,var(--surface));border-color:var(--ink2)}
 .mkst{font-size:.82rem;color:var(--ink2)}
 .mkst.done{color:var(--ok);font-weight:600}
 .mkst.err{color:var(--mark-ink)}

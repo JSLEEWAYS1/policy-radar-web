@@ -227,9 +227,9 @@ const firmLast = () => { try { return JSON.parse(localStorage.getItem(FIRM_KEY) 
 const firmSave = f => { try { localStorage.setItem(FIRM_KEY, JSON.stringify(f)); } catch(e){} };
 const firmParse = (lead, cons, light) => ({lead: String(lead || '').trim().slice(0, 40), cons: String(cons || '').split(/[,，、;\n]/).map(v => v.trim().slice(0, 40)).filter(Boolean).slice(0, 5), light: !!light});
 const firmOk = f => f && typeof f === 'object' ? {lead: typeof f.lead === 'string' ? f.lead : '', cons: Array.isArray(f.cons) ? f.cons.filter(v => typeof v === 'string') : [], light: f.light === true} : null;
-// 유찰방지용 제안서(11/17 사업기획팀장 «유찰방지용 제안서 항목 — 토큰 사용량 절반, 틀·내용 구성은 충분히, 전략·구조화 디테일은 조금 떨어져도 됨»): firm.light — 서버 요청의 firm에 없으면 제작 쪽 결과(result.light)를 따른다
+// 경량화 제안서(11/17 사업기획팀장 «토큰 사용량 절반, 틀·내용 구성은 충분히, 전략·구조화 디테일은 조금 떨어져도 됨» → 22:32 «유찰방지보다 경량화에 중점, 주관사와 상관없이 경량화 버튼을 골라 만들 때만»): firm.light — 서버 요청의 firm에 없으면 제작 쪽 결과(result.light)를 따른다
 const firmOf = st => { if(!st) return null; const f = firmOk(st.firm) || {lead: '', cons: [], light: false}; if(!(st.firm && typeof st.firm.light === 'boolean')) f.light = st.light === true; return f; };
-const firmTxt = f => { f = firmOk(f); return `주관사 <b>${esc((f && f.lead) || '웨이즈원')}</b> · 컨소사 ${f && f.cons.length ? f.cons.map(v => `<b>${esc(v)}</b>`).join(', ') : '없음(단독)'}${f && f.light ? ' · <span class="tag">유찰방지용</span>' : ''}`; };
+const firmTxt = f => { f = firmOk(f); return `주관사 <b>${esc((f && f.lead) || '웨이즈원')}</b> · 컨소사 ${f && f.cons.length ? f.cons.map(v => `<b>${esc(v)}</b>`).join(', ') : '없음(단독)'}${f && f.light ? ' · <span class="tag">경량화</span>' : ''}`; };
 const kstNow = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(5, 16).replace('T', ' ').replace('-', '/');
 const preqBusy = st => !!st && (st.state === 'queued' || st.state === 'working');
 // 요청한 사업의 제안사명 줄(11/17 — 나라장터·기타 공공사업 탭에서도 «제안사명 고치기»): 요청됨·만드는 중이면 고치기 단추와 열어 둔 칸
@@ -251,8 +251,8 @@ function mkForm(no){
   return `<div class="mkform" data-mkform="${esc(no)}">
     <label>주관사 :<input type="text" data-mkf="lead" maxlength="40" value="${esc(f.lead)}" placeholder="웨이즈원" autocomplete="organization"></label>
     <label>컨소사 :<input type="text" data-mkf="cons" maxlength="200" value="${esc(f.cons)}" placeholder="없으면 비움 · 여러 곳은 쉼표로"></label>
-    <label class="mkchk"><input type="checkbox" data-mkf="light"${f.light ? ' checked' : ''}> 유찰방지용 제안서 <span class="nmeta">— 사용량 절반 · 목차·내용 구성은 충분히, 전략·구조화 디테일은 가볍게</span></label>
-    <span class="mkfact"><button type="button" class="btn mk" data-mkgo="${esc(no)}">${f.mode === 'new' ? '이 제안사로 만들기 요청' : '제안사명 저장'}</button><button type="button" class="btn" data-mkclose="${esc(no)}">닫기</button></span>
+    <label class="mkchk"><input type="checkbox" data-mkf="light"${f.light ? ' checked' : ''}> 경량화 제안서 <span class="nmeta">— 사용량 절반 · 목차·내용 구성은 충분히, 전략·구조화 디테일은 가볍게(주관사와 상관없이 고를 때만)</span></label>
+    <span class="mkfact"><button type="button" class="btn mk" data-mkgo="${esc(no)}">${f.mode === 'new' ? (f.light ? '경량화로 만들기 요청' : '이 제안사로 만들기 요청') : '제안사명 저장'}</button><button type="button" class="btn" data-mkclose="${esc(no)}">닫기</button></span>
     <span class="nmeta">기업명 표기본의 표지·제안사 소개·수행조직에 들어갑니다(블라인드본에는 넣지 않음). 주관사를 비우면 웨이즈원, 컨소사를 비우면 단독입니다. 주관사가 웨이즈원이 아니면 웨이즈원 특장점·기술은 쓰지 않고, 입력한 주관사의 공개 자료(홈페이지·보도자료·특허 등)를 찾아 그 회사 기술의 장점을 제안요청서에 맞게 넣습니다.${f.mode === 'draft' ? ' 아직 요청 전이라 이 브라우저에 두었다가 「만들기」를 누를 때 씁니다.' : ''}</span></div>`;
 }
 // 제안서 제작 예상 완료 시각: 최근 완료 소요시간(중앙값, 없으면 60분 — 11/04부터 지난 제안서 쪽 재사용·고성능 AI 집필로 한 건에 45~90분)과 대기 순서·다음 PC 실행 시각(평일 9~18시 매시 7분)으로 어림한다
@@ -310,7 +310,8 @@ function bidBox(x, o){
   const st = PREQ[x.no];
   const stTxt = preqStTxt(x.no);
   const busy = preqBusy(st);
-  const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy || MKF[x.no] ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button>` : '';
+  // 경량화 버튼(11/17 22:32 사업기획팀장): 고르면 경량화 제안서·발표자료(사용량 절반)로 만든다 — 주관사와 상관없이 이 버튼으로만
+  const btn = PREQ_ON ? `<button type="button" class="btn mk" data-mkprop="${esc(x.no)}"${busy || MKF[x.no] ? ' disabled' : ''}>${st && st.state === 'done' ? '다시 만들기' : '제안서·발표자료 만들기'}</button><button type="button" class="btn mk lite" data-mkprop="${esc(x.no)}" data-mklight="1" title="사용량 절반 — 목차·내용 구성은 충분히, 전략·구조화 디테일은 가볍게"${busy || MKF[x.no] ? ' disabled' : ''}>경량화로 만들기</button>` : '';
   const xb = PREQ_ON && busy && !st.cancel && preqStop ? `<button type="button" class="btn mkx" data-mkcancel="${esc(x.no)}">만들기 취소</button>` : '';
   const dls = preqDls(x.no);
   return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
@@ -436,11 +437,12 @@ document.addEventListener('click', async e => {
     return; }
   const b = e.target.closest('[data-mkprop]'); if(!b || !preqSet) return; e.preventDefault();
   { const no = b.dataset.mkprop; if(MKF[no] || !mkRec(no)) return; const D0 = firmDraft(no), L = D0 || firmOf(PREQ[no]) || firmLast();
-    MKF[no] = {mode: 'new', lead: L.lead || '웨이즈원', cons: (Array.isArray(L.cons) ? L.cons : []).join(', '), light: !!(L !== firmLast() && L.light)};
-    b.disabled = true; const row = b.closest('.mkrow'); if(row) row.insertAdjacentHTML('afterend', mkForm(no));
+    MKF[no] = {mode: 'new', lead: L.lead || '웨이즈원', cons: (Array.isArray(L.cons) ? L.cons : []).join(', '), light: b.dataset.mklight === '1' || !!(D0 && D0.light)};
+    document.querySelectorAll(`[data-mkprop="${CSS.escape(no)}"]`).forEach(x => { x.disabled = true; }); const row = b.closest('.mkrow'); if(row) row.insertAdjacentHTML('afterend', mkForm(no));
     const inp = document.querySelector(`[data-mkform="${CSS.escape(no)}"] input`); if(inp) inp.focus(); return; }
 });
-document.addEventListener('input', e => { const i = e.target.closest('[data-mkf]'); if(!i) return; const fm = i.closest('[data-mkform]'); const f = fm && MKF[fm.dataset.mkform]; if(f) f[i.dataset.mkf] = i.type === 'checkbox' ? i.checked : i.value; });
+document.addEventListener('input', e => { const i = e.target.closest('[data-mkf]'); if(!i) return; const fm = i.closest('[data-mkform]'); const f = fm && MKF[fm.dataset.mkform]; if(!f) return; f[i.dataset.mkf] = i.type === 'checkbox' ? i.checked : i.value;
+  if(i.dataset.mkf === 'light' && f.mode === 'new'){ const g = fm.querySelector('[data-mkgo]'); if(g && !g.disabled) g.textContent = i.checked ? '경량화로 만들기 요청' : '이 제안사로 만들기 요청'; } });
 function mkRec(no){
   let it = null, op = null;
   (D.opportunities||[]).forEach(o => items(o).forEach(x => { if(x.no === no){ it = x; op = o; } }));
