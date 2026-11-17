@@ -230,6 +230,12 @@ const firmOk = f => f && typeof f === 'object' ? {lead: typeof f.lead === 'strin
 const firmTxt = f => { f = firmOk(f); return `주관사 <b>${esc((f && f.lead) || '웨이즈원')}</b> · 컨소사 ${f && f.cons.length ? f.cons.map(v => `<b>${esc(v)}</b>`).join(', ') : '없음(단독)'}`; };
 const kstNow = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(5, 16).replace('T', ' ').replace('-', '/');
 const preqBusy = st => !!st && (st.state === 'queued' || st.state === 'working');
+// 요청한 사업의 제안사명 줄(11/17 — 나라장터·기타 공공사업 탭에서도 «제안사명 고치기»): 요청됨·만드는 중이면 고치기 단추와 열어 둔 칸
+function firmLine(no){
+  const st = PREQ[no]; if(!st || preqCancel(st)) return '';
+  const can = preqBusy(st) && !st.cancel && PREQ_ON && preqFirm;
+  return `<div class="nmeta mkfirm">제안사 · ${firmTxt(st.firm)}${can ? ` <button type="button" class="linkish" data-mkfirm="${esc(no)}">제안사명 고치기</button>` : ''}</div>${can && MKF[no] && MKF[no].mode === 'edit' ? mkForm(no) : ''}`;
+}
 function mkForm(no){
   const f = MKF[no]; if(!f) return '';
   return `<div class="mkform" data-mkform="${esc(no)}">
@@ -297,7 +303,7 @@ function bidBox(x, o){
   const xb = PREQ_ON && busy && !st.cancel && preqStop ? `<button type="button" class="btn mkx" data-mkcancel="${esc(x.no)}">만들기 취소</button>` : '';
   const dls = preqDls(x.no);
   return `<div class="bidbox"><div class="bl"><span class="kl">경쟁강도</span><b class="clv l${E.lv}">${CLV[E.lv]}</b><span class="nmeta">${E.why.map(esc).join(' · ')}</span></div>${price}
-    ${btn || stTxt ? `<div class="mkrow">${btn}${xb}${stTxt}</div>` : ''}${MKF[x.no] && MKF[x.no].mode === 'new' ? mkForm(x.no) : ''}${dls}</div>`;
+    ${btn || stTxt ? `<div class="mkrow">${btn}${xb}${stTxt}</div>` : ''}${MKF[x.no] && MKF[x.no].mode === 'new' ? mkForm(x.no) : ''}${firmLine(x.no)}${dls}</div>`;
 }
 function preqStTxt(no){
   const st = PREQ[no];
@@ -399,7 +405,8 @@ document.addEventListener('click', async e => {
   const ed = e.target.closest('[data-mkfirm]');
   if(ed && preqFirm){ e.preventDefault(); const no = ed.dataset.mkfirm, f = firmOk((PREQ[no] || {}).firm) || {lead: '', cons: []};
     MKF[no] = {mode: 'edit', lead: f.lead || '웨이즈원', cons: f.cons.join(', ')};
-    const host = ed.closest('.bd'); if(host && !host.querySelector(`[data-mkform="${CSS.escape(no)}"]`)) host.insertAdjacentHTML('beforeend', mkForm(no)); return; }
+    const line = ed.closest('.mkfirm'), nx = line && line.nextElementSibling;
+    if(line && !(nx && nx.matches(`[data-mkform="${CSS.escape(no)}"]`))) line.insertAdjacentHTML('afterend', mkForm(no)); return; }
   const cl = e.target.closest('[data-mkclose]');
   if(cl){ e.preventDefault(); const no = cl.dataset.mkclose; delete MKF[no]; const fm = cl.closest('[data-mkform]'); if(fm) fm.remove();
     document.querySelectorAll(`[data-mkprop="${CSS.escape(no)}"]`).forEach(x => { if(!preqBusy(PREQ[no])) x.disabled = false; }); return; }
