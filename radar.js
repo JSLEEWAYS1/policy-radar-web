@@ -225,9 +225,11 @@ const MKF = {};   // 열어 둔 제안사명 칸: 공고번호 → {mode: 'new'|
 const FIRM_KEY = 'w1.firm';
 const firmLast = () => { try { return JSON.parse(localStorage.getItem(FIRM_KEY) || 'null') || {}; } catch(e){ return {}; } };
 const firmSave = f => { try { localStorage.setItem(FIRM_KEY, JSON.stringify(f)); } catch(e){} };
-const firmParse = (lead, cons) => ({lead: String(lead || '').trim().slice(0, 40), cons: String(cons || '').split(/[,，、;\n]/).map(v => v.trim().slice(0, 40)).filter(Boolean).slice(0, 5)});
-const firmOk = f => f && typeof f === 'object' ? {lead: typeof f.lead === 'string' ? f.lead : '', cons: Array.isArray(f.cons) ? f.cons.filter(v => typeof v === 'string') : []} : null;
-const firmTxt = f => { f = firmOk(f); return `주관사 <b>${esc((f && f.lead) || '웨이즈원')}</b> · 컨소사 ${f && f.cons.length ? f.cons.map(v => `<b>${esc(v)}</b>`).join(', ') : '없음(단독)'}`; };
+const firmParse = (lead, cons, light) => ({lead: String(lead || '').trim().slice(0, 40), cons: String(cons || '').split(/[,，、;\n]/).map(v => v.trim().slice(0, 40)).filter(Boolean).slice(0, 5), light: !!light});
+const firmOk = f => f && typeof f === 'object' ? {lead: typeof f.lead === 'string' ? f.lead : '', cons: Array.isArray(f.cons) ? f.cons.filter(v => typeof v === 'string') : [], light: f.light === true} : null;
+// 유찰방지용 제안서(11/17 사업기획팀장 «유찰방지용 제안서 항목 — 토큰 사용량 절반, 틀·내용 구성은 충분히, 전략·구조화 디테일은 조금 떨어져도 됨»): firm.light — 서버 요청의 firm에 없으면 제작 쪽 결과(result.light)를 따른다
+const firmOf = st => { if(!st) return null; const f = firmOk(st.firm) || {lead: '', cons: [], light: false}; if(!(st.firm && typeof st.firm.light === 'boolean')) f.light = st.light === true; return f; };
+const firmTxt = f => { f = firmOk(f); return `주관사 <b>${esc((f && f.lead) || '웨이즈원')}</b> · 컨소사 ${f && f.cons.length ? f.cons.map(v => `<b>${esc(v)}</b>`).join(', ') : '없음(단독)'}${f && f.light ? ' · <span class="tag">유찰방지용</span>' : ''}`; };
 const kstNow = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(5, 16).replace('T', ' ').replace('-', '/');
 const preqBusy = st => !!st && (st.state === 'queued' || st.state === 'working');
 // 요청한 사업의 제안사명 줄(11/17 — 나라장터·기타 공공사업 탭에서도 «제안사명 고치기»): 요청됨·만드는 중이면 고치기 단추와 열어 둔 칸
@@ -239,16 +241,17 @@ function firmLine(no){
   const st = PREQ[no] && !preqCancel(PREQ[no]) ? PREQ[no] : null;
   if(st && preqBusy(st)){
     const can = !st.cancel && preqFirm;
-    return `<div class="nmeta mkfirm">제안사 · ${firmTxt(st.firm)}${can ? ` <button type="button" class="linkish" data-mkfirm="${esc(no)}">제안사명 고치기</button>` : ''}</div>${can && MKF[no] && MKF[no].mode === 'edit' ? mkForm(no) : ''}`;
+    return `<div class="nmeta mkfirm">제안사 · ${firmTxt(firmOf(st))}${can ? ` <button type="button" class="linkish" data-mkfirm="${esc(no)}">제안사명 고치기</button>` : ''}</div>${can && MKF[no] && MKF[no].mode === 'edit' ? mkForm(no) : ''}`;
   }
   const d = firmDraft(no);
-  return `<div class="nmeta mkfirm">제안사 · ${firmTxt(d || (st && st.firm))}${d ? ' <span class="tag">요청할 때 쓸 이름</span>' : ''} <button type="button" class="linkish" data-mkfirm="${esc(no)}">제안사명 고치기</button></div>${MKF[no] && MKF[no].mode === 'draft' ? mkForm(no) : ''}`;
+  return `<div class="nmeta mkfirm">제안사 · ${firmTxt(d || firmOf(st))}${d ? ' <span class="tag">요청할 때 쓸 이름</span>' : ''} <button type="button" class="linkish" data-mkfirm="${esc(no)}">제안사명 고치기</button></div>${MKF[no] && MKF[no].mode === 'draft' ? mkForm(no) : ''}`;
 }
 function mkForm(no){
   const f = MKF[no]; if(!f) return '';
   return `<div class="mkform" data-mkform="${esc(no)}">
     <label>주관사 :<input type="text" data-mkf="lead" maxlength="40" value="${esc(f.lead)}" placeholder="웨이즈원" autocomplete="organization"></label>
     <label>컨소사 :<input type="text" data-mkf="cons" maxlength="200" value="${esc(f.cons)}" placeholder="없으면 비움 · 여러 곳은 쉼표로"></label>
+    <label class="mkchk"><input type="checkbox" data-mkf="light"${f.light ? ' checked' : ''}> 유찰방지용 제안서 <span class="nmeta">— 사용량 절반 · 목차·내용 구성은 충분히, 전략·구조화 디테일은 가볍게</span></label>
     <span class="mkfact"><button type="button" class="btn mk" data-mkgo="${esc(no)}">${f.mode === 'new' ? '이 제안사로 만들기 요청' : '제안사명 저장'}</button><button type="button" class="btn" data-mkclose="${esc(no)}">닫기</button></span>
     <span class="nmeta">기업명 표기본의 표지·제안사 소개·수행조직에 들어갑니다(블라인드본에는 넣지 않음). 주관사를 비우면 웨이즈원, 컨소사를 비우면 단독입니다. 주관사가 웨이즈원이 아니면 웨이즈원 특장점·기술은 쓰지 않고, 입력한 주관사의 공개 자료(홈페이지·보도자료·특허 등)를 찾아 그 회사 기술의 장점을 제안요청서에 맞게 넣습니다.${f.mode === 'draft' ? ' 아직 요청 전이라 이 브라우저에 두었다가 「만들기」를 누를 때 씁니다.' : ''}</span></div>`;
 }
@@ -412,8 +415,8 @@ document.addEventListener('click', async e => {
     return; }
   const ed = e.target.closest('[data-mkfirm]');
   if(ed){ e.preventDefault(); const no = ed.dataset.mkfirm, st = PREQ[no] && !preqCancel(PREQ[no]) ? PREQ[no] : null, srv = !!st && preqBusy(st) && !!preqFirm;
-    const f = (srv ? firmOk(st.firm) : (firmDraft(no) || firmOk(st && st.firm))) || {lead: '', cons: []};
-    MKF[no] = {mode: srv ? 'edit' : 'draft', lead: f.lead || '웨이즈원', cons: f.cons.join(', ')};
+    const f = (srv ? firmOf(st) : (firmDraft(no) || firmOf(st))) || {lead: '', cons: [], light: false};
+    MKF[no] = {mode: srv ? 'edit' : 'draft', lead: f.lead || '웨이즈원', cons: f.cons.join(', '), light: !!f.light};
     const line = ed.closest('.mkfirm'), nx = line && line.nextElementSibling;
     if(line && !(nx && nx.matches(`[data-mkform="${CSS.escape(no)}"]`))) line.insertAdjacentHTML('afterend', mkForm(no)); return; }
   const cl = e.target.closest('[data-mkclose]');
@@ -421,7 +424,7 @@ document.addEventListener('click', async e => {
     document.querySelectorAll(`[data-mkprop="${CSS.escape(no)}"]`).forEach(x => { if(!preqBusy(PREQ[no])) x.disabled = false; }); return; }
   const go = e.target.closest('[data-mkgo]');
   if(go){ e.preventDefault(); const no = go.dataset.mkgo, f = MKF[no]; if(!f) return;
-    const firm = firmParse(f.lead, f.cons); firmSave(firm);
+    const firm = firmParse(f.lead, f.cons, f.light); firmSave({lead: firm.lead, cons: firm.cons});
     go.disabled = true; const t0 = go.textContent; go.textContent = '보내는 중…';
     try {
       if(f.mode === 'draft'){ firmDraftSave(no, firm); delete MKF[no]; const fm = go.closest('[data-mkform]'), ln = fm && fm.previousElementSibling;
@@ -432,12 +435,12 @@ document.addEventListener('click', async e => {
     } catch(err){ go.disabled = false; go.textContent = /setup|PGRST204|42703/i.test(String(err && (err.code || err.message))) ? '서버 설정 전이라 저장 못 함 — 관리자에게 알려 주세요' : t0 + ' — 실패, 다시 누르기'; }
     return; }
   const b = e.target.closest('[data-mkprop]'); if(!b || !preqSet) return; e.preventDefault();
-  { const no = b.dataset.mkprop; if(MKF[no] || !mkRec(no)) return; const L = firmDraft(no) || firmOk((PREQ[no] || {}).firm) || firmLast();
-    MKF[no] = {mode: 'new', lead: L.lead || '웨이즈원', cons: (Array.isArray(L.cons) ? L.cons : []).join(', ')};
+  { const no = b.dataset.mkprop; if(MKF[no] || !mkRec(no)) return; const D0 = firmDraft(no), L = D0 || firmOf(PREQ[no]) || firmLast();
+    MKF[no] = {mode: 'new', lead: L.lead || '웨이즈원', cons: (Array.isArray(L.cons) ? L.cons : []).join(', '), light: !!(L !== firmLast() && L.light)};
     b.disabled = true; const row = b.closest('.mkrow'); if(row) row.insertAdjacentHTML('afterend', mkForm(no));
     const inp = document.querySelector(`[data-mkform="${CSS.escape(no)}"] input`); if(inp) inp.focus(); return; }
 });
-document.addEventListener('input', e => { const i = e.target.closest('[data-mkf]'); if(!i) return; const fm = i.closest('[data-mkform]'); const f = fm && MKF[fm.dataset.mkform]; if(f) f[i.dataset.mkf] = i.value; });
+document.addEventListener('input', e => { const i = e.target.closest('[data-mkf]'); if(!i) return; const fm = i.closest('[data-mkform]'); const f = fm && MKF[fm.dataset.mkform]; if(f) f[i.dataset.mkf] = i.type === 'checkbox' ? i.checked : i.value; });
 function mkRec(no){
   let it = null, op = null;
   (D.opportunities||[]).forEach(o => items(o).forEach(x => { if(x.no === no){ it = x; op = o; } }));
@@ -1169,7 +1172,7 @@ function renderMine(){
       <div class="bd">${x && x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(title)}</a>` : `<b>${esc(title)}</b>`}
       <span class="nmeta">${esc(org)}${budget ? ` · <b class="num">${esc(budget)}</b>` : ''} · 공고번호 ${esc(r.no)}${f.follow ? ` → 본공고 ${esc(x.no)}` : ''}${r.at ? ` · 요청 ${esc(String(r.at).slice(5, 16).replace('-', '/'))}` : ''}</span>
       ${st.state === 'queued' || st.state === 'working' ? `<div>${preqStTxt(r.no)}</div>` : ''}
-      <span class="nmeta mkfirm">제안사 · ${firmTxt(st.firm)}${preqBusy(st) && !st.cancel && PREQ_ON && preqFirm ? ` <button type="button" class="linkish" data-mkfirm="${esc(r.no)}">제안사명 고치기</button>` : ''}</span>
+      <span class="nmeta mkfirm">제안사 · ${firmTxt(firmOf(st))}${preqBusy(st) && !st.cancel && PREQ_ON && preqFirm ? ` <button type="button" class="linkish" data-mkfirm="${esc(r.no)}">제안사명 고치기</button>` : ''}</span>
       ${preqBusy(st) && !st.cancel && PREQ_ON && preqStop ? `<div class="myact"><button type="button" class="btn mkx" data-mkcancel="${esc(r.no)}">만들기 취소</button></div>` : ''}
       ${MKF[r.no] && MKF[r.no].mode === 'edit' ? mkForm(r.no) : ''}
       ${st.state === 'error' ? `<span class="nmeta">${esc(st.msg || '')}</span>` : ''}

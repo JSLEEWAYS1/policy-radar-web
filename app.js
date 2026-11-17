@@ -142,7 +142,8 @@ async function proposalStore() {
     // 제안사명 고치기(11/17): 요청됨·만드는 중에도 req.firm만 바꿀 수 있다(서버가 그 칸만 합친다)
     firm: async (no, firm) => { const d = chk(await T().update({req: {firm}}).eq('no', no).in('state', ['queued', 'working']).select('no, req'));
       const got = Array.isArray(d) && d[0] && d[0].req && d[0].req.firm;
-      if (!got || JSON.stringify(got) !== JSON.stringify(firm)) { const e = new Error('제안사명 서버 설정 전'); e.code = 'setup'; throw e; } },
+      // 서버(jsonb)는 칸 순서를 바꿔 돌려주므로 칸별로 비교한다(11/17)
+      if (!got || got.lead !== firm.lead || JSON.stringify(got.cons || []) !== JSON.stringify(firm.cons || []) || !!got.light !== !!firm.light) { const e = new Error('제안사명 서버 설정 전'); e.code = 'setup'; throw e; } },
     // 초안 내려받기: 비공개 파일함 proposal-out의 5분짜리 서명 주소(파일 이름은 한글 원래 이름으로 저장되게)
     url: async (path, name) => chk(await sb.storage.from('proposal-out').createSignedUrl(path, 300, {download: name || true})).signedUrl
   };

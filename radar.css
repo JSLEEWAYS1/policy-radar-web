@@ -462,6 +462,8 @@ b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(
 .mkform{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:8px 0 2px;padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--surface)}
 .mkform label{display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:600;min-width:0;flex:1 1 220px}
 .mkform input{flex:1;min-width:0;padding:6px 9px;border:1px solid var(--line2);border-radius:6px;font:inherit;font-weight:400;background:var(--paper);color:var(--ink)}
+.mkform label.mkchk{flex:1 1 100%;font-weight:600}
+.mkform .mkchk input{flex:0 0 auto;width:auto;margin:0;padding:0;accent-color:var(--accent,#2563eb)}
 .mkform .mkfact{display:flex;gap:6px;flex-wrap:wrap}
 .mkform .nmeta{flex-basis:100%}
 .mkdl{margin-top:2px}
