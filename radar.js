@@ -249,7 +249,7 @@ function firmLine(no){
 function mkForm(no){
   const f = MKF[no]; if(!f) return '';
   return `<div class="mkform" data-mkform="${esc(no)}">
-    <label>주관사 :<input type="text" data-mkf="lead" maxlength="40" value="${esc(f.lead)}" placeholder="웨이즈원" autocomplete="organization"></label>
+    <label>주관사 :<input type="text" data-mkf="lead" maxlength="40" value="${esc(f.lead)}" placeholder="비우면 웨이즈원" autocomplete="organization"></label>
     <label>컨소사 :<input type="text" data-mkf="cons" maxlength="200" value="${esc(f.cons)}" placeholder="없으면 비움 · 여러 곳은 쉼표로"></label>
     <label class="mkchk"><input type="checkbox" data-mkf="light"${f.light ? ' checked' : ''}> 경량화 제안서 <span class="nmeta">— 사용량 절반 · 목차·내용 구성은 충분히, 전략·구조화 디테일은 가볍게(주관사와 상관없이 고를 때만)</span></label>
     <span class="mkfact"><button type="button" class="btn mk" data-mkgo="${esc(no)}">${f.mode === 'new' ? (f.light ? '경량화로 만들기 요청' : '이 제안사로 만들기 요청') : '제안사명 저장'}</button><button type="button" class="btn" data-mkclose="${esc(no)}">닫기</button></span>
@@ -417,7 +417,7 @@ document.addEventListener('click', async e => {
   const ed = e.target.closest('[data-mkfirm]');
   if(ed){ e.preventDefault(); const no = ed.dataset.mkfirm, st = PREQ[no] && !preqCancel(PREQ[no]) ? PREQ[no] : null, srv = !!st && preqBusy(st) && !!preqFirm;
     const f = (srv ? firmOf(st) : (firmDraft(no) || firmOf(st))) || {lead: '', cons: [], light: false};
-    MKF[no] = {mode: srv ? 'edit' : 'draft', lead: f.lead || '웨이즈원', cons: f.cons.join(', '), light: !!f.light};
+    MKF[no] = {mode: srv ? 'edit' : 'draft', lead: f.lead || '', cons: f.cons.join(', '), light: !!f.light};
     const line = ed.closest('.mkfirm'), nx = line && line.nextElementSibling;
     if(line && !(nx && nx.matches(`[data-mkform="${CSS.escape(no)}"]`))) line.insertAdjacentHTML('afterend', mkForm(no)); return; }
   const cl = e.target.closest('[data-mkclose]');
@@ -436,8 +436,9 @@ document.addEventListener('click', async e => {
     } catch(err){ go.disabled = false; go.textContent = /setup|PGRST204|42703/i.test(String(err && (err.code || err.message))) ? '서버 설정 전이라 저장 못 함 — 관리자에게 알려 주세요' : t0 + ' — 실패, 다시 누르기'; }
     return; }
   const b = e.target.closest('[data-mkprop]'); if(!b || !preqSet) return; e.preventDefault();
-  { const no = b.dataset.mkprop; if(MKF[no] || !mkRec(no)) return; const D0 = firmDraft(no), L = D0 || firmOf(PREQ[no]) || firmLast();
-    MKF[no] = {mode: 'new', lead: L.lead || '웨이즈원', cons: (Array.isArray(L.cons) ? L.cons : []).join(', '), light: b.dataset.mklight === '1' || !!(D0 && D0.light)};
+  { const no = b.dataset.mkprop; if(MKF[no] || !mkRec(no)) return; // 11/17 22:38 사업기획팀장 «경량화로 만들기에서 (주)유원지리정보시스템이 자동으로 있는 것은 안 좋음 — 빈칸 처리»: 다른 사업에 쓴 이름(firmLast)은 끌어오지 않는다
+    const D0 = firmDraft(no), L = D0 || firmOf(PREQ[no]) || {lead: '', cons: []};
+    MKF[no] = {mode: 'new', lead: L.lead || '', cons: (Array.isArray(L.cons) ? L.cons : []).join(', '), light: b.dataset.mklight === '1' || !!(D0 && D0.light)};
     document.querySelectorAll(`[data-mkprop="${CSS.escape(no)}"]`).forEach(x => { x.disabled = true; }); const row = b.closest('.mkrow'); if(row) row.insertAdjacentHTML('afterend', mkForm(no));
     const inp = document.querySelector(`[data-mkform="${CSS.escape(no)}"] input`); if(inp) inp.focus(); return; }
 });
