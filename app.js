@@ -124,15 +124,25 @@ async function proposalStore() {
   return {
     ok: true, canWrite: me?.status === 'approved',
     list: async () => {
-      let r = await T().select('no, state, at, req, result, dl').order('at', {ascending: false}).limit(300);
+      let r = await T().select('no, state, at, req, result, dl, cancel_at').order('at', {ascending: false}).limit(300);   // cancel_at: 만들기 취소(proposal_cancel.sql, 11/17)
+      if (r.error) r = await T().select('no, state, at, req, result, dl').order('at', {ascending: false}).limit(300);  // proposal_cancel.sql 실행 전
       if (r.error) r = await T().select('no, state, at, result').order('at', {ascending: false}).limit(300);  // dl 칸 추가 전(proposal_fast.sql 실행 전)
       // req(사업명·발주처·마감 — 요청할 때 남긴 값)는 레이더 목록에서 빠진 사업도 「제안서 작성 사업」 칸에 이름이 보이게 함께 읽는다
       const REQ = ['title', 'org', 'opp', 'stage', 'budget', 'deadline'];
       return (chk(r) || []).map(x => { const q = x.req && typeof x.req === 'object' ? x.req : {}; const base = {};
         REQ.forEach(k => { if (typeof q[k] === 'string') base[k] = q[k]; });
-        return Object.assign(base, x.result || {}, {no: x.no, state: x.state, at: kst(x.at), dl: Array.isArray(x.dl) ? x.dl : null}); });
+        if (q.firm && typeof q.firm === 'object') base.firm = q.firm;   // 제안사명(주관사·컨소사, 11/17)
+        return Object.assign(base, x.result || {}, {no: x.no, state: x.state, at: kst(x.at), dl: Array.isArray(x.dl) ? x.dl : null,
+          cancel: x.cancel_at ? kst(x.cancel_at).slice(5).replace('-', '/') : null}); });
     },
     request: async (no, req) => chk(await T().upsert({no, req, state: 'queued'}, {onConflict: 'no'})),
+    // 만들기 취소(11/17): 요청됨·만드는 중인 요청에 취소 시각만 남긴다 — 서버(proposal_req_guard)가 그 칸만 받고, 레이더 쪽이 다음 단계에서 멈춘다
+    cancel: async no => { const d = chk(await T().update({cancel_at: new Date().toISOString()}).eq('no', no).in('state', ['queued', 'working']).select('no, cancel_at'));
+      if (!Array.isArray(d) || !d.length || !d[0].cancel_at) { const e = new Error('취소 기능 서버 설정 전'); e.code = 'setup'; throw e; } },
+    // 제안사명 고치기(11/17): 요청됨·만드는 중에도 req.firm만 바꿀 수 있다(서버가 그 칸만 합친다)
+    firm: async (no, firm) => { const d = chk(await T().update({req: {firm}}).eq('no', no).in('state', ['queued', 'working']).select('no, req'));
+      const got = Array.isArray(d) && d[0] && d[0].req && d[0].req.firm;
+      if (!got || JSON.stringify(got) !== JSON.stringify(firm)) { const e = new Error('제안사명 서버 설정 전'); e.code = 'setup'; throw e; } },
     // 초안 내려받기: 비공개 파일함 proposal-out의 5분짜리 서명 주소(파일 이름은 한글 원래 이름으로 저장되게)
     url: async (path, name) => chk(await sb.storage.from('proposal-out').createSignedUrl(path, 300, {download: name || true})).signedUrl
   };

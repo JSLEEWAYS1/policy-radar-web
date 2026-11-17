@@ -456,6 +456,14 @@ b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(
 .mkst{font-size:.82rem;color:var(--ink2)}
 .mkst.done{color:var(--ok);font-weight:600}
 .mkst.err{color:var(--mark-ink)}
+/* 제안사명(주관사·컨소사) 칸과 만들기 취소(11/17) */
+.btn.mkx{color:var(--mark-ink);border-color:var(--line2)}
+.btn.mkx[data-armed]{background:var(--mark-ink);color:var(--surface);border-color:var(--mark-ink)}
+.mkform{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:8px 0 2px;padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--surface)}
+.mkform label{display:flex;align-items:center;gap:6px;font-size:.86rem;font-weight:600;min-width:0;flex:1 1 220px}
+.mkform input{flex:1;min-width:0;padding:6px 9px;border:1px solid var(--line2);border-radius:6px;font:inherit;font-weight:400;background:var(--paper);color:var(--ink)}
+.mkform .mkfact{display:flex;gap:6px;flex-wrap:wrap}
+.mkform .nmeta{flex-basis:100%}
 .mkdl{margin-top:2px}
 .mkdl .dbtn{cursor:pointer;font:inherit;font-size:.84rem}
 /* 제안서 작성 사업(2026-11-11): 「제안서·발표자료 만들기」를 누른 사업을 나라장터 탭 맨 위에 따로 모은다 */
