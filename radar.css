@@ -1436,9 +1436,9 @@ details.tdtable tr.fcr td{color:var(--ink2)}
 .tdrep td.yr{text-align:left;white-space:normal;max-width:220px}
 .mkbar{display:inline-block;vertical-align:middle;width:120px;height:6px;margin:0 8px;border-radius:3px;background:color-mix(in srgb,var(--ink) 12%,transparent);overflow:hidden}.mkbar>i{display:block;height:100%;background:var(--ok,#1a7f45);border-radius:3px}
 /* 사업 기회 목록 접기(사업기획팀장 11/16 «제목과 주요사항만, 누르면 자세히»): 단계·마감·제목·기관·예산만 보이고, 누르면 지금처럼 모두 펼친다 */
-:is(#prepanel,#mypanel,#expanel) .prl>li:not(.open)>.bd>:nth-child(n+3):not(:has(.mkst)){display:none}
+:is(#prepanel,#mypanel,#expanel) .prl>li:not(.open)>.bd>:nth-child(n+3):not(:has(.mkst)):not(.mkrow+.mkfirm){display:none}   /* 접힌 줄에도 「만들기」 줄 바로 아래 제안사명 줄은 보인다(11/17) */
 #rndlist article.prg:not(.open) :is(.use,.pchips,dl){display:none}
 :is(#prepanel,#mypanel,#expanel) .prl>li:not(.open),#rndlist article.prg:not(.open){cursor:pointer}
 :is(#prepanel,#mypanel,#expanel) .prl>li:not(.open):hover,#rndlist article.prg:not(.open):hover{background:color-mix(in srgb,var(--ink) 4%,transparent);border-radius:10px}
-:is(#prepanel,#mypanel,#expanel) .prl>li>.bd>.nmeta::after,#rndlist article.prg .org::after{content:'  ▾ 자세히';white-space:pre;color:var(--accent,var(--ink2));font-weight:600;font-size:.78rem;cursor:pointer}
-:is(#prepanel,#mypanel,#expanel) .prl>li.open>.bd>.nmeta::after,#rndlist article.prg.open .org::after{content:'  ▴ 접기'}
+:is(#prepanel,#mypanel,#expanel) .prl>li>.bd>.nmeta:not(.mkfirm)::after,#rndlist article.prg .org::after{content:'  ▾ 자세히';white-space:pre;color:var(--accent,var(--ink2));font-weight:600;font-size:.78rem;cursor:pointer}
+:is(#prepanel,#mypanel,#expanel) .prl>li.open>.bd>.nmeta:not(.mkfirm)::after,#rndlist article.prg.open .org::after{content:'  ▴ 접기'}
