@@ -1670,12 +1670,15 @@ function matches(p){
 }
 function renderCatalog(){
   let list = P.filter(matches);
-  if(F.sort==='date') list.sort((a,b)=>recentDate(b).localeCompare(recentDate(a)));
+  // 최신 발표순은 카드에 보이는 발표일(announced)로, 최근 갱신순은 갱신일(없으면 발표일)로 정렬한다(11/23: 갱신일로 정렬해 순서가 어긋나 보였음).
+  const annD = p => String(p.announced || '');
+  if(F.sort==='date') list.sort((a,b)=>annD(b).localeCompare(annD(a)) || recentDate(b).localeCompare(recentDate(a)));
+  else if(F.sort==='upd') list.sort((a,b)=>recentDate(b).localeCompare(recentDate(a)) || annD(b).localeCompare(annD(a)));
   else if(F.sort==='tier') list.sort((a,b)=>a.tier-b.tier || String(b.announced||'').localeCompare(String(a.announced||'')));
   else list.sort((a,b)=>(a.short||a.name).localeCompare(b.short||b.name,'ko'));
   $('#ccount').innerHTML = `${list.length}건 / 전체 ${P.length}건` + catCond();
   $('#plist').innerHTML = list.length ? list.map(p=>`<details class="pol" id="p-${esc(p.id)}" style="--c:${gcol(p)}">
-    <summary><div class="top">${newTag(p)}${grpTag(p)}${lvTag(p)}<span class="tag">${esc(p.ministry)}</span>${fitTag(p.w1?.fit)}<span class="when">${esc(p.announced||'')}${p.period?' · 계획기간 '+esc(p.period):''}</span></div>
+    <summary><div class="top">${newTag(p)}${grpTag(p)}${lvTag(p)}<span class="tag">${esc(p.ministry)}</span>${fitTag(p.w1?.fit)}<span class="when">${esc(p.announced||'')}${p.period?' · 계획기간 '+esc(p.period):''}${(p.update?.date && p.update.date!==p.announced)?' · 갱신 '+esc(p.update.date):''}</span></div>
     <div class="nm">${esc(p.name)}</div><div class="vs">${hl(p.vision)}</div><span class="more">펼쳐서 세부 내용 보기</span></summary>
     <div class="body">${lzBody(() => docBody(p))}</div></details>`).join('') : catEmpty();
 }
