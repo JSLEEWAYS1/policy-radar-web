@@ -325,7 +325,7 @@ function preqStTxt(no){
   return !st ? '' : st.state === 'queued' ? `<span class="mkst">요청됨 ${esc(String(st.at||'').slice(5).replace('-', '/'))}${etaT} — ${PREQ_SRC === 'web' ? 'PC 제작 작업이 시작하면 정확한 완료 시각으로 바뀌고, 끝나면 여기서 내려받습니다' : '평일 9~18시 매시 7분 PC 작업이 차례로 만듭니다'}</span>` :
     st.state === 'working' ? (pc => `<span class="mkst">제작 <b>${pc}%</b><span class="mkbar" aria-hidden="true"><i style="width:${pc}%"></i></span>${etaT}</span>`)(mkPct(st) ?? 10) :
     st.state === 'done' ? `<span class="mkst done">완료 ${esc(st.doneAt||'')}${st.ver ? ` · <b>최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}</b>` : ''} — ${esc(st.outDir||'')}${st.pages ? ` (제안서 ${esc(st.pages.proposal||'?')}쪽 · 발표 ${esc(st.pages.deck||'?')}쪽${st.flags != null ? ` · 채울 곳 ${esc(st.flags)}` : ''})` : ''}</span>` :
-    st.state === 'error' ? `<span class="mkst err">${mkFail(st) ? '중간본(검수 미통과)' : '실패'} — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
+    st.state === 'error' ? `<span class="mkst err">${mkFail(st) ? '고도화 중' : '실패'} — ${esc(st.msg||'')}${st.ver && Array.isArray(st.dl) && st.dl.length ? ` · 받을 수 있는 최신본 ${esc(String(st.ver).slice(5).replace('-', '/'))}` : ''}</span>` : '';
 }
 /* 사업 기회 목록 접기·펼치기(11/16): 접힌 줄은 어디를 눌러도 펼치고(제목 링크도 처음엔 펼치기), 펼친 줄은 왼쪽 단계 칸이나 «접기»를 누르면 접는다. 다시 그려도 펼친 줄은 그대로 */
 const CZ_SEL = '#prepanel .prl>li, #mypanel .prl>li, #expanel .prl>li, #rndlist article.prg';
@@ -1112,7 +1112,7 @@ const mkPct = st => { if(!st) return null; if(st.state === 'done' && !mkFail(st)
   const p = Number(st.progress); if(isFinite(p) && st.progress !== '' && st.progress != null) return Math.max(0, Math.min(100, Math.round(p)));
   const n = String(st.note || ''); if(/고도화|검수/.test(n)) return 85; if(/조립/.test(n)) return 70; if(/집필/.test(n)) return 50; return st.state === 'working' ? 10 : null; };
 const mkFail = st => !!st && /미통과/.test(String(st.note || '') + String(st.msg || ''));   // 요청이 없는 사업(st 없음)은 거짓
-// 미통과 중간본(회차 상한·정체로 멈춘 최선본)의 기준점 대비 % — note «제안서 72.8점·발표 76.2점(기준점 90)»에서 읽고, 낮은 쪽으로 센다(사업기획팀장 11/24 «왜 세종엔 퍼센테이지가 안나와?»). 통과 전이므로 100%는 쓰지 않는다
+// 미통과 중간본도 다른 사업과 같은 «제작 NN%»로 보인다(사업기획팀장 11/24 «왜 세종엔 퍼센테이지가 안나와?» → «원래 이렇게 표기 안 했잖아»). NN은 기준점(합격 = 100%) 대비 점수, note «제안서 72.8점·발표 76.2점(기준점 90)»에서 낮은 쪽으로 센다. 통과 전이므로 100%는 쓰지 않는다
 const mkScore = st => { const n = String((st && (st.note || st.msg)) || ''); const num = re => { const m = n.match(re); return m ? parseFloat(m[1]) : NaN; };
   const bar = num(/기준점\s*(\d+(?:\.\d+)?)/) || (st.firm && st.firm.light ? 80 : 90), p = num(/제안서\s*\**(\d+(?:\.\d+)?)\**\s*점/), d = num(/발표(?:자료)?\s*\**(\d+(?:\.\d+)?)\**\s*점/);
   const v = [p, d].filter(x => x > 0); if(!(bar > 0) || !v.length) return null;
@@ -1120,10 +1120,10 @@ const mkScore = st => { const n = String((st && (st.note || st.msg)) || ''); con
 function mkTag(no){
   const st = PREQ[no]; if(!st || !MK_LBL[st.state]) return '';
   const cls = st.state === 'done' ? (mkFail(st) ? '' : ' done') : st.state === 'error' ? ' err' : '';
-  const pc = st.state === 'working' ? mkPct(st) : null;
   const mid = mkFail(st) && (st.state === 'done' || st.state === 'error'), sc = mid ? mkScore(st) : null;
-  const tip = sc ? ` title="${esc(`검수 미통과 중간본 — 회차 상한·정체로 멈춘 최선본. 기준점 ${sc.bar}점 대비 ${[sc.p != null ? `제안서 ${sc.p}점(${Math.round(sc.p / sc.bar * 100)}%)` : '', sc.d != null ? `발표 ${sc.d}점(${Math.round(sc.d / sc.bar * 100)}%)` : ''].filter(Boolean).join(' · ')}`)}"` : '';
-  return `<span class="tag mk${cls}"${tip}>제안서 ${pc != null ? `제작 ${pc}%` : sc ? `중간본 · 기준 대비 ${sc.pct}%` : mid ? (isFinite(Number(st.progress)) && st.progress != null && st.progress !== '' ? `중간본 · 제작 ${Math.min(99, Math.round(Number(st.progress)))}%` : '중간본(검수 미통과)') : MK_LBL[st.state]}</span>`;
+  const pc = st.state === 'working' ? mkPct(st) : mid ? (sc ? sc.pct : (isFinite(Number(st.progress)) && st.progress != null && st.progress !== '' ? Math.min(99, Math.round(Number(st.progress))) : null)) : null;
+  const tip = sc ? ` title="${esc(`검수 미통과 — 기준점 ${sc.bar}점 대비 ${[sc.p != null ? `제안서 ${sc.p}점` : '', sc.d != null ? `발표 ${sc.d}점` : ''].filter(Boolean).join('·')}`)}"` : '';
+  return `<span class="tag mk${cls}"${tip}>제안서 ${pc != null ? `제작 ${pc}%` : mid ? '고도화 중(검수 미통과)' : MK_LBL[st.state]}</span>`;
 }
 function mineFind(no){
   let x = null, o = null, nx = null, no2 = null;
