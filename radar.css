@@ -470,6 +470,7 @@ b.clv.l3{background:color-mix(in srgb,var(--mark) 16%,var(--surface));color:var(
 .mkform .nmeta{flex-basis:100%}
 .mkdl{margin-top:2px}
 .mkdl .dbtn{cursor:pointer;font:inherit;font-size:.84rem}
+.mkdl .mkwhy{display:block;flex-basis:100%;margin:0 0 4px;padding:6px 10px;border-left:3px solid var(--warn);background:var(--tint);color:var(--ink2);font-size:.84rem;line-height:1.5}
 /* 제안서 작성 사업(2026-11-11): 「제안서·발표자료 만들기」를 누른 사업을 나라장터 탭 맨 위에 따로 모은다 */
 .mypanel{display:grid;gap:14px;border-color:color-mix(in srgb,var(--mark) 35%,var(--line))}
 .mypanel .mysum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.86rem;color:var(--ink2)}

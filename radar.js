@@ -344,14 +344,19 @@ document.addEventListener('click', e => {
 });
 new MutationObserver(() => { if(CZ_OPEN.size) document.querySelectorAll(CZ_SEL).forEach(it => { if(!it.classList.contains('open') && CZ_OPEN.has(czKey(it))) it.classList.add('open'); }); })
   .observe(document.body, {childList: true, subtree: true});
-const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표'};
+const DLN = {proposal: '정성제안서', deck: '발표자료', summary: '제안요약서', review: '검토표', request: '주관사 요청 자료'};
 const DLV = n => /미표기/.test(n) ? '기업명 미표기' : /표기본/.test(n) ? '기업명 표기' : '';   // 블라인드 사업은 같은 종류가 두 판
 function preqDls(no){
   const st = PREQ[no]; const busy = st && (st.state === 'queued' || st.state === 'working');
   if(!preqUrl || !st || busy) return '';
   // 품질검수 미통과·중간본은 홈페이지에 올리지 않는다(사업기획팀장 11/16 — 세종 자율주행 최종본 수준부터). 판은 PC 결과 폴더에 있다
-  if(/미통과|중간본/.test(String(st.note || '') + String(st.msg || ''))) return `<div class="docs mkdl"><span class="nmeta">품질검수 통과 전이라 홈페이지에 올리지 않습니다 — 최종 초안 수준에 이르면 받기 단추가 생깁니다${st.outDir ? ' · 지금 판은 PC 결과 폴더에 있습니다' : ''}</span></div>`;
-  return Array.isArray(st.dl) && st.dl.length ? `<div class="docs mkdl">${st.dl.filter(f => f && f.path).map(f => { const v = DLV(String(f.name || '')); return `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}" title="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')}${v ? ` · ${v}` : ''} 받기</button>`; }).join('')}</div>` : '';
+  // 예외(사업기획팀장 11/25 18:05 세종 «이렇게 마무리 … 홈페이지에서 PPT로 다운받을 수 있게, 그 사유 문구를 달고»): note에 «홈페이지 공개(사업기획팀장 …)»가 있으면 받기 단추와 함께 미달 사유를 보인다
+  const nt = String(st.note || '') + String(st.msg || ''), pub = /홈페이지 공개\(사업기획팀장/.test(nt);
+  if(/미통과|중간본/.test(nt) && !pub) return `<div class="docs mkdl"><span class="nmeta">품질검수 통과 전이라 홈페이지에 올리지 않습니다 — 최종 초안 수준에 이르면 받기 단추가 생깁니다${st.outDir ? ' · 지금 판은 PC 결과 폴더에 있습니다' : ''}</span></div>`;
+  const sc = pub ? mkScore(st) : null, why = pub ? ((nt.match(/미달 사유:\s*(.+)$/) || [])[1] || '').trim() : '';
+  const head = pub ? `<span class="nmeta mkwhy">기준점 ${sc ? sc.bar : 90}점 미달 중간본${sc ? `(${[sc.p != null ? `제안서 ${sc.p}점` : '', sc.d != null ? `발표 ${sc.d}점` : ''].filter(Boolean).join('·')})` : ''} — 미달 사유: ${esc(why || '주관사 제공 자료 부재')}</span>` : '';
+  const btns = Array.isArray(st.dl) && st.dl.length ? st.dl.filter(f => f && f.path).map(f => { const v = DLV(String(f.name || '')); return `<button type="button" class="dbtn" data-dlp="${esc(f.path)}" data-dln="${esc(f.name || '')}" title="${esc(f.name || '')}">${esc(DLN[f.kind] || f.name || '파일')}${v ? ` · ${v}` : ''} 받기</button>`; }).join('') : '';
+  return btns || head ? `<div class="docs mkdl">${head}${btns}</div>` : '';
 }
 (async () => {
   const RT = null; // 홈페이지: 키워드 분석·저장소 사본 전용
